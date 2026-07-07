@@ -85,7 +85,7 @@ const Sidebar = () => {
       <div className="h-16 flex items-center px-6 border-b border-base-300">
         <Link href="/dashboard" className="flex items-center gap-2">
           <Image src="/icon.png" alt="Vintflow Logo" width={32} height={32} className="w-8 h-8 rounded-lg" />
-          <span className="font-bold text-xl">Vintflow</span>
+          <span className="font-bold text-xl">Reventa Libertad</span>
         </Link>
       </div>
 
@@ -116,7 +116,7 @@ const Sidebar = () => {
         <Link
           href="/settings"
           onClick={closeMobileMenu}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${pathname === "/settings"
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors duration-200 ${pathname.startsWith("/settings")
             ? "bg-base-300 font-semibold text-base-content"
             : "text-base-content/70 hover:bg-base-200 hover:text-base-content"
             }`}
