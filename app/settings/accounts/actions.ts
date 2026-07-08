@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 
 export async function startAccountSearch(_platform: string) {
   revalidatePath("/settings/accounts");
@@ -13,15 +14,10 @@ export async function syncAccount(_accountId: string) {
 }
 
 export async function deleteAccount(accountId: string) {
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) return;
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return;
 
-  const supabase = createAdminClient();
-  await supabase
-    .from("accounts")
-    .delete()
-    .eq("id", accountId)
-    .eq("profile_id", profileId);
-
+  await connectMongo();
+  await Account.deleteOne({ _id: accountId, userId });
   revalidatePath("/settings/accounts");
 }

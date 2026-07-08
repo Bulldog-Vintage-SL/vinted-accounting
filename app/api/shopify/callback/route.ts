@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { createAdminClient } from "@/libs/supabase/admin";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import ShopifyOAuthState from "@/models/ShopifyOAuthState";
 
 export const dynamic = "force-dynamic";
 
@@ -54,24 +56,17 @@ export async function GET(req: NextRequest) {
     return redirectWithError("invalid_hmac");
   }
 
-  const supabase = createAdminClient();
-
-  const { data: stateRow } = await supabase
-    .from("shopify_oauth_states")
-    .select("*")
-    .eq("state", state)
-    .eq("shop", shop)
-    .single();
+  await connectMongo();
+  const stateRow = await ShopifyOAuthState.findOne({ state, shop });
 
   if (!stateRow) {
     return redirectWithError("invalid_state");
   }
 
   const isExpired =
-    new Date().getTime() - new Date(stateRow.created_at).getTime() >
-    10 * 60 * 1000;
+    Date.now() - new Date(stateRow.createdAt!).getTime() > 10 * 60 * 1000;
   if (isExpired) {
-    await supabase.from("shopify_oauth_states").delete().eq("state", state);
+    await ShopifyOAuthState.deleteOne({ state });
     return redirectWithError("expired_state");
   }
 
@@ -91,25 +86,23 @@ export async function GET(req: NextRequest) {
 
   const { access_token, scope } = await tokenRes.json();
 
-  const { error: upsertError } = await supabase.from("accounts").upsert(
+  await Account.findOneAndUpdate(
+    { shopifyShopDomain: shop },
     {
-      profile_id: stateRow.profile_id,
+      userId: stateRow.userId,
       platform: "shopify",
-      shopify_shop_domain: shop,
-      shopify_access_token: access_token,
-      shopify_scopes: scope,
-      account_name: shop,
-      sync_status: "connected",
-      last_sync: new Date().toISOString(),
+      externalId: shop,
+      shopifyShopDomain: shop,
+      shopifyAccessToken: access_token,
+      shopifyScopes: scope,
+      accountName: shop,
+      syncStatus: "connected",
+      lastSync: new Date(),
     },
-    { onConflict: "shopify_shop_domain" }
+    { upsert: true, new: true }
   );
 
-  if (upsertError) {
-    return redirectWithError("save_failed");
-  }
-
-  await supabase.from("shopify_oauth_states").delete().eq("state", state);
+  await ShopifyOAuthState.deleteOne({ state });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
   const successUrl = new URL(ACCOUNTS_PAGE, appUrl);

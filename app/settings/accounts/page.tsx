@@ -1,33 +1,34 @@
 export const dynamic = "force-dynamic";
 
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
 import PlatformCard from "./components/PlatformCard";
 import AddAccountButton from "./components/AddAccountButton";
 import { ShopifyConnectionListener } from "@/components/ShopifyConnectionListener";
-import type { Account } from "./types";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import type { Account as LinkedAccount } from "./types";
 
 export default async function AccountsPage() {
-  const profileId = await getAuthenticatedProfileId();
-  const supabase = createAdminClient();
+  const userId = await getAuthenticatedUserId();
+  let accounts: LinkedAccount[] = [];
 
-  let accounts: Account[] = [];
-
-  if (profileId) {
-    const { data, error } = await supabase
-      .from("accounts")
-      .select("*")
-      .eq("profile_id", profileId)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching accounts:", error);
-    } else {
-      accounts = (data as Account[]) ?? [];
-    }
+  if (userId) {
+    await connectMongo();
+    const data = await Account.find({ userId }).sort({ createdAt: -1 });
+    accounts = data.map((doc) => ({
+      id: doc._id.toString(),
+      platform: doc.platform,
+      profile_link: doc.profileLink ?? null,
+      external_id: doc.externalId,
+      account_name: doc.accountName ?? null,
+      sync_status: doc.syncStatus,
+      created_at: doc.createdAt?.toISOString() ?? new Date().toISOString(),
+      vestiaire_id: doc.vestiaireId ?? null,
+      shopify_shop_domain: doc.shopifyShopDomain ?? null,
+    }));
   }
 
-  const grouped = accounts.reduce<Record<string, Account[]>>((acc, account) => {
+  const grouped = accounts.reduce<Record<string, LinkedAccount[]>>((acc, account) => {
     const key = account.platform || "unknown";
     if (!acc[key]) acc[key] = [];
     acc[key].push(account);

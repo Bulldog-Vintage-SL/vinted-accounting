@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/libs/next-auth";
 import config from "@/config";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
+import InventorySubnav from "@/components/InventorySubnav";
 
-// All logged-in users can access inventory. hasAccess only restricts sync feature.
 export default async function InventoryLayout({
   children,
 }: {
@@ -16,6 +16,10 @@ export default async function InventoryLayout({
     redirect(config.auth.loginUrl);
   }
 
-  return <AuthenticatedLayout>{children}</AuthenticatedLayout>;
+  return (
+    <AuthenticatedLayout>
+      <InventorySubnav />
+      {children}
+    </AuthenticatedLayout>
+  );
 }
-

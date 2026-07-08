@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import ShopifyOAuthState from "@/models/ShopifyOAuthState";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
 
@@ -11,19 +14,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "shop inválido" }, { status: 400 });
   }
 
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
-  const { data: existing } = await supabase
-    .from("accounts")
-    .select("id, profile_id")
-    .eq("shopify_shop_domain", shop)
-    .maybeSingle();
+  await connectMongo();
+  const existing = await Account.findOne({ shopifyShopDomain: shop });
 
-  if (existing && existing.profile_id !== profileId) {
+  if (existing && existing.userId.toString() !== userId) {
     return NextResponse.json(
       { error: "esta tienda ya está conectada a otra cuenta" },
       { status: 409 }
@@ -31,10 +30,9 @@ export async function GET(req: NextRequest) {
   }
 
   const state = randomBytes(16).toString("hex");
-
-  await supabase.from("shopify_oauth_states").insert({
+  await ShopifyOAuthState.create({
     state,
-    profile_id: profileId,
+    userId: new mongoose.Types.ObjectId(userId),
     shop,
   });
 

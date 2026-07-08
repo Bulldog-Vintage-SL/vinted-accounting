@@ -1,5 +1,6 @@
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 
 export const dynamic = "force-dynamic";
 
@@ -8,23 +9,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const profileId = await getAuthenticatedProfileId();
+  const userId = await getAuthenticatedUserId();
 
-  if (!profileId) {
+  if (!userId) {
     return Response.json({ error: "No user" }, { status: 401 });
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("accounts")
-    .select("*")
-    .eq("id", id)
-    .eq("profile_id", profileId)
-    .single();
+  await connectMongo();
+  const account = await Account.findOne({ _id: id, userId });
 
-  if (error) {
-    return Response.json({ error }, { status: 400 });
+  if (!account) {
+    return Response.json({ error: "Account not found" }, { status: 404 });
   }
 
-  return Response.json(data);
+  return Response.json(account);
 }

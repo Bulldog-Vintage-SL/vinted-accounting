@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 
 export const dynamic = "force-dynamic";
 
@@ -15,31 +16,28 @@ export async function POST(req: Request) {
     );
   }
 
-  const profileId = await getAuthenticatedProfileId();
-  if (!profileId) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
     return NextResponse.json(
       { status: "error", message: "Error autenticando al usuario" },
       { status: 401 }
     );
   }
 
-  const supabase = createAdminClient();
-  const { error } = await supabase
-    .from("accounts")
-    .update({
-      sync_status: syncStatus,
-      last_sync: new Date().toISOString(),
-    })
-    .eq("external_id", String(externalId))
-    .eq("platform", platform)
-    .eq("profile_id", profileId)
-    .select()
-    .single();
+  await connectMongo();
+  const account = await Account.findOneAndUpdate(
+    { externalId: String(externalId), platform, userId },
+    {
+      syncStatus,
+      lastSync: new Date(),
+    },
+    { new: true }
+  );
 
-  if (error) {
+  if (!account) {
     return NextResponse.json(
-      { status: "error", message: "Base de datos: " + error.message },
-      { status: 400 }
+      { status: "error", message: "Cuenta no encontrada" },
+      { status: 404 }
     );
   }
 

@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/libs/supabase/admin";
-import { getAuthenticatedProfileId } from "@/libs/accounts/get-profile-id";
+import connectMongo from "@/libs/mongoose";
+import Account from "@/models/Account";
+import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    const profileId = await getAuthenticatedProfileId();
-
-    if (!profileId) {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
     const platform = searchParams.get("platform");
-
     if (!platform) {
       return NextResponse.json(
         { error: "Falta el parámetro 'platform'" },
@@ -22,17 +21,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const supabase = createAdminClient();
-    const { data, error } = await supabase
-      .from("accounts")
-      .select("*")
-      .eq("profile_id", profileId)
-      .eq("platform", platform)
-      .order("last_sync", { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    await connectMongo();
+    const data = await Account.find({ userId, platform }).sort({ lastSync: -1 });
 
     return NextResponse.json(data);
   } catch (err) {

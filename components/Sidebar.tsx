@@ -15,6 +15,7 @@ import {
   ChevronDown,
   Menu,
   X,
+  ShoppingCart,
 } from "lucide-react";
 import { Popover, Transition } from "@headlessui/react";
 
@@ -29,6 +30,7 @@ const navItems: NavItem[] = [
   { name: "Ventas", href: "/sales", icon: TrendingUp },
   { name: "Gastos", href: "/expenses", icon: DollarSign },
   { name: "Inventario", href: "/inventory", icon: Package },
+  { name: "Compras", href: "/purchases", icon: ShoppingCart },
 ];
 
 const Sidebar = () => {
@@ -210,4 +212,3 @@ const Sidebar = () => {
 };
 
 export default Sidebar;
-

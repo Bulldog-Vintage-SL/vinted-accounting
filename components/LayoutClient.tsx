@@ -10,6 +10,10 @@ import { Toaster } from "react-hot-toast";
 import { Tooltip } from "react-tooltip";
 import config from "@/config";
 import SessionRefreshHandler from "@/components/SessionRefreshHandler";
+import { ToastProvider } from "@/components/toast/ToastContext";
+import { QueueToastProvider } from "@/components/QueueToastProvider";
+import { ExtensionToastBridge } from "@/components/toast/ExtensionToastBridge";
+import AccountSelectorModal from "@/components/AccountSelectorModal";
 
 // Crisp customer chat support:
 // This component is separated from ClientLayout because it needs to be wrapped with <SessionProvider> to use useSession() hook
@@ -56,11 +60,16 @@ const ClientLayout = ({ children }: { children: ReactNode }) => {
   return (
     <>
       <SessionProvider>
-        {/* Show a progress bar at the top when navigating between pages */}
-        <NextTopLoader color={config.colors.main} showSpinner={false} />
+        <ToastProvider>
+          <QueueToastProvider>
+            {/* Show a progress bar at the top when navigating between pages */}
+            <NextTopLoader color={config.colors.main} showSpinner={false} />
 
-        {/* Content inside app/page.js files  */}
-        {children}
+            {/* Content inside app/page.js files  */}
+            {children}
+
+            <AccountSelectorModal />
+            <ExtensionToastBridge />
 
         {/* Show Success/Error messages anywhere from the app with toast() */}
         <Toaster
@@ -78,8 +87,10 @@ const ClientLayout = ({ children }: { children: ReactNode }) => {
         {/* Set Crisp customer chat support */}
         <CrispChat />
 
-        {/* Handle session refresh errors */}
-        <SessionRefreshHandler />
+            {/* Handle session refresh errors */}
+            <SessionRefreshHandler />
+          </QueueToastProvider>
+        </ToastProvider>
       </SessionProvider>
     </>
   );
