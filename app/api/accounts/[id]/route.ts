@@ -1,6 +1,7 @@
 import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import { serializeAccount } from "@/libs/accounts/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -22,5 +23,5 @@ export async function GET(
     return Response.json({ error: "Account not found" }, { status: 404 });
   }
 
-  return Response.json(account);
+  return Response.json(serializeAccount(account));
 }

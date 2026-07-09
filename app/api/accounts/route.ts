@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import { serializeAccount } from "@/libs/accounts/serialize";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     await connectMongo();
     const data = await Account.find({ userId, platform }).sort({ lastSync: -1 });
 
-    return NextResponse.json(data);
+    return NextResponse.json(data.map(serializeAccount));
   } catch (err) {
     console.error("Error obteniendo cuentas:", err);
     return NextResponse.json(

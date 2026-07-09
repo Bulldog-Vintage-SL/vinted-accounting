@@ -403,12 +403,19 @@ export async function syncWallapopAccount(externalId: string) {
 // Sincronizar cuenta de Vinted
 export async function syncVintedAccount(externalId: string) {
 
+  if (!externalId) {
+    return {
+      ok: false,
+      message: "ID de cuenta no válido",
+    };
+  }
+
   try {
 
     const result = await runFlow('SYNC_ACCOUNT', { externalId })
 
     if (result?.result?.state) {
-      const { syncStatus } = result.result.state
+      const syncStatus = result.result.state.syncStatus ?? 'ACCOUNT_NOT_FOUND'
 
       const res = await fetch('/api/accounts/sync', {
         method: 'POST',
@@ -514,7 +521,7 @@ export async function importWardrobe(userId: string) {
     // Primero obtenemos el id de la cuenta de vinted correspondiente a userId
     const res = await fetch(`/api/accounts/${userId}`);
     const account = await res.json();
-    const externalId = account.externalId?.toString();
+    const externalId = (account.external_id ?? account.externalId)?.toString();
 
     // Iniciamos el workflow en la extension con el id pertinente
     const result = await runFlow('IMPORT_WARDROBE', { externalId });
@@ -615,7 +622,7 @@ export async function importVestiaireWardrobe(accountId: string) {
     // Primero obtenemos el id de la cuenta de vinted correspondiente a userId
     const resAcc = await fetch(`/api/accounts/${accountId}`);
     const account = await resAcc.json();
-    const externalId = account.externalId?.toString();
+    const externalId = (account.external_id ?? account.externalId)?.toString();
 
     const result = await runFlow('IMPORT_VESTIAIRE_WARDROBE', { externalId })
     console.log(result)
