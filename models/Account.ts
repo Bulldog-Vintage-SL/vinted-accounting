@@ -50,7 +50,7 @@ const accountSchema = new mongoose.Schema(
       default: "OK",
     },
     vestiaireId: { type: String, default: null },
-    shopifyShopDomain: { type: String, default: null, sparse: true, unique: true },
+    shopifyShopDomain: { type: String, sparse: true, unique: true },
     shopifyAccessToken: { type: String, default: null },
     shopifyScopes: { type: String, default: null },
     lastSync: { type: Date, default: null },
