@@ -3,6 +3,7 @@ import crypto from "crypto";
 import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import ShopifyOAuthState from "@/models/ShopifyOAuthState";
+import { getAppUrl } from "@/libs/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,7 @@ function verifyHmac(searchParams: URLSearchParams, secret: string) {
 }
 
 function redirectWithError(reason: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
-  const url = new URL(ACCOUNTS_PAGE, appUrl);
+  const url = new URL(ACCOUNTS_PAGE, getAppUrl());
   url.searchParams.set("shopify", "error");
   url.searchParams.set("reason", reason);
   return NextResponse.redirect(url);
@@ -104,8 +104,7 @@ export async function GET(req: NextRequest) {
 
   await ShopifyOAuthState.deleteOne({ state });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
-  const successUrl = new URL(ACCOUNTS_PAGE, appUrl);
+  const successUrl = new URL(ACCOUNTS_PAGE, getAppUrl());
   successUrl.searchParams.set("shopify", "connected");
   return NextResponse.redirect(successUrl);
 }

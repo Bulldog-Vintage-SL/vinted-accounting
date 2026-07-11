@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import config from "@/config";
+import { getAppUrl } from "@/libs/app-url";
 
 // These are all the SEO tags you can add to your pages.
 // It prefills data with default title/description/OG, etc.. and you can cusotmize it for each page.
@@ -29,7 +30,7 @@ export const getSEOTags = ({
     metadataBase: new URL(
       process.env.NODE_ENV === "development"
         ? "http://localhost:3000/"
-        : `https://${config.domainName}/`
+        : `${getAppUrl()}/`
     ),
 
     openGraph: {

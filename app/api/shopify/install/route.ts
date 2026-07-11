@@ -4,6 +4,7 @@ import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import ShopifyOAuthState from "@/models/ShopifyOAuthState";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import { getAppUrl } from "@/libs/app-url";
 import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
     shop,
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
+  const appUrl = getAppUrl();
   const params = new URLSearchParams({
     client_id: process.env.SHOPIFY_CLIENT_ID!,
     scope: "read_products,write_products",
