@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import config from "@/config";
+import logo from "@/app/icon.png";
 import { getSEOTags } from "@/libs/seo";
 import { signInWithEmail, signInWithGoogle } from "./actions";
 
@@ -17,7 +18,7 @@ interface LoginPageProps {
 const errorMessages: Record<string, string> = {
   MissingCSRF: "La sesión expiró. Vuelve a intentarlo.",
   Configuration:
-    "No se pudo completar el inicio de sesión. Inténtalo de nuevo desde /login.",
+    "No se pudo guardar la sesión. Comprueba MONGODB_URI en Vercel y que MongoDB Atlas permita acceso (0.0.0.0/0). Luego prueba en ventana privada.",
   OAuthSignin: "No se pudo iniciar sesión con Google.",
   OAuthCallback: "Error al completar el inicio de sesión con Google.",
   OAuthCallbackError: "Google rechazó el inicio de sesión. Vuelve a intentarlo.",
@@ -42,7 +43,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="card-body items-center gap-6">
           <Link href="/" className="flex flex-col items-center gap-3">
             <Image
-              src={`https://${config.domainName}/icon.png`}
+              src={logo}
               alt={config.appName}
               width={64}
               height={64}

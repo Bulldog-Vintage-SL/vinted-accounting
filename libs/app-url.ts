@@ -2,7 +2,6 @@ import config from "@/config";
 
 /**
  * Canonical app URL for server-side redirects (OAuth, Shopify, etc.).
- * In production, never trust localhost values copied from .env.local.
  */
 export function getAppUrl(): string {
   if (process.env.NODE_ENV === "development") {
@@ -13,13 +12,13 @@ export function getAppUrl(): string {
     );
   }
 
+  if (process.env.AUTH_CANONICAL_URL) {
+    return process.env.AUTH_CANONICAL_URL.replace(/\/$/, "");
+  }
+
   const envUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
   if (envUrl && !envUrl.includes("localhost")) {
     return envUrl.replace(/\/$/, "");
-  }
-
-  if (process.env.VERCEL_ENV === "production") {
-    return `https://${config.domainName}`;
   }
 
   if (process.env.VERCEL_URL) {
@@ -31,7 +30,7 @@ export function getAppUrl(): string {
 
 /**
  * NextAuth reads AUTH_URL / NEXTAUTH_URL from the environment.
- * Override localhost values that were accidentally set in Vercel production.
+ * Fix localhost values and align preview deployments automatically.
  */
 export function ensureAuthEnv(): void {
   if (process.env.NEXTAUTH_SECRET && !process.env.AUTH_SECRET) {
@@ -40,12 +39,30 @@ export function ensureAuthEnv(): void {
 
   if (process.env.NODE_ENV !== "production") return;
 
-  const currentUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
-  if (currentUrl && !currentUrl.includes("localhost")) return;
+  if (process.env.AUTH_CANONICAL_URL) {
+    const canonicalUrl = process.env.AUTH_CANONICAL_URL.replace(/\/$/, "");
+    process.env.AUTH_URL = canonicalUrl;
+    process.env.NEXTAUTH_URL = canonicalUrl;
+    return;
+  }
 
-  const productionUrl = getAppUrl();
-  process.env.AUTH_URL = productionUrl;
-  process.env.NEXTAUTH_URL = productionUrl;
+  const deploymentUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : null;
+  const currentUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
+
+  // Preview deployments always use their own *.vercel.app URL
+  if (process.env.VERCEL_ENV === "preview" && deploymentUrl) {
+    process.env.AUTH_URL = deploymentUrl;
+    process.env.NEXTAUTH_URL = deploymentUrl;
+    return;
+  }
+
+  if (!currentUrl || currentUrl.includes("localhost")) {
+    const productionUrl = getAppUrl();
+    process.env.AUTH_URL = productionUrl;
+    process.env.NEXTAUTH_URL = productionUrl;
+  }
 }
 
 /** @deprecated Use ensureAuthEnv */

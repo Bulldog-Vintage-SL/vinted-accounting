@@ -14,6 +14,7 @@ const hasEmailProvider =
 export const authOptions = {
   secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
   trustHost: true,
+  debug: process.env.AUTH_DEBUG === "true",
   pages: {
     signIn: "/login",
     error: "/login",
