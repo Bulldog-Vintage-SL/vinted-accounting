@@ -41,6 +41,8 @@ export const authOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,
+      // Link Google sign-in to an existing account with the same verified email
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
           scope:
