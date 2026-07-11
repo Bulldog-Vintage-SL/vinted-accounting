@@ -1,9 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import config from "@/config";
-import { getGoogleLoginUrl } from "@/libs/app-url";
 import { getSEOTags } from "@/libs/seo";
-import { signInWithEmail } from "./actions";
+import { signInWithEmail, signInWithGoogle } from "./actions";
 
 export const metadata = getSEOTags({
   title: `Iniciar sesión | ${config.appName}`,
@@ -17,9 +16,13 @@ interface LoginPageProps {
 
 const errorMessages: Record<string, string> = {
   MissingCSRF: "La sesión expiró. Vuelve a intentarlo.",
+  Configuration:
+    "No se pudo completar el inicio de sesión. Inténtalo de nuevo desde /login.",
   OAuthSignin: "No se pudo iniciar sesión con Google.",
   OAuthCallback: "Error al completar el inicio de sesión con Google.",
-  OAuthAccountNotLinked: "Este email ya está vinculado a otro método de acceso.",
+  OAuthCallbackError: "Google rechazó el inicio de sesión. Vuelve a intentarlo.",
+  OAuthAccountNotLinked:
+    "Este email ya está vinculado a otro método de acceso.",
   EmailSignin: "No se pudo enviar el enlace mágico.",
   SessionRequired: "Debes iniciar sesión para continuar.",
   Default: "No se pudo iniciar sesión. Vuelve a intentarlo.",
@@ -28,7 +31,7 @@ const errorMessages: Record<string, string> = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const callbackUrl = params.callbackUrl ?? config.auth.callbackUrl;
-  const googleLoginUrl = getGoogleLoginUrl(callbackUrl);
+  const showEmailLogin = Boolean(process.env.RESEND_API_KEY);
   const errorMessage = params.error
     ? (errorMessages[params.error] ?? errorMessages.Default)
     : null;
@@ -59,37 +62,44 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </div>
           ) : null}
 
-          <a href={googleLoginUrl} className="btn btn-outline w-full gap-3">
-            <Image
-              src="https://authjs.dev/img/providers/google.svg"
-              alt=""
-              width={20}
-              height={20}
-              aria-hidden
-            />
-            Iniciar sesión con Google
-          </a>
-
-          <div className="divider w-full text-sm">o</div>
-
-          <form action={signInWithEmail} className="w-full space-y-3">
+          <form action={signInWithGoogle} className="w-full">
             <input type="hidden" name="callbackUrl" value={callbackUrl} />
-            <label className="form-control w-full">
-              <span className="label-text mb-2">Email</span>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="email@example.com"
-                className="input input-bordered w-full"
-                required
-                autoComplete="email"
+            <button type="submit" className="btn btn-outline w-full gap-3">
+              <Image
+                src="https://authjs.dev/img/providers/google.svg"
+                alt=""
+                width={20}
+                height={20}
+                aria-hidden
               />
-            </label>
-            <button type="submit" className="btn btn-primary w-full">
-              Iniciar sesión con Email
+              Iniciar sesión con Google
             </button>
           </form>
+
+          {showEmailLogin ? (
+            <>
+              <div className="divider w-full text-sm">o</div>
+
+              <form action={signInWithEmail} className="w-full space-y-3">
+                <input type="hidden" name="callbackUrl" value={callbackUrl} />
+                <label className="form-control w-full">
+                  <span className="label-text mb-2">Email</span>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="email@example.com"
+                    className="input input-bordered w-full"
+                    required
+                    autoComplete="email"
+                  />
+                </label>
+                <button type="submit" className="btn btn-primary w-full">
+                  Iniciar sesión con Email
+                </button>
+              </form>
+            </>
+          ) : null}
         </div>
       </div>
     </main>
