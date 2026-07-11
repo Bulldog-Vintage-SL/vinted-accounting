@@ -1,45 +1,56 @@
+'use client'
 /*
   Hook para usar la cola en componentes React.
   Singleton global: misma instancia para toda la app.
 */
 
-import { useMemo, useState, useCallback, useEffect } from 'react'
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { Queue } from '@/lib/queue/Queue'
-import type { QueueEvent, JobAction } from '@/lib/queue/types'
+import type { QueueEvent, JobAction, ActionPayload } from '@/lib/queue/types'
 
-// Instancia global
+
 let globalQueue: Queue<any> | null = null
+let globalListenerRegistered = false
 
-function getQueue() {
+const eventListeners = new Set<(event: QueueEvent) => void>()
+
+// Estado de pausa compartido entre todas las instancias del hook
+let isPausedGlobal = false
+const pauseListeners = new Set<(paused: boolean) => void>()
+
+function setPausedGlobal(paused: boolean) {
+  isPausedGlobal = paused
+  pauseListeners.forEach(l => l(paused))
+}
+
+function getQueue<T>(): Queue<T> {
   if (!globalQueue) {
-    globalQueue = new Queue({
-      concurrency: 2,
-      delayBetweenJobs: 2000
+    globalQueue = new Queue<T>({
+      concurrency: 3,
+      delayBetweenJobs: 2000,
+      platformDelays: {
+        vinted: { upload: 8000 },
+        wallapop: { upload: 3000 },
+        vestiaire: { upload: 6000, import: 1000 },
+        shopify: { upload: 0 },
+      },
+      noRateLimitActions: ['delete'],
     })
+    isPausedGlobal = globalQueue.isPaused
   }
+
+  if (!globalListenerRegistered) {
+    globalQueue.on((event) => eventListeners.forEach(cb => cb(event)))
+    globalListenerRegistered = true
+  }
+
   return globalQueue
 }
 
-// Desuso: Listeners para React 
-const listeners = new Set<() => void>()
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-function notify() {
-  listeners.forEach(l => l())
-}
+export function useQueue<T = unknown>() {
+  const queue = useRef(getQueue<T>()).current
 
-const eventListeners = new Set<(event: QueueEvent) => void>()
-getQueue().on((event) => {
-  eventListeners.forEach(cb => cb(event))
-})
-
-
-export function useQueue() {
-  const queue = getQueue()
-
-  const getStats = () => {
+  const getStats = useCallback(() => {
     const all = queue.getAllJobs()
     const total = all.length
     const completed = all.filter(j => j.status === 'completed').length
@@ -54,61 +65,85 @@ export function useQueue() {
       retrying: all.filter(j => j.status === 'retrying').length,
       progress: total > 0 ? Math.round(((completed + failed) / total) * 100) : 0,
     }
-  }
+  }, [queue])
 
   const [stats, setStats] = useState(getStats)
-  const [isPaused, setIsPaused] = useState(false)
+  const [isPaused, setIsPaused] = useState(isPausedGlobal)
 
   useEffect(() => {
-    const unsubscribe = queue.on(() => {
+    const unsubscribeStats = queue.on(() => {
       setStats(getStats())
     })
-    return unsubscribe
-  }, [])
+
+    const onPauseChange = (paused: boolean) => setIsPaused(paused)
+    pauseListeners.add(onPauseChange)
+
+    return () => {
+      unsubscribeStats()
+      pauseListeners.delete(onPauseChange)
+    }
+  }, [queue, getStats])
 
   const enqueue = useCallback(<A extends JobAction>(
     action: A,
-    entities: any[],
-    payload: any,
-    getLabel: (entity: any) => string,
+    entities: T[],
+    payload: ActionPayload[A],
+    getLabel: (entity: T) => string,
   ) => {
     const jobs = queue.enqueue(action, entities, payload, getLabel)
     setStats(getStats())
     return jobs
-  }, [])
- 
+  }, [queue, getStats])
+
   const clear = useCallback(() => {
     queue.clear()
     setStats(getStats())
-  }, [])
-
+  }, [queue, getStats])
 
   const pause = useCallback(() => {
     queue.pause()
-    setIsPaused(true)
-  }, [])
+    setPausedGlobal(true)
+  }, [queue])
 
   const resume = useCallback(() => {
     queue.resume()
-    setIsPaused(false)
-  }, [])
+    setPausedGlobal(false)
+  }, [queue])
 
   const retryFailed = useCallback(() => {
     const failed = queue.getAllJobs().filter(j => j.status === 'failed')
     queue.retryJobs(failed)
     setStats(getStats())
-  }, [])
+  }, [queue, getStats])
 
   const onDrained = useCallback((cb: () => void) => {
     return queue.on((event) => {
       if (event.type === 'queue:drained') cb()
     })
-  }, [])
+  }, [queue])
 
   const onEvent = useCallback((cb: (event: QueueEvent) => void) => {
     eventListeners.add(cb)
     return () => { eventListeners.delete(cb) }
   }, [])
+
+  // Ajustes de delay en caliente, por si necesitas exponer un panel
+  // de configuración (ritmo por plataforma/acción).
+  const setPlatformDelay = useCallback((platform: string, action: JobAction, ms: number | undefined) => {
+    queue.setPlatformActionDelay(platform, action, ms)
+  }, [queue])
+
+  const setActionDelay = useCallback((action: JobAction, ms: number | undefined) => {
+    queue.setActionDelay(action, ms)
+  }, [queue])
+
+  const setNoRateLimit = useCallback((action: JobAction, exempt: boolean = true) => {
+    queue.setNoRateLimit(action, exempt)
+  }, [queue])
+
+  const setConcurrency = useCallback((n: number) => {
+    queue.setConcurrency(n)
+  }, [queue])
 
   return useMemo(() => ({
     enqueue,
@@ -120,5 +155,12 @@ export function useQueue() {
     retryFailed,
     onDrained,
     onEvent,
-  }), [enqueue, stats, isPaused, pause, resume, retryFailed, onDrained, onEvent])
+    setPlatformDelay,
+    setActionDelay,
+    setNoRateLimit,
+    setConcurrency,
+  }), [
+    enqueue, stats, isPaused, pause, clear, resume, retryFailed,
+    onDrained, onEvent, setPlatformDelay, setActionDelay, setNoRateLimit, setConcurrency,
+  ])
 }

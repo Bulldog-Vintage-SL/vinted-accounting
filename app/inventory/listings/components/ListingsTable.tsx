@@ -10,7 +10,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { DataTable, DataTableHandle } from '@/components/ui/data-table'
 import { createColumns } from './columns'
 import { deleteListing } from '../actions'
-import { useAccountSelector } from '@/hooks/useAccountSelector'
+import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { Listing } from '../types'
@@ -18,6 +18,11 @@ import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
+
+type UploadJob = {
+  listing: Listing
+  account: SelectedAccount
+}
 
 export function ListingsTable() {
   const { data, error, isLoading, mutate } = useSWR('/api/listings', fetcher, {
@@ -28,10 +33,10 @@ export function ListingsTable() {
   })
 
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [listingToDelete, setListingToDelete] = useState<Listing | null>(null)
-  
+
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
   const [listingsToDelete, setListingsToDelete] = useState<Listing[]>([])
 
@@ -40,16 +45,9 @@ export function ListingsTable() {
   const openSelector = useAccountSelector(s => s.openSelector)
 
   const [showQueue, setShowQueue] = useState(false)
-  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained, onEvent } = useQueue()
+  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained } = useQueue<Listing>()
 
   const tableRef = useRef<DataTableHandle>(null)
-
-  // Refs estables para callbacks
-  const pushToastRef = useRef(pushToast)
-  pushToastRef.current = pushToast
-
-  const mutateRef = useRef(mutate)
-  mutateRef.current = mutate
 
   // Barra de progreso
   useEffect(() => {
@@ -62,7 +60,6 @@ export function ListingsTable() {
     const allDone = stats.total > 0
       && stats.pending === 0
       && stats.processing === 0
-      && stats.retrying === 0
 
     if (allDone) {
       setShowQueue(false)
@@ -77,14 +74,14 @@ export function ListingsTable() {
   }, [onDrained])
 
   // Publicacion masiva
-  const handleBulkPublish = () => {
+  const handleBulkPublish = useCallback(() => {
     const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
     if (selected.length === 0) return
 
     openSelector((accounts) => {
       if (accounts.length === 0) return
-      
-      const allJobs: Array<{ listing: Listing; account: typeof accounts[0] }> = []
+
+      const allJobs: UploadJob[] = []
       for (const listing of selected) {
         for (const account of accounts) {
           allJobs.push({ listing, account })
@@ -93,23 +90,23 @@ export function ListingsTable() {
 
       clear()
 
-      enqueue('upload', allJobs, {}, (item) => {
-        const { listing, account } = item as typeof allJobs[0]
+      enqueue('upload', allJobs as unknown as Listing[], {}, (item) => {
+        const { listing, account } = item as unknown as UploadJob
         return `${listing.title} en ${account.platform}`
       })
-      
+
       setSelectedIds([])
       tableRef.current?.resetSelection()
     })
-  }
+  }, [data, selectedIds, openSelector, clear, enqueue])
 
-  const handleBulkDeleteClick = () => {
+  const handleBulkDeleteClick = useCallback(() => {
     const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
     if (selected.length === 0) return
-    
+
     setListingsToDelete(selected)
     setBulkDeleteModalOpen(true)
-  }
+  }, [data, selectedIds])
 
   const handleConfirmBulkDelete = useCallback(() => {
     if (listingsToDelete.length === 0) return
@@ -127,7 +124,7 @@ export function ListingsTable() {
     clear()
 
     enqueue('delete', listingsToDelete, {}, (l: Listing) => l.title)
-  }, [listingsToDelete, mutate, enqueue])
+  }, [listingsToDelete, mutate, clear, enqueue])
 
   const handleDeleteClick = useCallback((id: string) => {
     const listing = (data ?? []).find((l: Listing) => l.id === id)
@@ -147,7 +144,7 @@ export function ListingsTable() {
 
     try {
       await deleteListing(listingToDelete.id)
-      mutate() 
+      mutate()
       pushToast({
         message: 'Producto eliminado',
         description: `"${listingToDelete.title}" ha sido eliminado correctamente.`,
@@ -226,8 +223,8 @@ export function ListingsTable() {
         }}
         onConfirm={handleConfirmBulkDelete}
         productName={
-          listingsToDelete.length === 1 
-            ? listingsToDelete[0]?.title 
+          listingsToDelete.length === 1
+            ? listingsToDelete[0]?.title
             : `${listingsToDelete.length} productos seleccionados`
         }
       />

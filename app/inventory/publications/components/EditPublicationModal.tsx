@@ -26,13 +26,28 @@ interface Props {
 const PLATFORM_NAMES: Record<string, string> = {
     vinted: "Vinted",
     wallapop: "Wallapop",
-    vestiaire: "Vestiaire Collective"
+    vestiaire: "Vestiaire Collective",
+    shopify: "Shopify",
 };
+
+const SHOPIFY_STATUS_OPTIONS = [
+    { value: "ACTIVE", label: "Activo" },
+    { value: "DRAFT", label: "Borrador" },
+    { value: "ARCHIVED", label: "Archivado" },
+];
 
 interface ItemFields {
     title: string;
     description: string;
     price: string;
+}
+
+interface ShopifyFields {
+    vendor: string;
+    productType: string;
+    tags: string;
+    status: string;
+    sku: string;
 }
 
 // Estados del flujo del modal
@@ -58,8 +73,17 @@ export function EditPublicationModal({
     // Estado de carga de los datos del item desde el marketplace
     const [isLoadingItem, setIsLoadingItem] = useState(false);
 
-    // Campos editables
+    // Campos editables comunes
     const [fields, setFields] = useState<ItemFields>({ title: "", description: "", price: "" });
+
+    // Campos exclusivos de Shopify
+    const [shopifyFields, setShopifyFields] = useState<ShopifyFields>({
+        vendor: "",
+        productType: "",
+        tags: "",
+        status: "ACTIVE",
+        sku: "",
+    });
 
     // Precio original de la publicacion, usado para limitar bajadas de precio en Vestiaire
     const [initialPrice, setInitialPrice] = useState<number | null>(null);
@@ -70,8 +94,8 @@ export function EditPublicationModal({
     const platform = publication?.platform ?? "";
     const platformLabel = PLATFORM_NAMES[platform] || platform;
     const isVestiaire = platform === "vestiaire";
+    const isShopify = platform === "shopify";
 
-    // Reset del modal cada vez que se abre con una publicacion distinta
     useEffect(() => {
         if (!open) return;
         setStep("sync");
@@ -81,12 +105,18 @@ export function EditPublicationModal({
         setAccountExternalId(undefined);
         setAccountVestiaireId(null);
         setFields({ title: "", description: "", price: "" });
+        setShopifyFields({ vendor: "", productType: "", tags: "", status: "ACTIVE", sku: "" });
         setInitialPrice(publication?.price != null ? Number(publication.price) : null);
+
+        if (!publication) return;
+
+        if (isShopify) {
+            fetchShopifyProduct();
+            return;
+        }
 
         if (!publication?.account_id || !publication?.platform) return;
 
-        // Traemos el external_id de la cuenta (el id que usan las funciones de la extensión),
-        // ya que account_id es solo el id interno (PK) en nuestra tabla accounts
         fetch(`/api/accounts?platform=${publication.platform}`)
             .then((res) => res.json())
             .then((data) => {
@@ -97,6 +127,42 @@ export function EditPublicationModal({
             })
             .catch((e) => console.error("Error cargando datos de cuenta:", e));
     }, [open, publication?.id]);
+
+    const fetchShopifyProduct = async () => {
+        if (!publication) return;
+        setIsLoadingItem(true);
+
+        try {
+            const res = await fetch(`/api/shopify/get-product?publicationId=${publication.id}`);
+            const data = await res.json();
+
+            if (data?.ok && data.product) {
+                setFields({
+                    title: data.product.title ?? "",
+                    description: data.product.descriptionHtml ?? "",
+                    price: data.product.price != null ? String(data.product.price) : "",
+                });
+                setShopifyFields({
+                    vendor: data.product.vendor ?? "",
+                    productType: data.product.productType ?? "",
+                    tags: (data.product.tags ?? []).join(", "),
+                    status: data.product.status ?? "ACTIVE",
+                    sku: data.product.sku ?? "",
+                });
+                setStep("edit");
+            } else {
+                pushToast({
+                    type: "error",
+                    message: data?.error ?? "No se pudieron obtener los datos del producto",
+                });
+            }
+        } catch (e) {
+            console.error("Error obteniendo producto de Shopify:", e);
+            pushToast({ type: "error", message: "Error obteniendo los datos del producto" });
+        } finally {
+            setIsLoadingItem(false);
+        }
+    };
 
     const syncAccount = async () => {
         if (!accountExternalId) return null;
@@ -127,8 +193,7 @@ export function EditPublicationModal({
         setIsSyncing(false);
 
         if (isVestiaire) {
-            // En Vestiaire el precio ya lo tenemos guardado en la publicación,
-            // no hace falta pedirlo al marketplace
+            
             setFields({
                 title: "",
                 description: "",
@@ -197,7 +262,46 @@ export function EditPublicationModal({
 
         setIsUpdating(true);
 
-        // Resincronizamos la cuenta justo antes de actualizar, por si la sesión expiró mientras se editaba
+        if (isShopify) {
+            try {
+                const res = await fetch("/api/shopify/update-product", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        publicationId: publication.id,
+                        fields: {
+                            title: fields.title.trim(),
+                            description: fields.description.trim(),
+                            price: fields.price,
+                            vendor: shopifyFields.vendor.trim(),
+                            productType: shopifyFields.productType.trim(),
+                            tags: shopifyFields.tags
+                                .split(",")
+                                .map((t) => t.trim())
+                                .filter(Boolean),
+                            status: shopifyFields.status,
+                            sku: shopifyFields.sku.trim(),
+                        },
+                    }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data?.ok) {
+                    pushToast({ type: "info", message: "Producto actualizado correctamente en Shopify" });
+                    onUpdated();
+                    onClose();
+                } else {
+                    pushToast({ type: "error", message: data?.error ?? "Error actualizando el producto" });
+                }
+            } catch (e) {
+                console.error("Error actualizando producto de Shopify:", e);
+                pushToast({ type: "error", message: "Error actualizando el producto" });
+            } finally {
+                setIsUpdating(false);
+            }
+            return;
+        }
+
         if (!accountExternalId) {
             pushToast({ type: "error", message: "No se encontró la cuenta vinculada a esta publicación" });
             setIsUpdating(false);
@@ -277,9 +381,9 @@ export function EditPublicationModal({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 flex flex-col gap-4">
-                    {/* Paso 1: sincronizar cuenta */}
-                    {step === "sync" && (
+                <div className="p-6 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
+                    {/* Paso 1: sincronizar cuenta (se omite para Shopify) */}
+                    {step === "sync" && !isShopify && (
                         <div className="flex flex-col gap-2">
                             <div
                                 className={`flex items-center justify-between px-4 py-3 rounded-xl border ${accountSynced
@@ -333,13 +437,23 @@ export function EditPublicationModal({
                         </div>
                     )}
 
+                    {/* Carga inicial para Shopify (sin paso de sync) */}
+                    {step === "sync" && isShopify && (
+                        <div className="flex items-center justify-center py-6 gap-2 text-gray-500 text-sm">
+                            <Loader2 size={16} className="animate-spin" />
+                            Obteniendo datos del producto desde Shopify…
+                        </div>
+                    )}
+
                     {/* Paso 2: edicion de campos */}
                     {step === "edit" && (
                         <div className="flex flex-col gap-4">
-                            <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                                <CheckCircle2 size={14} className="shrink-0" />
-                                Cuenta sincronizada · {accountName || platformLabel}
-                            </div>
+                            {!isShopify && (
+                                <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                                    <CheckCircle2 size={14} className="shrink-0" />
+                                    Cuenta sincronizada · {accountName || platformLabel}
+                                </div>
+                            )}
 
                             {isVestiaire ? (
                                 <div className="flex flex-col gap-1.5">
@@ -394,6 +508,72 @@ export function EditPublicationModal({
                                             placeholder="0.00"
                                         />
                                     </div>
+
+                                    {/* Campos exclusivos de Shopify */}
+                                    {isShopify && (
+                                        <>
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-sm font-medium text-gray-700">SKU</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopifyFields.sku}
+                                                    onChange={(e) => setShopifyFields((f) => ({ ...f, sku: e.target.value }))}
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                    placeholder="SKU"
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-sm font-medium text-gray-700">Marca / Vendor</label>
+                                                    <input
+                                                        type="text"
+                                                        value={shopifyFields.vendor}
+                                                        onChange={(e) => setShopifyFields((f) => ({ ...f, vendor: e.target.value }))}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="Marca"
+                                                    />
+                                                </div>
+
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-sm font-medium text-gray-700">Tipo de producto</label>
+                                                    <input
+                                                        type="text"
+                                                        value={shopifyFields.productType}
+                                                        onChange={(e) => setShopifyFields((f) => ({ ...f, productType: e.target.value }))}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                        placeholder="Ej. Camisetas"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Tags (separados por coma)</label>
+                                                <input
+                                                    type="text"
+                                                    value={shopifyFields.tags}
+                                                    onChange={(e) => setShopifyFields((f) => ({ ...f, tags: e.target.value }))}
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                    placeholder="vintage, verano, algodón"
+                                                />
+                                            </div>
+
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Estado</label>
+                                                <select
+                                                    value={shopifyFields.status}
+                                                    onChange={(e) => setShopifyFields((f) => ({ ...f, status: e.target.value }))}
+                                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+                                                >
+                                                    {SHOPIFY_STATUS_OPTIONS.map((opt) => (
+                                                        <option key={opt.value} value={opt.value}>
+                                                            {opt.label}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -411,7 +591,7 @@ export function EditPublicationModal({
                     <button
                         onClick={handleUpdate}
                         disabled={step !== "edit" || isUpdating}
-                        title={step !== "edit" ? "Sincroniza la cuenta antes de actualizar" : undefined}
+                        title={step !== "edit" ? "Espera a que se carguen los datos" : undefined}
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isUpdating && <Loader2 className="animate-spin h-4 w-4" />}

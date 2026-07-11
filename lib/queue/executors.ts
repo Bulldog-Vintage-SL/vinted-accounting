@@ -6,10 +6,15 @@
 import { deleteListing } from '@/app/inventory/listings/actions'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { Publication } from '@/app/inventory/publications/types'
-import type { Executor } from './types'
+import type { Executor, JobAction } from './types'
 import { importWardrobe, importWallapopWardrobe, importVestiaireWardrobe } from '@/lib/extensionBridge'
 import { uploadItem, uploadWallapopItem, uploadVestiaireItem } from '@/lib/extensionBridge'
 import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/extensionBridge'
+
+/*
+  Ejecutores de cada una de las acciones disponibles para funciones masivas.
+  Un job = una publicacion en una cuenta.
+*/
 
 // Entidad para upload
 interface UploadEntity {
@@ -20,6 +25,28 @@ interface UploadEntity {
 interface ImportEntity {
   accountId: string
   platform: string
+}
+
+const FETCH_TIMEOUT_MS = 15000
+
+// fetch con timeout para las llamadas a nuestros propios endpoints (Shopify),
+// evita que un job se quede colgado en 'processing' para siempre y bloquee
+// el lane de esa plataforma indefinidamente.
+// eslint-disable-next-line no-undef
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`La petición a ${url} superó el tiempo límite (${timeoutMs}ms)`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 const importExecutor: Executor<ImportEntity> = async (job) => {
@@ -41,7 +68,7 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
     return { imported: true, platform: 'vestiaire' }
   }
   else if (platform === 'shopify') {
-    const res = await fetch('/api/shopify/import', {
+    const res = await fetchWithTimeout('/api/shopify/import', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ accountId }),
@@ -69,7 +96,6 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
   }
 }
 
-
 // Upload a una cuenta en una plataforma
 const uploadExecutor: Executor<UploadEntity> = async (job) => {
   const { listing, account } = job.entity
@@ -89,6 +115,20 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
     if (!res?.ok) throw new Error(`Vestiaire: ${res?.message || 'Error desconocido'}`)
     return { published: true, platform: 'vestiaire' }
   }
+  else if (account.platform === 'shopify') {
+    const res = await fetchWithTimeout('/api/shopify/upload-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listingId: listing.id, accountId: account.accountId }),
+    })
+    const data = await res.json()
+
+    if (!res.ok || !data?.ok) {
+      throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
+    }
+
+    return { published: true, platform: 'shopify', publication: data.publication }
+  }
   else {
     throw new Error(`Plataforma no soportada: ${account.platform}`)
   }
@@ -103,10 +143,10 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
     const result = await deleteWallapopItem(publication.external_id, publication.id)
     if (!result.ok) throw new Error(result.message || 'Error en Wallapop')
   } else if (publication.platform === 'vestiaire') {
-    const result = await deleteWallapopItem(publication.external_id, publication.id)
+    const result = await deleteVestiaireItem(publication.external_id, publication.id)
     if (!result.ok) throw new Error(result.message || 'Error en Vestiaire Collective')
   } else if (publication.platform === 'shopify') {
-    const res = await fetch('/api/shopify/delete-product', {
+    const res = await fetchWithTimeout('/api/shopify/delete-product', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ publicationId: publication.id }),
@@ -116,7 +156,7 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
       throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
     }
   } else {
-    const res = await fetch(`/api/publications?id=${publication.id}`, { method: 'DELETE' })
+    const res = await fetchWithTimeout(`/api/publications?id=${publication.id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('Error al eliminar de BD')
   }
   return { deleted: true }
@@ -124,12 +164,12 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
 
 // Delete de un listing
 const deleteExecutor: Executor<Listing> = async (job) => {
-  await deleteListing((job.entity as Listing).id)
+  await deleteListing(job.entity.id)
   return { deleted: true }
 }
 
 // Acciones masivas
-export const executors: Record<string, Executor<any>> = {
+export const executors: Record<JobAction, Executor<any>> = {
   upload: uploadExecutor,
   delete: deleteExecutor,
   import: importExecutor,

@@ -14,50 +14,89 @@ export function QueueToastProvider({ children }: { children: ReactNode }) {
   pushToastRef.current = pushToast
 
   const mutateRef = useRef(mutate)
-  mutateRef.current = mutate
+  mutateRef.current = mutate 
+
+  const deleteBatchRef = useRef({ succeeded: 0, failed: 0 })
 
   useEffect(() => {
     return onEvent((event) => {
-      if (event.type === 'queue:drained' || event.type === 'queue:updated') return
+      if (event.type === 'queue:updated') return
 
-      const { job } = event
-
-      if (job.action === 'delete' || job.action === 'deletePublication') {
-        const endpoint = job.action === 'delete' ? '/api/listings' : '/api/publications'
-
-        if (event.type === 'job:start') {
-          pushToastRef.current({
-            type: "upload",
-            message: `Eliminando: ${job.entityLabel}`,
-            duration: 4000
-          })
-        }
-        if (event.type === 'job:success') {
-          pushToastRef.current({
-            type: "success",
-            message: `Eliminado: ${job.entityLabel}`
-          })
-          mutateRef.current(endpoint)
-        }
-        if (event.type === 'job:failed') {
-          pushToastRef.current({
-            type: "error",
-            message: `Error al eliminar: ${job.entityLabel} - ${job.error || 'Desconocido'}`
-          })
-          mutateRef.current(endpoint)
+      if (event.type === 'queue:drained') {
+        const { succeeded, failed } = deleteBatchRef.current
+        if (succeeded > 0 || failed > 0) {
+          if (failed === 0) {
+            pushToastRef.current({
+              type: 'success',
+              message: succeeded === 1 ? 'Producto eliminado' : `${succeeded} productos eliminados`,
+            })
+          } else if (succeeded === 0) {
+            pushToastRef.current({
+              type: 'error',
+              message: failed === 1
+                ? 'No se pudo eliminar el producto'
+                : `No se pudieron eliminar ${failed} productos`,
+            })
+          } else {
+            pushToastRef.current({
+              type: 'error',
+              message: `${succeeded} eliminados, ${failed} con error`,
+            })
+          }
+          deleteBatchRef.current = { succeeded: 0, failed: 0 }
         }
         return
       }
 
+      const { job } = event
+
+      if (job.action === 'delete') {
+        if (event.type === 'job:success') {
+          deleteBatchRef.current.succeeded++
+          mutateRef.current('/api/listings')
+        }
+        if (event.type === 'job:failed') {
+          deleteBatchRef.current.failed++
+          mutateRef.current('/api/listings')
+        }
+        return
+      }
+
+      if (job.action === 'deletePublication') {
+        if (event.type === 'job:start') {
+          pushToastRef.current({
+            type: 'upload',
+            message: `Eliminando: ${job.entityLabel}`,
+            duration: 4000,
+          })
+        }
+        if (event.type === 'job:success') {
+          pushToastRef.current({
+            type: 'success',
+            message: `Eliminado: ${job.entityLabel}`,
+          })
+          mutateRef.current('/api/publications')
+        }
+        if (event.type === 'job:failed') {
+          pushToastRef.current({
+            type: 'error',
+            message: `Error al eliminar: ${job.entityLabel} - ${job.error || 'Desconocido'}`,
+          })
+          mutateRef.current('/api/publications')
+        }
+        return
+      }
+
+      // Upload / import
       if (event.type === 'job:start') {
         const label = job.action === 'import'
           ? `Importando: ${job.entityLabel}`
           : `Publicando: ${job.entityLabel}`
 
         pushToastRef.current({
-          type: "upload",
+          type: 'upload',
           message: label,
-          duration: job.action === 'import' ? 5000 : 6000
+          duration: job.action === 'import' ? 5000 : 6000,
         })
       }
 
@@ -67,16 +106,16 @@ export function QueueToastProvider({ children }: { children: ReactNode }) {
           : `Publicado: ${job.entityLabel}`
 
         pushToastRef.current({
-          type: "success",
-          message: label
+          type: 'success',
+          message: label,
         })
         mutateRef.current('/api/listings')
       }
 
       if (event.type === 'job:failed') {
         pushToastRef.current({
-          type: "error",
-          message: `Error: ${job.entityLabel} - ${job.error || 'Desconocido'}`
+          type: 'error',
+          message: `Error: ${job.entityLabel} - ${job.error || 'Desconocido'}`,
         })
         mutateRef.current('/api/listings')
       }

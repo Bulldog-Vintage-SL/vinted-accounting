@@ -26,7 +26,17 @@ async function deletePublication(publication: Publication): Promise<void> {
     } else if (publication.platform === 'vestiaire') {
         const result = await deleteVestiaireItem(publication.external_id, publication.id);
         if (!result.ok) throw new Error(result.message);
-        // Si no existe tal plataforma eliminamos de la base de datos
+       
+    } else if (publication.platform === 'shopify') {
+        const res = await fetch('/api/shopify/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicationId: publication.id }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+            throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
+        }
     }
     // Si no existe tal plataforma eliminamos de la base de datos
     else {
@@ -48,7 +58,7 @@ export function PublicationsTable() {
 
     const { pushToast } = useToast()
     const tableRef = useRef<DataTableHandle>(null)
-    const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained } = useQueue()
+    const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained } = useQueue<Publication>()
 
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [showQueue, setShowQueue] = useState(false)
@@ -100,7 +110,6 @@ export function PublicationsTable() {
 
         setIsDeleting(true)
 
-        // Optimistic update
         mutate(
             (current: Publication[] | undefined) => (current ?? []).filter(p => p.id !== publicationToDelete.id),
             false

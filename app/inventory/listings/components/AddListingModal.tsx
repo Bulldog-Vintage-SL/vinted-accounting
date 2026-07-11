@@ -8,9 +8,9 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FolderOpen } from "lucide-react";
-import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useRouter } from "next/navigation";
 import { useQueue } from '@/hooks/useQueue';
+import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 
 interface Props {
     open: boolean;
@@ -21,7 +21,7 @@ export function AddListingModal({ open, onClose }: Props) {
 
     const openSelector = useAccountSelector((s) => s.openSelector);
     const router = useRouter();
-    const { enqueue } = useQueue();
+    const { enqueue } = useQueue<SelectedAccount>();
 
     const handleCreate = () => {
         onClose();
