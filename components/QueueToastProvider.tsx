@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { useQueue } from '@/hooks/useQueue'
 import { useToast } from '@/components/toast'
 import { useSWRConfig } from 'swr'
 
-export function QueueToastProvider({ children }: { children: React.ReactNode }) {
+export function QueueToastProvider({ children }: { children: ReactNode }) {
   const { pushToast } = useToast()
   const { onEvent } = useQueue()
   const { mutate } = useSWRConfig()
@@ -14,7 +14,7 @@ export function QueueToastProvider({ children }: { children: React.ReactNode }) 
   pushToastRef.current = pushToast
 
   const mutateRef = useRef(mutate)
-  mutateRef.current = mutate
+  mutateRef.current = mutate 
 
   const deleteBatchRef = useRef({ succeeded: 0, failed: 0 })
 

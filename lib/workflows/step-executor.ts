@@ -45,12 +45,12 @@ export function processStepResult(
       break
     }
 
-    case 'GET_BRAND':
+    case 'GET_BRAND': {
       const brand = result.brands?.[0]
       s.brandId = brand?.id ?? 1
       s.brandName = brand?.title ?? 'Publicar sin marca'
       break
-
+    }
     case 'GET_COLORS':
       s.colorIds = getColorIds(result.colors, s.originalPayload?.listing?.colors)
       break
@@ -122,11 +122,11 @@ export function processStepResult(
       )
       break
 
-    case 'GET_WALLA_WEIGHT_TIERS':
+    case 'GET_WALLA_WEIGHT_TIERS': {
       const suggested = result.weight_tiers?.find((t: any) => t.suggested)
       s.wallaMaxWeightKg = suggested?.max_weight_in_kg ?? 1
       break
-
+    }
     case 'CREATE_WALLA_ITEM':
       s.wallaItemId = result.id
       break

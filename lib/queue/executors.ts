@@ -32,6 +32,7 @@ const FETCH_TIMEOUT_MS = 15000
 // fetch con timeout para las llamadas a nuestros propios endpoints (Shopify),
 // evita que un job se quede colgado en 'processing' para siempre y bloquee
 // el lane de esa plataforma indefinidamente.
+// eslint-disable-next-line no-undef
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
