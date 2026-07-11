@@ -33,7 +33,11 @@ export function getAppUrl(): string {
  * NextAuth reads AUTH_URL / NEXTAUTH_URL from the environment.
  * Override localhost values that were accidentally set in Vercel production.
  */
-export function ensureAuthUrl(): void {
+export function ensureAuthEnv(): void {
+  if (process.env.NEXTAUTH_SECRET && !process.env.AUTH_SECRET) {
+    process.env.AUTH_SECRET = process.env.NEXTAUTH_SECRET;
+  }
+
   if (process.env.NODE_ENV !== "production") return;
 
   const currentUrl = process.env.AUTH_URL ?? process.env.NEXTAUTH_URL;
@@ -42,4 +46,12 @@ export function ensureAuthUrl(): void {
   const productionUrl = getAppUrl();
   process.env.AUTH_URL = productionUrl;
   process.env.NEXTAUTH_URL = productionUrl;
+}
+
+/** @deprecated Use ensureAuthEnv */
+export const ensureAuthUrl = ensureAuthEnv;
+
+export function getGoogleLoginUrl(callbackUrl?: string): string {
+  const target = callbackUrl ?? config.auth.callbackUrl;
+  return `/api/auth/login/google?callbackUrl=${encodeURIComponent(target)}`;
 }

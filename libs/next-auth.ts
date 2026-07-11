@@ -3,10 +3,10 @@ import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import config from "@/config";
-import { ensureAuthUrl } from "@/libs/app-url";
+import { ensureAuthEnv } from "@/libs/app-url";
 import connectMongo from "./mongo";
 
-ensureAuthUrl();
+ensureAuthEnv();
 
 export const authOptions = {
   // Set any random key in .env.local
