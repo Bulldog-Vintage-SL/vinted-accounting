@@ -14,6 +14,9 @@ export const authOptions = {
   // Required for production deployments behind reverse proxy (Vercel, etc.)
   // Prevents "Host must be trusted" / server configuration errors
   trustHost: true,
+  pages: {
+    signIn: "/login",
+  },
   providers: [
     GoogleProvider({
       // Follow the "Login with Google" tutorial to get your credentials

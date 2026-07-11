@@ -23,7 +23,7 @@ export default function SessionRefreshHandler(): null {
 
       // Sign out after a delay to let the user see the message
       setTimeout(() => {
-        signOut({ callbackUrl: "/api/auth/signin" });
+        signOut({ callbackUrl: "/login" });
       }, 2000);
     }
   }, [session]);

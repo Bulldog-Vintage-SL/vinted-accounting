@@ -51,6 +51,11 @@ export function ensureAuthEnv(): void {
 /** @deprecated Use ensureAuthEnv */
 export const ensureAuthUrl = ensureAuthEnv;
 
+export function getLoginUrl(callbackUrl?: string): string {
+  const target = callbackUrl ?? config.auth.callbackUrl;
+  return `/login?callbackUrl=${encodeURIComponent(target)}`;
+}
+
 export function getGoogleLoginUrl(callbackUrl?: string): string {
   const target = callbackUrl ?? config.auth.callbackUrl;
   return `/api/auth/login/google?callbackUrl=${encodeURIComponent(target)}`;

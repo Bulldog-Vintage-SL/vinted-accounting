@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import config from "@/config";
-import { getGoogleLoginUrl } from "@/libs/app-url";
+import { getLoginUrl } from "@/libs/app-url";
 
 // A simple button to sign in with our providers (Google & Magic Links).
 // It automatically redirects user to callbackUrl (config.auth.callbackUrl) after login, which is normally a private page for users to manage their accounts.
@@ -24,7 +24,7 @@ const ButtonSignin = ({
     if (status === "authenticated") {
       router.push(config.auth.callbackUrl);
     } else {
-      window.location.href = getGoogleLoginUrl(config.auth.callbackUrl);
+      window.location.href = getLoginUrl(config.auth.callbackUrl);
     }
   };
 
