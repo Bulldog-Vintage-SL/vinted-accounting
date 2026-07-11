@@ -1,5 +1,5 @@
 /*
-  Componente de estado de la cola de acciones masivas sobre productos. TODO: Mostrar bien el progreso.
+  Componente de estado de la cola de acciones masivas sobre productos.
 */
 
 interface Stats {
@@ -32,7 +32,7 @@ export function QueueStatusBar({ stats, isPaused, onPause, onResume, onRetryFail
         {/* Contadores */}
         <div className="flex gap-3">
           <span>Total: <b>{stats.total}</b></span>
-          {stats.processing > 0 && <span className="text-blue-600">Subiendo: <b>{stats.processing}</b></span>}
+          {stats.processing > 0 && <span className="text-blue-600">Procesando: <b>{stats.processing}</b></span>}
           {stats.pending    > 0 && <span>En cola: <b>{stats.pending}</b></span>}
           {stats.completed  > 0 && <span className="text-green-600">Listos: <b>{stats.completed}</b></span>}
           {stats.failed     > 0 && <span className="text-red-600">Fallidos: <b>{stats.failed}</b></span>}

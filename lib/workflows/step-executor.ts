@@ -1,4 +1,3 @@
-// @ts-nocheck
 /*
   Ejecutor de los workflows de extension, va acumulando los datos de pasos anteriores para
   poder pasarselos al resto de pasos del workflow.
@@ -35,20 +34,22 @@ export function processStepResult(
       s.packageSizeId = result.package_size_id
       break
 
-    case 'GET_SIZE_OPTIONS':
-      s.sizeId = getSizeId(result.size_groups, s.originalPayload?.listing?.attributes?.size)
+    // Sustituye a los antiguos GET_SIZE_OPTIONS + GET_CONDITION_OPTIONS.
+    // Este es el endpoint real que usa el frontend de Vinted
+    // (POST /api/v2/item_upload/attributes con { code: 'category', value: [catalogId] }),
+    // y devuelve talla + condición ya resueltas para la categoría exacta en una sola llamada.
+    case 'GET_ITEM_ATTRIBUTES': {
+      s.itemAttributesRaw = result.attributes
+      s.sizeId = findSizeId(result.attributes, s.originalPayload?.listing?.attributes?.size)
+      s.statusId = findConditionId(result.attributes, s.originalPayload?.listing?.condition)
       break
+    }
 
-    case 'GET_CONDITION_OPTIONS':
-      s.statusId = getStatusId(s.originalPayload?.listing?.condition)
-      break
-
-    case 'GET_BRAND': {
+    case 'GET_BRAND':
       const brand = result.brands?.[0]
       s.brandId = brand?.id ?? 1
       s.brandName = brand?.title ?? 'Publicar sin marca'
       break
-    }
 
     case 'GET_COLORS':
       s.colorIds = getColorIds(result.colors, s.originalPayload?.listing?.colors)
@@ -121,11 +122,10 @@ export function processStepResult(
       )
       break
 
-    case 'GET_WALLA_WEIGHT_TIERS': {
+    case 'GET_WALLA_WEIGHT_TIERS':
       const suggested = result.weight_tiers?.find((t: any) => t.suggested)
       s.wallaMaxWeightKg = suggested?.max_weight_in_kg ?? 1
       break
-    }
 
     case 'CREATE_WALLA_ITEM':
       s.wallaItemId = result.id
@@ -183,7 +183,7 @@ export function processStepResult(
       s.vestPhotoIds = [...(s.vestPhotoIds ?? []), result.data?.photos?.[0]?.id]
       break
     case 'GET_VEST_ADDRESSES': {
-      // Preferimos la marcada como shipping; si no hay, la primera
+      // Preferimos la marcada como shipping
       const addresses: any[] = result.data ?? []
       const shipping = addresses.find(a => a.address?.flagList?.some((f: any) => f.name === 'shipping'))
       const selected = shipping ?? addresses[0]
@@ -243,12 +243,15 @@ export function processStepResult(
       next.request.body = buildVintedUpdateItemBody(s)
       break
 
-    case 'GET_SIZE_OPTIONS':
-      next.request.url = `https://www.vinted.es/api/v2/size_groups?catalog_ids=${s.categoryId}`
-      break
-
-    case 'GET_CONDITION_OPTIONS':
-      next.request.url = `https://www.vinted.es/api/v2/item_upload/conditions?catalog_id=${s.categoryId}`
+    // Sustituye a los antiguos GET_SIZE_OPTIONS y GET_CONDITION_OPTIONS
+    case 'GET_ITEM_ATTRIBUTES':
+      next.request.method = 'POST'
+      next.request.url = `https://www.vinted.es/api/v2/item_upload/attributes`
+      next.request.body = {
+        attributes: [
+          { code: 'category', value: [s.categoryId] }
+        ]
+      }
       break
 
     case 'CREATE_ITEM':
@@ -354,23 +357,44 @@ export function processStepResult(
   return { nextStep: next, updatedState: s, nextIndex }
 }
 
+// Busca el id de la talla dentro de la respuesta de /api/v2/item_upload/attributes.
+// La respuesta trae varios "grupos" de tallas (S/M/L, EU, UK, FR, IT, US...) para
+// la misma categoría; priorizamos el grupo "S/M/L" por ser el formato estándar
+// que normalmente usa el catálogo interno de la app.
+function findSizeId(attributes: any[], sizeTitle: string): number {
 
-function getSizeId(sizeGroups: any[], sizeTitle: string): number {
-  for (const group of sizeGroups ?? []) {
-    const match = group.sizes?.find((s: any) =>
-      s?.title?.split('/').map((p: string) => p.trim().toLowerCase())
-        .includes(sizeTitle?.toLowerCase())
-    )
+  const sizeAttr = attributes?.find((a: any) => a.code === 'size')
+  const groups = sizeAttr?.configuration?.options ?? []
+
+  const normalize = (s: string) => s?.toString().trim().toLowerCase()
+  const target = normalize(sizeTitle)
+
+  const letterGroup = groups.find((g: any) => g.title === 'S/M/L')
+  const orderedGroups = letterGroup
+    ? [letterGroup, ...groups.filter((g: any) => g !== letterGroup)]
+    : groups
+
+  for (const group of orderedGroups) {
+    const match = group.options?.find((o: any) => normalize(o.title) === target)
     if (match) return match.id
   }
+
   return 123
 }
 
-function getStatusId(condition: string): number {
-  const map: Record<string, number> = {
-    'Nuevo': 6, 'Como nuevo': 1, 'Bueno': 2, 'Aceptable': 3
-  }
-  return map[condition] ?? 2
+// Busca el id de la condición dentro de la misma respuesta de /api/v2/item_upload/attributes.
+function findConditionId(attributes: any[], condition: string): number {
+  const condAttr = attributes?.find((a: any) => a.code === 'condition')
+  const options = condAttr?.configuration?.options?.[0]?.options ?? []
+
+  const normalize = (s: string) =>
+    s?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  const target = normalize(condition)
+
+  const match = options.find((o: any) => normalize(o.title) === target)
+  if (match) return match.id
+
+  return 3
 }
 
 function getColorIds(colors: any[], titles: string[]): number[] {
@@ -379,12 +403,13 @@ function getColorIds(colors: any[], titles: string[]): number[] {
     .filter(Boolean)
 }
 
-function buildCreateItemBody(s: WorkflowState): Record<string, unknown> {
+function buildCreateItemBody(s: WorkflowState) {
   const l = s.originalPayload.listing
   return {
     feedback_id: null,
     item: {
       assigned_photos: s.photoIds.map(id => ({ id, orientation: 0 })),
+      ai_photo: false,
       brand: s.brandName,
       brand_id: s.brandId,
       catalog_id: s.categoryId,
@@ -394,7 +419,7 @@ function buildCreateItemBody(s: WorkflowState): Record<string, unknown> {
       id: null,
       is_unisex: false,
       isbn: null,
-      item_attributes: [],
+      item_attributes: buildItemAttributes(s),
       manufacturer: null,
       manufacturer_labelling: null,
       measurement_length: null,
@@ -402,8 +427,6 @@ function buildCreateItemBody(s: WorkflowState): Record<string, unknown> {
       package_size_id: s.packageSizeId,
       price: l.price,
       shipment_prices: { domestic: null, international: null },
-      size_id: s.sizeId,
-      status_id: s.statusId,
       temp_uuid: s.uploadSessionId,
       title: l.title,
       video_game_rating_id: null
@@ -412,6 +435,22 @@ function buildCreateItemBody(s: WorkflowState): Record<string, unknown> {
     push_up: false,
     upload_session_id: s.uploadSessionId
   }
+}
+
+// Si no se pudo resolver talla o condición, cortamos aquí con un error explícito
+// en vez de dejar que Vinted devuelva un 400 genérico de "rellena el campo".
+function buildItemAttributes(s: WorkflowState) {
+  if (!s.sizeId) {
+    throw new Error(`No se pudo resolver la talla "${s.originalPayload?.listing?.attributes?.size}" para catalog_id ${s.categoryId}`)
+  }
+  if (!s.statusId) {
+    throw new Error(`No se pudo resolver la condición "${s.originalPayload?.listing?.condition}" para catalog_id ${s.categoryId}`)
+  }
+
+  return [
+    { code: 'size', ids: [s.sizeId] },
+    { code: 'condition', ids: [s.statusId] }
+  ]
 }
 
 const GENDER_FALLBACKS: Record<string, { category_leaf_id: string; subcategoryIds: string[] }> = {

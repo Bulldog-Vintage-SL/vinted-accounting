@@ -67,23 +67,15 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
     }
   })
 
+  // Sustituye a los antiguos GET_SIZE_OPTIONS y GET_CONDITION_OPTIONS<s
   steps.push({
     id: crypto.randomUUID(),
     platform: 'vinted',
-    type: 'GET_SIZE_OPTIONS',
+    type: 'GET_ITEM_ATTRIBUTES',
     request: {
       url: 'DYNAMIC',
-      method: 'GET'
-    }
-  })
-
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'vinted',
-    type: 'GET_CONDITION_OPTIONS',
-    request: {
-      url: 'DYNAMIC',
-      method: 'GET'
+      method: 'POST',
+      body: {}
     }
   })
 

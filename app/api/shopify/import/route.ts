@@ -19,6 +19,7 @@ const PRODUCTS_QUERY = `
         title
         descriptionHtml
         vendor
+        onlineStorePreviewUrl
         productType
         tags
         status
@@ -44,6 +45,7 @@ interface ShopifyProductNode {
   id: string;
   title: string;
   descriptionHtml: string;
+  onlineStorePreviewUrl: string;
   vendor: string;
   productType: string;
   tags: string[];
@@ -196,7 +198,17 @@ export async function POST(req: NextRequest) {
       };
 
       if (existingPub) {
+
         await Listing.findByIdAndUpdate(existingPub.listingId, listingPayload);
+
+        await Publication.findByIdAndUpdate(existingPub._id, {
+          status: mapShopifyStatus(product.status),
+          price: listingPayload.price,
+          publicationUrl: product.onlineStorePreviewUrl,
+          syncStatus: "OK",
+          lastSync: new Date(),
+        });
+
         updated++;
       } else {
         const newListing = await Listing.create(listingPayload);
@@ -207,8 +219,10 @@ export async function POST(req: NextRequest) {
           platform: "shopify",
           platformId: account.shopifyShopDomain,
           externalId: product.id,
+          shopifyVariantId: variant?.id ?? null,
           status: mapShopifyStatus(product.status),
           price: listingPayload.price,
+          publicationUrl: product.onlineStorePreviewUrl,
           syncStatus: "OK",
           lastSync: new Date(),
           accountId: account._id,

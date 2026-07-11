@@ -12,8 +12,7 @@ export type StepType =
   | 'GET_VINT_ITEM'
   | 'GET_CATEGORY_SUGGESTIONS'
   | 'GET_PACKAGE_SUGGESTION'
-  | 'GET_SIZE_OPTIONS'
-  | 'GET_CONDITION_OPTIONS'
+  | 'GET_ITEM_ATTRIBUTES'
   | 'GET_BRAND'
   | 'GET_COLORS'
   | 'CREATE_ITEM'
@@ -94,12 +93,14 @@ export interface WorkflowState {
   uploadSessionId?: string
   categoryId?: number
   packageSizeId?: number
+  sizeGroups?: any
   sizeId?: number
   statusId?: number
   brandId?: number
   brandName?: string
   colorIds?: number[]
   vintedItem?: any
+  itemAttributesRaw?: any
 
   // Wallapop
   uploadId?: string          

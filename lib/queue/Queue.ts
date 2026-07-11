@@ -1,16 +1,21 @@
 import type { Job, JobAction, JobStatus, QueueEvent, Executor } from './types'
 import { executors } from './executors'
 
-const ACTION_DELAYS: Record<string, number> = {
+const DEFAULT_ACTION_DELAYS: Partial<Record<JobAction, number>> = {
   upload: 5000,
-  delete: 500,
+  delete: 0,
   import: 500,
   deletePublication: 2500,
 }
 
+type ActionDelayMap = Partial<Record<JobAction, number>>
+
 interface QueueOptions {
   concurrency?: number
   delayBetweenJobs?: number
+  actionDelays?: ActionDelayMap
+  platformDelays?: Record<string, ActionDelayMap>
+  noRateLimitActions?: JobAction[]
 }
 
 type Handler<T> = (event: QueueEvent<T>) => void
@@ -18,14 +23,23 @@ type Handler<T> = (event: QueueEvent<T>) => void
 export class Queue<T = unknown> {
   private pending: Job<JobAction, T>[] = []
   private completed: Job<JobAction, T>[] = []
-  private activeCount: number = 0
   private handlers: Handler<T>[] = []
   private _paused: boolean = false
 
+  private activeCount: number = 0
+
+  private activePlatforms: Set<string> = new Set()
+
+  private activeCountNoPlatform: number = 0
   private concurrency: number
+
   private defaultDelay: number
+  private actionDelays: ActionDelayMap
+  private platformDelays: Record<string, ActionDelayMap>
+  private noRateLimitActions: Set<JobAction>
 
   private lastJobTimeByPlatform: Record<string, number> = {}
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
 
   public pendingAcks = new Map<string, {
     resolve: () => void
@@ -33,11 +47,17 @@ export class Queue<T = unknown> {
   }>()
 
   constructor({
-    concurrency = 2,
+    concurrency = 3,
     delayBetweenJobs = 2000,
+    actionDelays = {},
+    platformDelays = {},
+    noRateLimitActions = ['delete'],
   }: QueueOptions = {}) {
     this.concurrency = concurrency
     this.defaultDelay = delayBetweenJobs
+    this.actionDelays = { ...DEFAULT_ACTION_DELAYS, ...actionDelays }
+    this.platformDelays = { ...platformDelays }
+    this.noRateLimitActions = new Set(noRateLimitActions)
   }
 
   on(handler: Handler<T>) {
@@ -54,6 +74,39 @@ export class Queue<T = unknown> {
   getAllJobs(): Job<JobAction, T>[] {
     return [...this.pending, ...this.completed]
   }
+
+  setActionDelay(action: JobAction, ms: number | undefined) {
+    if (ms === undefined) delete this.actionDelays[action]
+    else this.actionDelays[action] = ms
+  }
+
+  setPlatformActionDelay(platform: string, action: JobAction, ms: number | undefined) {
+    const current = this.platformDelays[platform] ?? {}
+    if (ms === undefined) {
+      delete current[action]
+    } else {
+      current[action] = ms
+    }
+    this.platformDelays[platform] = current
+  }
+
+  setNoRateLimit(action: JobAction, exempt: boolean = true) {
+    if (exempt) this.noRateLimitActions.add(action)
+    else this.noRateLimitActions.delete(action)
+  }
+
+  setConcurrency(n: number) {
+    this.concurrency = n
+    this.tick()
+  }
+
+  private getDelay(platform: string, action: JobAction): number {
+    if (this.noRateLimitActions.has(action)) return 0
+    const override = this.platformDelays[platform]?.[action]
+    if (override !== undefined) return override
+    return this.actionDelays[action] ?? this.defaultDelay
+  }
+
 
   enqueue<A extends JobAction>(
     action: A,
@@ -72,27 +125,23 @@ export class Queue<T = unknown> {
     } satisfies Job<A, T>))
 
     this.pending.push(...jobs)
-
-    for (let i = 0; i < this.concurrency; i++) {
-      this.tick()
-    }
+    this.tick()
 
     return jobs
   }
 
   pause() { this._paused = true }
-  resume() { this._paused = false; for (let i = 0; i < this.concurrency; i++) this.tick() }
+  resume() { this._paused = false; this.tick() }
 
-  retryJobs(jobs: Job<JobAction, T>[]) {
-    const reset = jobs.map((j): Job<JobAction, T> => {
-      const { error: _error, result: _result, ...rest } = j
-      return {
-        ...rest,
-        status: 'pending',
-      }
-    })
+retryJobs(jobs: Job<JobAction, T>[]) {
+    const reset: Job<JobAction, T>[] = jobs.map(j => ({
+      ...j,
+      status: 'pending' as JobStatus,
+      error: undefined as string | undefined,
+      result: undefined as Job<JobAction, T>['result'],
+    }))
     this.pending.unshift(...reset)
-    for (let i = 0; i < this.concurrency; i++) this.tick()
+    this.tick()
   }
 
   ackJob(listingId: string) {
@@ -123,58 +172,101 @@ export class Queue<T = unknown> {
     return null
   }
 
-  private async tick() {
+  private tick() {
     if (this._paused) return
-    if (this.activeCount >= this.concurrency) return
+
+    let i = 0
+    while (i < this.pending.length) {
+      const job = this.pending[i]
+      const platform = this.getPlatform(job)
+
+      if (platform) {
+        if (this.activePlatforms.has(platform)) { i++; continue }
+
+        const lastTime = this.lastJobTimeByPlatform[platform]
+        if (lastTime) {
+          const elapsed = Date.now() - lastTime
+          const minDelay = this.getDelay(platform, job.action)
+          if (elapsed < minDelay) { i++; continue }
+        }
+      } else {
+        if (this.activeCountNoPlatform >= this.concurrency) { i++; continue }
+      }
+
+      this.pending.splice(i, 1)
+
+      if (platform) {
+        this.activePlatforms.add(platform)
+      } else {
+        this.activeCountNoPlatform++
+      }
+      this.activeCount++
+
+      this.runJob(job, platform)
+    }
+
     if (this.pending.length === 0) {
       if (this.activeCount === 0) this.emit({ type: 'queue:drained' })
       return
     }
 
-    this.activeCount++
+    this.scheduleRetryForBlockedJobs()
+  }
 
-    let job: Job<JobAction, T> | undefined
-    let jobIndex = -1
 
-    for (let i = 0; i < this.pending.length; i++) {
-      const candidate = this.pending[i]
-      const platform = this.getPlatform(candidate)
+  private scheduleRetryForBlockedJobs() {
+    let minWait: number | null = null
 
-      if (platform && this.lastJobTimeByPlatform[platform]) {
-        const elapsed = Date.now() - this.lastJobTimeByPlatform[platform]
-        const minDelay = ACTION_DELAYS[candidate.action] ?? this.defaultDelay
-        if (elapsed < minDelay) continue
+    for (const job of this.pending) {
+      const platform = this.getPlatform(job)
+      if (!platform) continue
+      if (this.activePlatforms.has(platform)) continue
+
+      const lastTime = this.lastJobTimeByPlatform[platform]
+      if (!lastTime) continue
+
+      const elapsed = Date.now() - lastTime
+      const minDelay = this.getDelay(platform, job.action)
+      const remaining = minDelay - elapsed
+
+      if (remaining > 0 && (minWait === null || remaining < minWait)) {
+        minWait = remaining
       }
-
-      job = candidate
-      jobIndex = i
-      break
     }
 
-    if (!job) {
-      this.activeCount--
-      const minDelay = Math.min(...Object.values(ACTION_DELAYS), this.defaultDelay)
-      setTimeout(() => this.tick(), minDelay)
-      return
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
     }
 
-    this.pending.splice(jobIndex, 1)
+    if (minWait !== null) {
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null
+        this.tick()
+      }, minWait)
+    }
+  }
 
+  private async runJob(job: Job<JobAction, T>, platform: string | null) {
     try {
       await this.process(job)
     } finally {
-      const platform = this.getPlatform(job)
-      if (platform) this.lastJobTimeByPlatform[platform] = Date.now()
+      if (platform) {
+        this.lastJobTimeByPlatform[platform] = Date.now()
+        this.activePlatforms.delete(platform)
+      } else {
+        this.activeCountNoPlatform--
+      }
       this.activeCount--
       this.tick()
     }
   }
 
-  private async process(job: Job<JobAction, T>) {
+  private async process<A extends JobAction>(job: Job<A, T>) {
     job.status = 'processing'
     this.emit({ type: 'job:start', job: { ...job } })
 
-    const executor: Executor<T> = executors[job.action]
+    const executor = executors[job.action] as Executor<T>
 
     try {
       const result = await executor(job, this.pendingAcks)

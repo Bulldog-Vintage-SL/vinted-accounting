@@ -15,6 +15,7 @@ export interface IPublication {
   lastSync?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
+  shopifyVariantId?: string | null;
 }
 
 const publicationSchema = new mongoose.Schema(
@@ -47,6 +48,7 @@ const publicationSchema = new mongoose.Schema(
       index: true,
     },
     lastSync: { type: Date, default: null },
+    shopifyVariantId: { type: String, default: null},
   },
   {
     timestamps: true,
