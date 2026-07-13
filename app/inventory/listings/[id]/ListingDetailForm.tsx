@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2, Plus, X, ImagePlus } from 'lucide-react'
 import { Listing, ListingForm } from '../types'
 import { useToast } from '@/components/toast'
 import { uploadPhoto } from '@/utils/uploadPhoto'
+import { PageLoader } from '@/components/ui/page-loader'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -204,7 +205,7 @@ export function ListingDetailForm({ listingId }: Props) {
   }
 
   if (isLoading) {
-    return <div className="p-4 text-gray-500">Cargando...</div>
+    return <PageLoader label="Cargando producto..." />
   }
 
   if (error || !data) {
