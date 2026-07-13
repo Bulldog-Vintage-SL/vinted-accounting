@@ -11,6 +11,8 @@ import { EditPublicationModal } from './EditPublicationModal'
 import { useToast } from '@/components/toast'
 import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
+import { PageLoader } from '@/components/ui/page-loader'
+import { LoadingButton } from '@/components/ui/loading-button'
 import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/extensionBridge'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
@@ -63,6 +65,7 @@ export function PublicationsTable() {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [showQueue, setShowQueue] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
     // Efectos para barra de progreso (igual que antes)
     useEffect(() => {
@@ -148,6 +151,8 @@ export function PublicationsTable() {
     const handleConfirmBulkDelete = useCallback(() => {
         if (publicationsToDelete.length === 0) return
 
+        setIsBulkDeleting(true)
+
         const idsToDelete = new Set(publicationsToDelete.map(p => p.id))
         mutate(
             (current: Publication[] | undefined) => (current ?? []).filter(p => !idsToDelete.has(p.id)),
@@ -156,14 +161,16 @@ export function PublicationsTable() {
 
         setSelectedIds([])
         tableRef.current?.resetSelection()
-        setBulkDeleteModalOpen(false)
 
         clear()
 
         enqueue('deletePublication', publicationsToDelete, {}, (p: Publication) => p.listing?.title || 'Publicación')
         setShowQueue(true)
+
+        setBulkDeleteModalOpen(false)
         setPublicationsToDelete([])
-    }, [publicationsToDelete, mutate, enqueue])
+        setIsBulkDeleting(false)
+    }, [publicationsToDelete, mutate, enqueue, clear])
 
     // Columnas
     const columns = useMemo(
@@ -171,7 +178,7 @@ export function PublicationsTable() {
         [handleDeleteClick, handleEditClick]
     )
 
-    if (isLoading) return <div className="p-4 text-gray-500">Cargando...</div>
+    if (isLoading) return <PageLoader label="Cargando publicaciones..." />
     if (error) return <div className="p-4 text-red-500">Error cargando publicaciones</div>
 
     return (
@@ -197,12 +204,14 @@ export function PublicationsTable() {
                 <div className="mt-3 flex justify-between items-center bg-blue-50 p-3 rounded-md gap-2">
                     <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
                     <div className="flex gap-2">
-                        <button
+                        <LoadingButton
                             onClick={handleBulkDeleteClick}
+                            loading={isBulkDeleting}
+                            loadingText="Eliminando..."
                             className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                         >
                             Eliminar seleccionados
-                        </button>
+                        </LoadingButton>
                     </div>
                 </div>
             )}
@@ -225,12 +234,13 @@ export function PublicationsTable() {
             <BulkDeletePublicationModal
                 open={bulkDeleteModalOpen}
                 onClose={() => {
+                    if (isBulkDeleting) return
                     setBulkDeleteModalOpen(false)
                     setPublicationsToDelete([])
                 }}
                 onConfirm={handleConfirmBulkDelete}
                 publications={publicationsToDelete}
-                isLoading={false}
+                isLoading={isBulkDeleting}
             />
 
             {/* Modal de edicion */}

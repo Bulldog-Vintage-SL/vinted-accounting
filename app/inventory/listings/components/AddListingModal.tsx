@@ -6,11 +6,13 @@
 
 "use client";
 
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Upload, FolderOpen } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueue } from '@/hooks/useQueue';
 import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
+import { LoadingButton } from "@/components/ui/loading-button";
 
 interface Props {
     open: boolean;
@@ -20,8 +22,22 @@ interface Props {
 export function AddListingModal({ open, onClose }: Props) {
 
     const openSelector = useAccountSelector((s) => s.openSelector);
+    const selectorOpen = useAccountSelector((s) => s.open);
     const router = useRouter();
     const { enqueue } = useQueue<SelectedAccount>();
+    const [isImporting, setIsImporting] = useState(false);
+
+    useEffect(() => {
+        if (selectorOpen) {
+            setIsImporting(false);
+        }
+    }, [selectorOpen]);
+
+    useEffect(() => {
+        if (!open) {
+            setIsImporting(false);
+        }
+    }, [open]);
 
     const handleCreate = () => {
         onClose();
@@ -29,9 +45,12 @@ export function AddListingModal({ open, onClose }: Props) {
     };
 
     const handleImport = () => {
+        setIsImporting(true);
         onClose();
 
         openSelector((accounts) => {
+            setIsImporting(false);
+
             if (accounts.length === 0) return
 
             enqueue('import', accounts, {}, (account) => {
@@ -88,12 +107,14 @@ export function AddListingModal({ open, onClose }: Props) {
                                 </p>
                             </div>
                         </div>
-                        <button
+                        <LoadingButton
                             onClick={handleImport}
+                            loading={isImporting}
+                            loadingText="Abriendo selector..."
                             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start"
                         >
                             Importar
-                        </button>
+                        </LoadingButton>
                     </div>
                 </div>
             </DialogContent>

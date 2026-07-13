@@ -5,6 +5,7 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useEffect, useState } from "react";
 import type { SyncStatus } from "@/app/settings/accounts/types";
@@ -39,6 +40,7 @@ export default function AccountSelectorModal() {
 
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [collapsedPlatforms, setCollapsedPlatforms] = useState<Set<string>>(new Set(PLATFORM_ORDER));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -59,6 +61,7 @@ export default function AccountSelectorModal() {
     if (!open) return;
     setAccounts([]);
     setLoading(true);
+    setIsConfirming(false);
     setSyncingId(null);
     setCollapsedPlatforms(new Set(PLATFORM_ORDER));
     setSelectedIds(new Set());
@@ -209,6 +212,8 @@ export default function AccountSelectorModal() {
       return;
     }
 
+    setIsConfirming(true);
+
     const accountsPayload = selectedAccounts.map(a => ({
       accountId: a.id,
       platform: a.platform
@@ -216,6 +221,7 @@ export default function AccountSelectorModal() {
 
     action?.(accountsPayload);
     closeSelector();
+    setIsConfirming(false);
   };
 
   const togglePlatform = (platform: string) => {
@@ -261,10 +267,7 @@ export default function AccountSelectorModal() {
         <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
           {loading && (
             <div className="flex items-center justify-center py-8">
-              <svg className="animate-spin h-6 w-6 text-gray-400" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
               <span className="ml-3 text-gray-500">Cargando cuentas…</span>
             </div>
           )}
@@ -415,16 +418,18 @@ export default function AccountSelectorModal() {
         <div className="p-4 border-t border-gray-200 flex gap-3">
           <button
             onClick={closeSelector}
-            className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition cursor-pointer font-medium"
+            disabled={isConfirming}
+            className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancelar
           </button>
           <button
             onClick={handleConfirm}
-            disabled={selectedCount === 0}
-            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={selectedCount === 0 || isConfirming}
+            className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
           >
-            Aplicar en {selectedCount > 0 ? `${selectedCount} cuenta(s)` : 'cuentas'}
+            {isConfirming && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isConfirming ? "Aplicando..." : `Aplicar en ${selectedCount > 0 ? `${selectedCount} cuenta(s)` : 'cuentas'}`}
           </button>
         </div>
       </DialogContent>

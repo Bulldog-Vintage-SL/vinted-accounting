@@ -1,18 +1,19 @@
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, Trash2 } from "lucide-react";
+import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
 
 interface Props {
     open: boolean;
     onClose: () => void;
     onConfirm: () => void;
     productName?: string;
+    isLoading?: boolean;
 }
 
-export function DeleteListingModal({ open, onClose, onConfirm, productName }: Props) {
+export function DeleteListingModal({ open, onClose, onConfirm, productName, isLoading = false }: Props) {
     return (
-        <Dialog open={open} onOpenChange={onClose}>
+        <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen && !isLoading) onClose(); }}>
             <DialogContent className="!max-w-[520px] w-full p-0 rounded-2xl overflow-hidden">
 
                 {/* Header */}
@@ -61,16 +62,18 @@ export function DeleteListingModal({ open, onClose, onConfirm, productName }: Pr
                 <div className="px-6 pb-6 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 text-sm"
+                        disabled={isLoading}
+                        className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Cancelar
                     </button>
                     <button
-                        onClick={() => { onConfirm(); onClose(); }}
-                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm"
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <Trash2 size={15} />
-                        Eliminar producto
+                        {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                        {isLoading ? "Eliminando..." : "Eliminar producto"}
                     </button>
                 </div>
             </DialogContent>

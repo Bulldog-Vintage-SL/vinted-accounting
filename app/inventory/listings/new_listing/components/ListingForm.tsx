@@ -5,7 +5,8 @@
 
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useState, useTransition, type ChangeEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
 
@@ -21,6 +22,8 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     ...initialData,
     stock: initialData.stock ?? 1,
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const update = <K extends keyof ListingForm>(
     field: K,
     value: ListingForm[K]
@@ -169,17 +172,30 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           ))}
 
           {/* Boton para anyadir fotos */}
-          <label className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition">
-            <span className="text-gray-400 text-3xl">+</span>
+          <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            {isUploading ? (
+              <Loader2 size={24} className="animate-spin text-gray-400" />
+            ) : (
+              <span className="text-gray-400 text-3xl">+</span>
+            )}
             <input
               type="file"
               accept="image/*"
               multiple
               className="hidden"
+              disabled={isUploading}
               onChange={async (e) => {
                 const files = Array.from(e.target.files || []);
-                const urls = await Promise.all(files.map(uploadPhoto));
-                update("photo_url", [...form.photo_url, ...urls]);
+                if (files.length === 0) return;
+
+                setIsUploading(true);
+                try {
+                  const urls = await Promise.all(files.map(uploadPhoto));
+                  update("photo_url", [...form.photo_url, ...urls]);
+                } finally {
+                  setIsUploading(false);
+                  e.target.value = "";
+                }
               }}
             />
           </label>
@@ -364,10 +380,12 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
       {/* Boton */}
       <button
-        onClick={() => onSubmit(form)}
-        className="w-full bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 transition cursor-pointer"
+        onClick={() => startTransition(() => { onSubmit(form); })}
+        disabled={isPending || isUploading}
+        className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Guardar producto
+        {isPending && <Loader2 size={18} className="animate-spin" />}
+        {isPending ? "Guardando producto..." : "Guardar producto"}
       </button>
 
     </div>

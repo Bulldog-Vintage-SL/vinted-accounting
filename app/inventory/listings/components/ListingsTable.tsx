@@ -7,7 +7,10 @@
 
 import useSWR from 'swr'
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { Loader2 } from 'lucide-react'
 import { DataTable, DataTableHandle } from '@/components/ui/data-table'
+import { PageLoader } from '@/components/ui/page-loader'
+import { LoadingButton } from '@/components/ui/loading-button'
 import { createColumns } from './columns'
 import { deleteListing } from '../actions'
 import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
@@ -36,18 +39,33 @@ export function ListingsTable() {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [listingToDelete, setListingToDelete] = useState<Listing | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
   const [listingsToDelete, setListingsToDelete] = useState<Listing[]>([])
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+
+  const [isBulkPublishing, setIsBulkPublishing] = useState(false)
+  const [publishingListingId, setPublishingListingId] = useState<string | null>(null)
 
   const { pushToast } = useToast()
 
   const openSelector = useAccountSelector(s => s.openSelector)
+  const selectorOpen = useAccountSelector(s => s.open)
 
   const [showQueue, setShowQueue] = useState(false)
   const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained } = useQueue<Listing>()
 
   const tableRef = useRef<DataTableHandle>(null)
+
+  const isQueueBusy = stats.pending > 0 || stats.processing > 0
+
+  useEffect(() => {
+    if (!selectorOpen) {
+      setPublishingListingId(null)
+      setIsBulkPublishing(false)
+    }
+  }, [selectorOpen])
 
   // Barra de progreso
   useEffect(() => {
@@ -73,12 +91,38 @@ export function ListingsTable() {
     })
   }, [onDrained])
 
+  const handlePublish = useCallback((listing: Listing) => {
+    setPublishingListingId(listing.id)
+
+    openSelector((accounts) => {
+      setPublishingListingId(null)
+
+      if (accounts.length === 0) return
+
+      const jobs = accounts.map(account => ({
+        listing,
+        account,
+      }))
+
+      clear()
+
+      enqueue('upload', jobs as unknown as Listing[], {}, (item) => {
+        const { listing: jobListing, account } = item as unknown as UploadJob
+        return `${jobListing.title} en ${account.platform}`
+      })
+    })
+  }, [openSelector, clear, enqueue])
+
   // Publicacion masiva
   const handleBulkPublish = useCallback(() => {
     const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
     if (selected.length === 0) return
 
+    setIsBulkPublishing(true)
+
     openSelector((accounts) => {
+      setIsBulkPublishing(false)
+
       if (accounts.length === 0) return
 
       const allJobs: UploadJob[] = []
@@ -111,6 +155,8 @@ export function ListingsTable() {
   const handleConfirmBulkDelete = useCallback(() => {
     if (listingsToDelete.length === 0) return
 
+    setIsBulkDeleting(true)
+
     const idsToDelete = new Set(listingsToDelete.map(l => l.id))
     mutate(
       (current: Listing[] | undefined) => (current ?? []).filter(l => !idsToDelete.has(l.id)),
@@ -118,12 +164,14 @@ export function ListingsTable() {
     )
     setSelectedIds([])
     tableRef.current?.resetSelection()
-    setBulkDeleteModalOpen(false)
-    setListingsToDelete([])
 
     clear()
 
     enqueue('delete', listingsToDelete, {}, (l: Listing) => l.title)
+
+    setBulkDeleteModalOpen(false)
+    setListingsToDelete([])
+    setIsBulkDeleting(false)
   }, [listingsToDelete, mutate, clear, enqueue])
 
   const handleDeleteClick = useCallback((id: string) => {
@@ -136,6 +184,8 @@ export function ListingsTable() {
 
   const handleConfirmDelete = useCallback(async () => {
     if (!listingToDelete) return
+
+    setIsDeleting(true)
 
     mutate(
       (current: Listing[] | undefined) => (current ?? []).filter(l => l.id !== listingToDelete.id),
@@ -150,6 +200,8 @@ export function ListingsTable() {
         description: `"${listingToDelete.title}" ha sido eliminado correctamente.`,
         type: 'success',
       })
+      setDeleteModalOpen(false)
+      setListingToDelete(null)
     } catch (err) {
       console.error('Error deleting listing:', err)
       mutate()
@@ -159,17 +211,16 @@ export function ListingsTable() {
         type: 'error',
       })
     } finally {
-      setDeleteModalOpen(false)
-      setListingToDelete(null)
+      setIsDeleting(false)
     }
   }, [listingToDelete, mutate, pushToast])
 
   const columns = useMemo(
-    () => createColumns(handleDeleteClick, openSelector, pushToast, enqueue),
-    [handleDeleteClick, openSelector, pushToast, enqueue]
+    () => createColumns(handleDeleteClick, handlePublish, publishingListingId),
+    [handleDeleteClick, handlePublish, publishingListingId]
   )
 
-  if (isLoading) return <div className="p-4 text-gray-500">Cargando...</div>
+  if (isLoading) return <PageLoader label="Cargando productos..." />
   if (error) return <div className="p-4 text-red-500">Error cargando listings</div>
 
   return (
@@ -195,29 +246,49 @@ export function ListingsTable() {
         <div className="mb-3 flex justify-between items-center bg-blue-50 p-3 rounded-md gap-2">
           <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
           <div className="flex gap-2">
-            <button onClick={handleBulkPublish} className="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+            <LoadingButton
+              onClick={handleBulkPublish}
+              loading={isBulkPublishing}
+              loadingText="Publicando..."
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+            >
               Publicar seleccionados
-            </button>
-            <button onClick={handleBulkDeleteClick} className="bg-red-600 text-white px-3 py-1 rounded text-sm">
+            </LoadingButton>
+            <LoadingButton
+              onClick={handleBulkDeleteClick}
+              loading={isBulkDeleting}
+              loadingText="Eliminando..."
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+            >
               Eliminar seleccionados
-            </button>
+            </LoadingButton>
           </div>
+        </div>
+      )}
+
+      {isQueueBusy && selectedIds.length === 0 && (
+        <div className="mb-3 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-md">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Procesando operaciones en segundo plano...
         </div>
       )}
 
       <DeleteListingModal
         open={deleteModalOpen}
         onClose={() => {
+          if (isDeleting) return
           setDeleteModalOpen(false)
           setListingToDelete(null)
         }}
         onConfirm={handleConfirmDelete}
         productName={listingToDelete?.title}
+        isLoading={isDeleting}
       />
 
       <DeleteListingModal
         open={bulkDeleteModalOpen}
         onClose={() => {
+          if (isBulkDeleting) return
           setBulkDeleteModalOpen(false)
           setListingsToDelete([])
         }}
@@ -227,6 +298,7 @@ export function ListingsTable() {
             ? listingsToDelete[0]?.title
             : `${listingsToDelete.length} productos seleccionados`
         }
+        isLoading={isBulkDeleting}
       />
     </div>
   )

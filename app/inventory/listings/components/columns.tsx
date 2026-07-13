@@ -3,16 +3,13 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Listing } from '@/app/inventory/listings/types'
-import { Trash2, Send } from 'lucide-react'
+import { Trash2, Send, Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import type { Toast } from "@/components/toast/ToastContext"
-import type { SelectedAccount } from '@/hooks/useAccountSelector'
 
 export const createColumns = (
   onDelete: (id: string) => void,
-  openSelector: (action: (accounts: SelectedAccount[]) => void) => void,
-  pushToast: (toast: Omit<Toast, "id">) => void,
-  enqueue: (action: any, entities: any[], payload: any, getLabel: (entity: any) => string) => any
+  onPublish: (listing: Listing) => void,
+  publishingListingId: string | null,
 ): ColumnDef<Listing>[] => [
 
     {
@@ -114,30 +111,18 @@ export const createColumns = (
       id: 'actions',
       header: '',
       cell: ({ row, isHovered }: any) => {
-
-        const handlePublish = () => {
-          openSelector((accounts) => {
-            if (accounts.length === 0) return
-            const jobs = accounts.map(account => ({
-              listing: row.original,
-              account
-            }))
-
-            enqueue('upload', jobs, {}, (item: any) => {
-              return `${item.listing.title} en ${item.account.platform}`
-            })
-          })
-        }
+        const isPublishing = publishingListingId === row.original.id
 
         return (
           <div className="flex justify-end">
             <div className={`flex gap-2 transition-opacity duration-150 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
               <button
-                onClick={handlePublish}
-                className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-lg shadow transition"
+                onClick={() => onPublish(row.original)}
+                disabled={isPublishing}
+                className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded-lg shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Publicar"
               >
-                <Send size={14} />
+                {isPublishing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
               </button>
 
               <button
