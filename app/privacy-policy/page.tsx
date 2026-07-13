@@ -12,8 +12,8 @@ import config from "@/config";
 // You are an excellent lawyer.
 
 // I need your help to write a simple privacy policy for my website. Here is some context:
-// - Website: https://vintflow.com
-// - Name: Vintflow
+// - Website: https://Reventa Libertad.com
+// - Name: Reventa Libertad
 // - Description: A JavaScript code boilerplate to help entrepreneurs launch their startups faster
 // - User data collected: name, email and payment information
 // - Non-personal data collection: web cookies
@@ -21,7 +21,7 @@ import config from "@/config";
 // - Data sharing: we do not share the data with any other parties
 // - Children's Privacy: we do not collect any data from children
 // - Updates to the Privacy Policy: users will be updated by email
-// - Contact information: vintflow@gmail.com
+// - Contact information: Reventa Libertad@gmail.com
 
 // Please write a simple privacy policy for my site. Add the current date.  Do not add or explain your reasoning. Answer:
 
@@ -57,10 +57,10 @@ const PrivacyPolicy = () => {
           className="leading-relaxed whitespace-pre-wrap"
           style={{ fontFamily: "sans-serif" }}
         >
-          {`Privacy Policy — Vintflow
+          {`Privacy Policy — Reventa Libertad
 Last updated: December 2, 2025
 
-This Privacy Policy explains how Vintflow (“we”, “our”, “us”) collects, uses, and protects your information when you use https://vintflow.com
+This Privacy Policy explains how Reventa Libertad (“we”, “our”, “us”) collects, uses, and protects your information when you use https://Reventa Libertad.com
  (“Website”). By using the Website, you agree to the practices described in this policy.
 
 1. Information We Collect
@@ -81,9 +81,9 @@ We use web cookies and similar technologies to gather non-personal information s
 
 2. Google User Data
 
-If you choose to connect your Google account, Vintflow may request read-only access to certain Gmail data through the Gmail API. This may include email metadata such as sender, subject, timestamps, and email content when necessary to provide the application's functionality.
+If you choose to connect your Google account, Reventa Libertad may request read-only access to certain Gmail data through the Gmail API. This may include email metadata such as sender, subject, timestamps, and email content when necessary to provide the application's functionality.
 
-This access is strictly read-only. Vintflow does not send emails, delete emails, or modify your mailbox in any way.
+This access is strictly read-only. Reventa Libertad does not send emails, delete emails, or modify your mailbox in any way.
 
 Non-Personal Data
 
@@ -95,7 +95,7 @@ We use web cookies and similar technologies to gather non-personal information s
 We collect and process your data for the following purposes:
 
 Processing purchases and providing access to digital downloads  
-Providing the core functionality of the Vintflow service  
+Providing the core functionality of the Reventa Libertad service  
 Improving application performance and user experience  
 Communicating with you about purchases, updates, or support
 
@@ -103,7 +103,7 @@ Google user data is accessed only to provide the functionality of the applicatio
 
 4. Use of Google API Data
 
-Vintflow’s use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.
+Reventa Libertad’s use and transfer of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.
 
 Google user data is only used to provide or improve the application's functionality and is never sold, shared, or used for advertising purposes.
 
@@ -119,7 +119,7 @@ We retain personal data only for as long as necessary to provide our services, c
 
 Users may request deletion of their data at any time by contacting us.
 
-If you disconnect your Google account from Vintflow, we will no longer access your Gmail data.
+If you disconnect your Google account from Reventa Libertad, we will no longer access your Gmail data.
 
 6. Data Security
 
@@ -141,7 +141,7 @@ We may update this Privacy Policy periodically. If changes are made, users will 
 10. Contact
 
 If you have any questions or concerns regarding this Privacy Policy, please contact us at:
-vintflow@gmail.com
+Reventa Libertad@gmail.com
 
 By using the Website, you acknowledge that you have read and agreed to this Privacy Policy.`}
         </pre>

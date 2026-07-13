@@ -13,7 +13,7 @@ interface FAQItemProps {
 
 const faqList: FAQItemProps[] = [
   {
-    question: "¿Qué puedo hacer con Vintflow?",
+    question: "¿Qué puedo hacer con Reventa Libertad?",
     answer: <div className="space-y-2 leading-relaxed">
       - Control de ventas y pedidos
       - Registro de gastos
@@ -35,7 +35,7 @@ const faqList: FAQItemProps[] = [
     question: "Tengo otra pregunta. ¿Cómo puedo contactar ?",
     answer: (
       <div className="space-y-2 leading-relaxed">
-        Puedes contactarnos por email a <a href="mailto:vintflow@gmail.com">vintflow@gmail.com</a>
+        Puedes contactarnos por email a <a href="mailto:Reventa Libertad@gmail.com">Reventa Libertad@gmail.com</a>
       </div>
     ),
   },

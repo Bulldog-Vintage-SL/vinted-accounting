@@ -7,7 +7,7 @@ import { signInWithEmail, signInWithGoogle } from "./actions";
 
 export const metadata = getSEOTags({
   title: `Iniciar sesión | ${config.appName}`,
-  description: "Accede a tu cuenta de Vintflow con Google o email.",
+  description: "Accede a tu cuenta de Reventa Libertad con Google o email.",
   canonicalUrlRelative: "/login",
 });
 
@@ -18,7 +18,9 @@ interface LoginPageProps {
 const errorMessages: Record<string, string> = {
   MissingCSRF: "La sesión expiró. Vuelve a intentarlo.",
   Configuration:
-    "No se pudo guardar la sesión. Comprueba MONGODB_URI en Vercel y que MongoDB Atlas permita acceso (0.0.0.0/0). Luego prueba en ventana privada.",
+    "No se pudo completar el inicio de sesión. Si el problema continúa, contacta con soporte.",
+  AdapterError:
+    "Error al guardar la sesión. Prueba de nuevo o contacta con soporte.",
   OAuthSignin: "No se pudo iniciar sesión con Google.",
   OAuthCallback: "Error al completar el inicio de sesión con Google.",
   OAuthCallbackError: "Google rechazó el inicio de sesión. Vuelve a intentarlo.",

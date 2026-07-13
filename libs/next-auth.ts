@@ -75,7 +75,14 @@ export const authOptions = {
         ]
       : []),
   ],
-  ...(connectMongo && { adapter: MongoDBAdapter(connectMongo) }),
+  ...(connectMongo && {
+    adapter: MongoDBAdapter(connectMongo, {
+      collections: {
+        // Avoid collision with models/Account.ts (Vinted/Wallapop marketplace accounts)
+        Accounts: "auth_accounts",
+      },
+    }),
+  }),
 
   callbacks: {
     async jwt({ token, account, user }: any) {

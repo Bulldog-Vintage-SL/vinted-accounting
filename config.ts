@@ -9,12 +9,12 @@ const themes = {
 
 const config = {
   // REQUIRED
-  appName: "Vintflow",
+  appName: "Reventa Libertad",
   // REQUIRED: a short description of your app for SEO tags (can be overwritten)
   appDescription:
     "La plataforma de contabilidad creada exclusivamente para revendedores. Controla ventas, pedidos, gastos, inventario y beneficios reales sin Excel, sin líos y sin perder dinero.",
   // REQUIRED (no https://, not trailing slash at the end, just the naked domain)
-  domainName: "vintflow.com",
+  domainName: "Reventa Libertad.com",
   crisp: {
     // Crisp website ID. IF YOU DON'T USE CRISP: just remove this => Then add a support email in this config file (resend.supportEmail) otherwise customer support won't work.
     id: "",

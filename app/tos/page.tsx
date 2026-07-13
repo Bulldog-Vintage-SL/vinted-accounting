@@ -12,14 +12,14 @@ import config from "@/config";
 // You are an excellent lawyer.
 
 // I need your help to write a simple Terms & Services for my website. Here is some context:
-// - Website: https://vintflow.com
-// - Name: Vintflow
-// - Contact information: vintflow@gmail.com
+// - Website: https://Reventa Libertad.com
+// - Name: Reventa Libertad
+// - Contact information: Reventa Libertad@gmail.com
 // - Description: A JavaScript code boilerplate to help entrepreneurs launch their startups faster
 // - Ownership: when buying a package, users can download code to create apps. They own the code but they do not have the right to resell it. They can ask for a full refund within 7 day after the purchase.
 // - User data collected: name, email and payment information
 // - Non-personal data collection: web cookies
-// - Link to privacy-policy: https://vintflow.com/privacy-policy
+// - Link to privacy-policy: https://Reventa Libertad.com/privacy-policy
 // - Governing Law: Spain
 // - Updates to the Terms: users will be updated by email
 
@@ -59,22 +59,22 @@ const TOS = () => {
         >
           {`Last Updated: September 26, 2023
 
-**Terms & Services — Vintflow**
+**Terms & Services — Reventa Libertad**
 **Last updated: December 2, 2025**
 
-These Terms & Services (“Terms”) govern your use of **Vintflow** (“we”, “our”, “us”) and the services provided through **[https://vintflow.com](https://vintflow.com)** (“Website”). By accessing or using the Website, you agree to these Terms.
+These Terms & Services (“Terms”) govern your use of **Reventa Libertad** (“we”, “our”, “us”) and the services provided through **[https://Reventa Libertad.com](https://Reventa Libertad.com)** (“Website”). By accessing or using the Website, you agree to these Terms.
 
 ---
 
 ## 1. Description of Service
 
-Vintflow provides a JavaScript code boilerplate designed to help entrepreneurs launch their startups faster. Users may purchase packages that allow them to download code to build their own applications.
+Reventa Libertad provides a JavaScript code boilerplate designed to help entrepreneurs launch their startups faster. Users may purchase packages that allow them to download code to build their own applications.
 
 ---
 
 ## 2. Ownership and Usage Rights
 
-When you purchase a package from Vintflow, you receive the right to download and use the provided code for your personal or business projects.
+When you purchase a package from Reventa Libertad, you receive the right to download and use the provided code for your personal or business projects.
 
 You **retain ownership** of any code you build using our boilerplate; however, you **may not resell, redistribute, or sublicense** the boilerplate code or any substantial derivative of it as a standalone product.
 
@@ -83,7 +83,7 @@ You **retain ownership** of any code you build using our boilerplate; however, y
 ## 3. Refund Policy
 
 You may request a **full refund within 7 days** of your purchase. After this period, all sales are considered final. Refund requests may be submitted to:
-**[vintflow@gmail.com](mailto:vintflow@gmail.com)**
+**[Reventa Libertad@gmail.com](mailto:Reventa Libertad@gmail.com)**
 
 ---
 
@@ -96,7 +96,7 @@ We collect the following personal information when you interact with our Website
 * Payment information
 
 Our use and handling of personal data is governed by our Privacy Policy:
-**[https://vintflow.com/privacy-policy](https://vintflow.com/privacy-policy)**
+**[https://Reventa Libertad.com/privacy-policy](https://Reventa Libertad.com/privacy-policy)**
 
 ---
 
@@ -108,7 +108,7 @@ The Website uses cookies and other tracking technologies to improve user experie
 
 ## 6. User Responsibilities
 
-By using Vintflow, you agree to:
+By using Reventa Libertad, you agree to:
 
 * Provide accurate information during purchase.
 * Use the downloaded code in accordance with these Terms.
@@ -118,7 +118,7 @@ By using Vintflow, you agree to:
 
 ## 7. Limitation of Liability
 
-Vintflow is provided “as is” without any warranties, express or implied. We are not responsible for any damages, losses, or issues resulting from the use or misuse of our code, Website, or services.
+Reventa Libertad is provided “as is” without any warranties, express or implied. We are not responsible for any damages, losses, or issues resulting from the use or misuse of our code, Website, or services.
 
 ---
 
@@ -137,11 +137,11 @@ We may update these Terms from time to time. If changes occur, users will be not
 ## 10. Contact
 
 For questions or concerns regarding these Terms, please contact us at:
-**[vintflow@gmail.com](mailto:vintflow@gmail.com)**
+**[Reventa Libertad@gmail.com](mailto:Reventa Libertad@gmail.com)**
 
 ---
 
-By using Vintflow or purchasing any package, you acknowledge that you have read, understood, and agreed to these Terms & Services.
+By using Reventa Libertad or purchasing any package, you acknowledge that you have read, understood, and agreed to these Terms & Services.
 `}
         </pre>
       </div>
