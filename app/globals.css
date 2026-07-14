@@ -3,8 +3,46 @@
   themes: light --default;
 }
 
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f5f5f5;
+  --color-base-300: #ebebeb;
+  --color-base-content: #1A1A1A;
+
+  --color-primary: #D11F24;
+  --color-primary-content: #ffffff;
+
+  --color-secondary: #F2B83E;
+  --color-secondary-content: #1A1A1A;
+
+  --color-accent: #F2B83E;
+  --color-accent-content: #1A1A1A;
+
+  --color-neutral: #1A1A1A;
+  --color-neutral-content: #ffffff;
+
+  --color-info: #2563eb;
+  --color-info-content: #ffffff;
+  --color-success: #16a34a;
+  --color-success-content: #ffffff;
+  --color-warning: #F2B83E;
+  --color-warning-content: #1A1A1A;
+  --color-error: #D11F24;
+  --color-error-content: #ffffff;
+}
+
 @theme {
   --font-display: "Satoshi", "sans-serif";
+
+  --color-brand-black: #1A1A1A;
+  --color-brand-red: #D11F24;
+  --color-brand-gold: #F2B83E;
+  --color-brand-white: #ffffff;
   
   --animate-shimmer: shimmer 3s ease-out infinite alternate;
   --animate-opacity: opacity 0.25s ease-in-out;
@@ -53,7 +91,7 @@ progress::-webkit-progress-value {
 }
 
 .btn-gradient {
-  background: linear-gradient(60deg, #f79533, #f37055, #ef4e7b, #a166ab, #5073b8, #1098ad, #07b39b, #6fba82) !important;
+  background: linear-gradient(135deg, #D11F24, #F2B83E, #1A1A1A) !important;
   background-size: 300% 300% !important;
   animation: var(--animate-shimmer) !important;
   border: 0 !important;

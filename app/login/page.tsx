@@ -7,7 +7,7 @@ import { signInWithEmail, signInWithGoogle } from "./actions";
 
 export const metadata = getSEOTags({
   title: `Iniciar sesión | ${config.appName}`,
-  description: "Accede a tu cuenta de Reventa Libertad con Google o email.",
+  description: "Accede a tu cuenta de Vinted Libertad con Google o email.",
   canonicalUrlRelative: "/login",
 });
 
@@ -47,9 +47,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <Image
               src={logo}
               alt={config.appName}
-              width={64}
-              height={64}
-              className="rounded-xl"
+              width={96}
+              height={96}
+              className="w-24 h-24 rounded-full object-contain"
               priority
             />
             <h1 className="text-2xl font-bold">{config.appName}</h1>

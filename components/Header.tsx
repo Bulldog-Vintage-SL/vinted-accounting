@@ -60,11 +60,10 @@ const Header = () => {
             <Image
               src={logo}
               alt={`${config.appName} logo`}
-              className="w-8"
-              placeholder="blur"
+              className="w-10 h-10 rounded-full object-contain"
               priority={true}
-              width={32}
-              height={32}
+              width={40}
+              height={40}
             />
             <span className="font-extrabold text-lg">{config.appName}</span>
           </Link>
@@ -127,11 +126,10 @@ const Header = () => {
               <Image
                 src={logo}
                 alt={`${config.appName} logo`}
-                className="w-8"
-                placeholder="blur"
+                className="w-10 h-10 rounded-full object-contain"
                 priority={true}
-                width={32}
-                height={32}
+                width={40}
+                height={40}
               />
               <span className="font-extrabold text-lg">{config.appName}</span>
             </Link>

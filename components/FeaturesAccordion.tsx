@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { JSX } from "react";
 import Image from "next/image";
+import config from "@/config";
 
 interface Feature {
   title: string;
@@ -221,7 +222,7 @@ const FeaturesAccordion = () => {
     >
       <div className="px-8">
         <h2 className="font-extrabold text-4xl lg:text-6xl tracking-tight mb-12 md:mb-20">
-          Reventa Libertad
+          {config.appName}
           <span className="bg-neutral text-neutral-content px-2 md:px-4 ml-1 md:ml-1.5 leading-relaxed whitespace-nowrap">
             pone orden
           </span>

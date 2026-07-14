@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { JSX } from "react";
+import config from "@/config";
 
 // <FAQ> component is a lsit of <Item> component
 // Just import the FAQ & add your FAQ content to the const faqList arrayy below.
@@ -13,7 +14,7 @@ interface FAQItemProps {
 
 const faqList: FAQItemProps[] = [
   {
-    question: "¿Qué puedo hacer con Reventa Libertad?",
+    question: `¿Qué puedo hacer con ${config.appName}?`,
     answer: <div className="space-y-2 leading-relaxed">
       - Control de ventas y pedidos
       - Registro de gastos
