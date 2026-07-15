@@ -17,7 +17,7 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
-
+ 
     const body = await req.json();
     if (!body.wardrobe || !Array.isArray(body.wardrobe)) {
       return NextResponse.json(
@@ -83,6 +83,8 @@ async function importPublication(
     stock: 1,
   });
 
+  const publicationUrl = item.slug ? `https://es.wallapop.com/item/${item.slug}`: String();
+
   await Publication.create({
     listingId: listing._id,
     platform,
@@ -91,6 +93,7 @@ async function importPublication(
     price: item.price.amount,
     syncStatus: "live",
     lastSync: new Date(),
+    publicationUrl,
     accountId: new mongoose.Types.ObjectId(accountId),
   });
 }

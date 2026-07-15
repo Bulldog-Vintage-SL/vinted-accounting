@@ -85,6 +85,9 @@ async function importPublication(
     stock: 1,
   });
 
+  const slug = buildVintedSlug(item.title);
+  const publicationUrl = `https://www.vinted.es/items/${externalId}-${slug}`;
+
   await Publication.create({
     listingId: listing._id,
     platform,
@@ -93,6 +96,7 @@ async function importPublication(
     price: item.price.amount,
     syncStatus: "live",
     lastSync: new Date(),
+    publicationUrl,
     accountId: new mongoose.Types.ObjectId(accountId),
   });
 }
@@ -103,4 +107,15 @@ function getVintedStatus(item: any): string {
   if (item.is_closed) return "closed";
   if (item.is_hidden) return "hidden";
   return "active";
+}
+
+function buildVintedSlug(title: string): string {
+  return title
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") 
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "") 
+    .trim()
+    .replace(/\s+/g, "-") 
+    .replace(/-+/g, "-"); 
 }
