@@ -16,9 +16,11 @@ import { deleteListing } from '../actions'
 import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
+import { PublishProgressModal } from './PublishProgressModal'
 import { Listing } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
+import type { Job } from '@/lib/queue/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -26,6 +28,8 @@ type UploadJob = {
   listing: Listing
   account: SelectedAccount
 }
+
+type PublishPhase = 'idle' | 'publishing' | 'done'
 
 export function ListingsTable() {
   const { data, error, isLoading, mutate } = useSWR('/api/listings', fetcher, {
@@ -54,11 +58,16 @@ export function ListingsTable() {
   const selectorOpen = useAccountSelector(s => s.open)
 
   const [showQueue, setShowQueue] = useState(false)
-  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained } = useQueue<Listing>()
+  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained, onEvent } = useQueue<Listing>()
 
   const tableRef = useRef<DataTableHandle>(null)
 
   const isQueueBusy = stats.pending > 0 || stats.processing > 0
+
+  // Modal de progreso bloqueante para la publicación (individual o masiva)
+  const [publishPhase, setPublishPhase] = useState<PublishPhase>('idle')
+  const publishJobsRef = useRef<Job<'upload', Listing>[]>([])
+  const [, forceTick] = useState(0)
 
   useEffect(() => {
     if (!selectorOpen) {
@@ -91,6 +100,24 @@ export function ListingsTable() {
     })
   }, [onDrained])
 
+  // Mientras el modal de publicación esta abierto
+  useEffect(() => {
+    if (publishPhase !== 'publishing') return
+
+    const unsubscribe = onEvent(() => {
+      forceTick((t) => t + 1)
+
+      const allDone = publishJobsRef.current.every(
+        (j) => j.status === 'completed' || j.status === 'failed'
+      )
+      if (allDone && publishJobsRef.current.length > 0) {
+        setPublishPhase('done')
+      }
+    })
+
+    return unsubscribe
+  }, [publishPhase, onEvent])
+
   const handlePublish = useCallback((listing: Listing) => {
     setPublishingListingId(listing.id)
 
@@ -99,17 +126,20 @@ export function ListingsTable() {
 
       if (accounts.length === 0) return
 
-      const jobs = accounts.map(account => ({
+      const jobsPayload = accounts.map(account => ({
         listing,
         account,
       }))
 
       clear()
 
-      enqueue('upload', jobs as unknown as Listing[], {}, (item) => {
+      const jobs = enqueue('upload', jobsPayload as unknown as Listing[], {}, (item) => {
         const { listing: jobListing, account } = item as unknown as UploadJob
         return `${jobListing.title} en ${account.platform}`
       })
+
+      publishJobsRef.current = jobs
+      setPublishPhase('publishing')
     })
   }, [openSelector, clear, enqueue])
 
@@ -134,15 +164,23 @@ export function ListingsTable() {
 
       clear()
 
-      enqueue('upload', allJobs as unknown as Listing[], {}, (item) => {
+      const jobs = enqueue('upload', allJobs as unknown as Listing[], {}, (item) => {
         const { listing, account } = item as unknown as UploadJob
         return `${listing.title} en ${account.platform}`
       })
+
+      publishJobsRef.current = jobs
+      setPublishPhase('publishing')
 
       setSelectedIds([])
       tableRef.current?.resetSelection()
     })
   }, [data, selectedIds, openSelector, clear, enqueue])
+
+  const handleClosePublishModal = useCallback(() => {
+    setPublishPhase('idle')
+    publishJobsRef.current = []
+  }, [])
 
   const handleBulkDeleteClick = useCallback(() => {
     const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
@@ -225,7 +263,7 @@ export function ListingsTable() {
 
   return (
     <div className="w-full">
-      {showQueue && (
+      {showQueue && publishPhase === 'idle' && (
         <QueueStatusBar
           stats={stats}
           isPaused={isPaused}
@@ -266,12 +304,19 @@ export function ListingsTable() {
         </div>
       )}
 
-      {isQueueBusy && selectedIds.length === 0 && (
+      {isQueueBusy && selectedIds.length === 0 && publishPhase === 'idle' && (
         <div className="mb-3 flex items-center gap-2 text-sm text-blue-700 bg-blue-50 px-3 py-2 rounded-md">
           <Loader2 className="h-4 w-4 animate-spin" />
           Procesando operaciones en segundo plano...
         </div>
       )}
+
+      <PublishProgressModal
+        open={publishPhase !== 'idle'}
+        jobs={publishJobsRef.current}
+        isBusy={publishPhase === 'publishing'}
+        onClose={handleClosePublishModal}
+      />
 
       <DeleteListingModal
         open={deleteModalOpen}
