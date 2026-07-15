@@ -79,7 +79,7 @@ function PlatformIcon({ platform }: { platform: string }) {
   const icons: Record<string, string> = {
     vinted: "/icons/vinted.svg",
     wallapop: "/icons/wallapop.svg",
-    vestiaire: "/icons/wallapop.svg",
+    vestiaire: "/icons/vestiaire.jpeg",
     shopify: "/icons/shopify.svg",
     unknown: "/icons/vinted.svg",
   };
