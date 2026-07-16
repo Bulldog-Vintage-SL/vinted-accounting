@@ -104,10 +104,13 @@ export async function uploadItem(listing: any, accountId: string): Promise<Uploa
     return { ok: false, message: "No se recibió ID del item creado" }
 
   } catch (err: any) {
+    if (err instanceof MissingFieldsError) {
+      return { ok: false, message: err.message, missingFields: err.fields }
+    }
     return {
       ok: false,
       message: err?.message || "Error inesperado",
-    };
+    }
   }
 
 }
@@ -160,6 +163,9 @@ export async function uploadWallapopItem(listing: any, accountId: string): Promi
     return { ok: false, message: "No se recibió ID del item creado" }
 
   } catch (err: any) {
+    if (err instanceof MissingFieldsError) {
+      return { ok: false, message: err.message, missingFields: err.fields }
+    }
     return {
       ok: false,
       message: err?.message || "Error inesperado",
@@ -208,7 +214,13 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
     return { ok: false, message: 'No se recibió ID del item creado' }
 
   } catch (err: any) {
-    return { ok: false, message: err?.message || 'Error inesperado' }
+    if (err instanceof MissingFieldsError) {
+      return { ok: false, message: err.message, missingFields: err.fields }
+    }
+    return {
+      ok: false,
+      message: err?.message || "Error inesperado",
+    }
   }
 }
 
