@@ -15,7 +15,7 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
       url: 'https://www.vinted.es/items/new',
       method: 'GET'
     }
-  })
+  }) 
 
   steps.push({
     id: crypto.randomUUID(),

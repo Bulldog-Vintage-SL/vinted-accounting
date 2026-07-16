@@ -52,10 +52,37 @@ async function runFlow(flow: string, payload: any = {}): Promise<any> {
   })
 }
 
+function validateListingRequiredFields(listing: any): string[] {
+  const missing: string[] = []
+
+  if (!listing?.title?.trim()) missing.push('título')
+  if (!listing?.description?.trim()) missing.push('descripción')
+  if (listing?.price === null || listing?.price === undefined || listing?.price === "" || Number(listing.price) <= 0) {
+    missing.push('precio')
+  }
+  if (!Array.isArray(listing?.colors) || listing.colors.length === 0) missing.push('colores')
+  if (!Array.isArray(listing?.photo_url) || listing.photo_url.length === 0) missing.push('foto')
+  if (!listing?.attributes?.brand?.trim()) missing.push('marca')
+  if (!listing?.condition?.trim()) missing.push('condición')
+  if (!listing?.attributes?.size?.trim()) missing.push('talla')
+  if (!listing?.item_type?.trim()) missing.push('tipo')
+
+  return missing
+}
+
 // Subir producto a Vinted
 export async function uploadItem(listing: any, accountId: string) {
 
   try {
+
+    const missingFields = validateListingRequiredFields(listing)
+
+    if (missingFields.length > 0) {
+      return {
+        ok: false,
+        message: `Faltan campos obligatorios para Vinted: ${missingFields.join(', ')}`,
+      }
+    }
 
     const result = await runFlow('UPLOAD_ITEM', { listing })
 
@@ -105,6 +132,16 @@ export async function uploadItem(listing: any, accountId: string) {
 // Subir producto a Wallapop
 export async function uploadWallapopItem(listing: any, accountId: string) {
   try {
+
+    const missingFields = validateListingRequiredFields(listing)
+
+    if (missingFields.length > 0) {
+      return {
+        ok: false,
+        message: `Faltan campos obligatorios para Wallapop: ${missingFields.join(', ')}`,
+      }
+    }
+
     const result = await runFlow('UPLOAD_WALLAPOP_ITEM', { listing })
     const item = result?.result?.result
 
@@ -159,8 +196,18 @@ export async function uploadWallapopItem(listing: any, accountId: string) {
 // Subir producto a Vestiaire Collective
 export async function uploadVestiaireItem(listing: any, accountId: string) {
   try {
+
     if (isRejectedByVestiaire(listing.attributes?.brand)) {
       throw new Error(`La marca "${listing.attributes.brand}" no está aceptada en Vestiaire Collective`)
+    }
+
+    const missingFields = validateListingRequiredFields(listing)
+
+    if (missingFields.length > 0) {
+      return {
+        ok: false,
+        message: `Faltan campos obligatorios para Vestiaire Collective: ${missingFields.join(', ')}`,
+      }
     }
 
     const result = await runFlow('UPLOAD_VESTIAIRE_ITEM', { listing })

@@ -20,7 +20,7 @@ export function processStepResult(
 
   // Acumulamos los datos en cada paso 
   switch (completed.type) {
-
+ 
     // VINTED
     case 'UPLOAD_PHOTO':
       s.photoIds = [...(s.photoIds ?? []), result.id]
@@ -776,7 +776,6 @@ function buildVestiaireFieldsFormData(s: WorkflowState): Record<string, string> 
   const l = s.originalPayload.listing
   const opts = s.vestFormOptions
 
-  // Helper: busca el id de un valor por displayName dentro de un mnemonic
   function resolveId(mnemonic: string, displayName: string): string | null {
     const section = opts?.informations?.find((info: any) => info.mnemonic === mnemonic)
     const field = section?.fields?.[0]
@@ -790,7 +789,7 @@ function buildVestiaireFieldsFormData(s: WorkflowState): Record<string, string> 
     const unitField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size_unit')
     const sizeField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size')
 
-    // Usamos siempre International (primer size_unit)
+    // Usamos siempre International 
     const unitId = unitField?.values?.[0]?.id
     if (!unitId) return null
 
