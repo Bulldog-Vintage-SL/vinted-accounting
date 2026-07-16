@@ -1,5 +1,7 @@
 import type { Job, JobAction, JobStatus, QueueEvent, Executor } from './types'
 import { executors } from './executors'
+import { MissingFieldsError } from '@/lib/validators'
+
 
 const DEFAULT_ACTION_DELAYS: Partial<Record<JobAction, number>> = {
   upload: 5000,
@@ -133,17 +135,36 @@ export class Queue<T = unknown> {
   pause() { this._paused = true }
   resume() { this._paused = false; this.tick() }
 
-retryJobs(jobs: Job<JobAction, T>[]) {
+  retryJobs(jobs: Job<JobAction, T>[]) {
     const reset: Job<JobAction, T>[] = jobs.map(j => ({
       ...j,
       status: 'pending' as JobStatus,
       error: undefined as string | undefined,
       result: undefined as Job<JobAction, T>['result'],
+      missingFields: undefined,
     }))
     this.pending.unshift(...reset)
     this.tick()
   }
 
+  retryJobWithPatch(jobId: string, updater: (entity: T) => T) {
+    const idx = this.completed.findIndex(j => j.id === jobId)
+    if (idx === -1) return
+
+    const [job] = this.completed.splice(idx, 1)
+
+    job.entity = updater(job.entity)
+    job.status = 'pending'
+    job.error = undefined
+    job.missingFields = undefined
+    job.result = undefined
+    job.finishedAt = undefined
+
+    this.pending.unshift(job)
+    this.emit({ type: 'queue:updated' } as any)
+    this.tick()
+  }
+  
   ackJob(listingId: string) {
     const ack = this.pendingAcks.get(listingId)
     if (ack) {
@@ -280,6 +301,14 @@ retryJobs(jobs: Job<JobAction, T>[]) {
       job.status = 'failed'
       job.error = err instanceof Error ? err.message : 'Error desconocido'
       job.finishedAt = Date.now()
+
+      if (err instanceof MissingFieldsError) {
+        job.error = err.message
+        job.missingFields = err.fields
+      } else {
+        job.error = err instanceof Error ? err.message : 'Error desconocido'
+      }
+
       this.completed.push(job)
       this.emit({ type: 'job:failed', job: { ...job } })
     }

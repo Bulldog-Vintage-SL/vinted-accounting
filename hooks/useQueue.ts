@@ -145,6 +145,11 @@ export function useQueue<T = unknown>() {
     queue.setConcurrency(n)
   }, [queue])
 
+  const retryJobWithPatch = useCallback((jobId: string, updater: (entity: T) => T) => {
+    queue.retryJobWithPatch(jobId, updater)
+    setStats(getStats())
+  }, [queue, getStats])
+
   return useMemo(() => ({
     enqueue,
     stats,
@@ -155,6 +160,7 @@ export function useQueue<T = unknown>() {
     retryFailed,
     onDrained,
     onEvent,
+    retryJobWithPatch,
     setPlatformDelay,
     setActionDelay,
     setNoRateLimit,

@@ -46,7 +46,7 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
-
+ 
     const body = await req.json();
     const updatePayload = listingFormToMongo(body);
 

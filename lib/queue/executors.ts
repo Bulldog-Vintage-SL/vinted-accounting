@@ -4,6 +4,8 @@
 */
 
 import { deleteListing } from '@/app/inventory/listings/actions'
+import { MissingFieldsError, isUploadFailure } from '@/lib/validators'
+import type { UploadResult } from '@/lib/validators'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
@@ -11,10 +13,6 @@ import { importWardrobe, importWallapopWardrobe, importVestiaireWardrobe } from 
 import { uploadItem, uploadWallapopItem, uploadVestiaireItem } from '@/lib/extensionBridge'
 import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/extensionBridge'
 
-/*
-  Ejecutores de cada una de las acciones disponibles para funciones masivas.
-  Un job = una publicacion en una cuenta.
-*/
 
 // Entidad para upload
 interface UploadEntity {
@@ -102,17 +100,26 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
 
   if (account.platform === 'vinted') {
     const res = await uploadItem(listing, account.accountId)
-    if (!res?.ok) throw new Error(`Vinted: ${res?.message || 'Error desconocido'}`)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Vinted: ${res.message}`)
+    }
     return { published: true, platform: 'vinted' }
   }
   else if (account.platform === 'wallapop') {
     const res = await uploadWallapopItem(listing, account.accountId)
-    if (!res?.ok) throw new Error(`Wallapop: ${res?.message || 'Error desconocido'}`)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Wallapop: ${res.message}`)
+    }
     return { published: true, platform: 'wallapop' }
   }
   else if (account.platform === 'vestiaire') {
     const res = await uploadVestiaireItem(listing, account.accountId)
-    if (!res?.ok) throw new Error(`Vestiaire: ${res?.message || 'Error desconocido'}`)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Vestiaire: ${res.message}`)
+    }
     return { published: true, platform: 'vestiaire' }
   }
   else if (account.platform === 'shopify') {

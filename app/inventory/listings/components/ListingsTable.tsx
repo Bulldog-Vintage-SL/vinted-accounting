@@ -7,6 +7,7 @@
 
 import useSWR from 'swr'
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import { applyFieldPatch } from '@/lib/validators'
 import { Loader2 } from 'lucide-react'
 import { DataTable, DataTableHandle } from '@/components/ui/data-table'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -17,7 +18,7 @@ import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { PublishProgressModal } from './PublishProgressModal'
-import { Listing } from '../types'
+import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
 import type { Job } from '@/lib/queue/types'
@@ -58,7 +59,7 @@ export function ListingsTable() {
   const selectorOpen = useAccountSelector(s => s.open)
 
   const [showQueue, setShowQueue] = useState(false)
-  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained, onEvent } = useQueue<Listing>()
+  const { enqueue, clear, stats, isPaused, pause, resume, retryFailed, onDrained, retryJobWithPatch, onEvent } = useQueue<Listing>()
 
   const tableRef = useRef<DataTableHandle>(null)
 
@@ -316,6 +317,49 @@ export function ListingsTable() {
         jobs={publishJobsRef.current}
         isBusy={publishPhase === 'publishing'}
         onClose={handleClosePublishModal}
+        onRetryJob={async (job, patch) => {
+          const uploadJob = job.entity as unknown as UploadJob
+          const currentListing = uploadJob.listing
+
+          const formPayload = applyFieldPatch(listingToForm(currentListing), patch)
+
+          try {
+            const res = await fetch(`/api/listings/${currentListing.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(formPayload),
+            })
+
+            if (!res.ok) {
+              const data = await res.json().catch(() => null)
+              pushToast({
+                message: 'Error al guardar',
+                description: data?.error || 'No se pudieron guardar los cambios del producto.',
+                type: 'error',
+              })
+              return
+            }
+
+            const updatedListing = await res.json()
+            mutate()
+
+            retryJobWithPatch(job.id, (entity) => {
+              const uj = entity as unknown as UploadJob
+              return {
+                ...uj,
+                listing: updatedListing,
+              } as unknown as Listing
+            })
+
+          } catch (err) {
+            console.error('Error guardando el listing:', err)
+            pushToast({
+              message: 'Error al guardar',
+              description: 'No se pudo conectar con el servidor.',
+              type: 'error',
+            })
+          }
+        }}
       />
 
       <DeleteListingModal
@@ -347,4 +391,22 @@ export function ListingsTable() {
       />
     </div>
   )
+}
+
+function listingToForm(listing: Listing): ListingForm {
+  return {
+    title: listing.title,
+    description: listing.description,
+    condition: listing.condition,
+    price: listing.price,
+    photo_url: listing.photo_url,
+    colors: listing.colors,
+    attributes: {
+      brand: listing.attributes?.brand ?? '',
+      size: listing.attributes?.size ?? '',
+    },
+    gender: listing.gender,
+    item_type: listing.item_type,
+    stock: listing.stock,
+  }
 }

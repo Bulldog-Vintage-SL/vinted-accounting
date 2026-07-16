@@ -13,6 +13,11 @@ export interface ActionPayload {
   deletePublication: {}
 }
 
+export interface MissingField {
+  key: string
+  label: string
+}
+
 export interface Job<A extends JobAction = JobAction, T = unknown> {
   id:          string
   action:      A
@@ -24,6 +29,7 @@ export interface Job<A extends JobAction = JobAction, T = unknown> {
   result?:     unknown    
   createdAt:   number
   finishedAt?: number
+  missingFields?: MissingField[]
 }
 
 export type QueueEvent<T = unknown> =
