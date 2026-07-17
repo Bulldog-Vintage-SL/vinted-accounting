@@ -36,6 +36,7 @@ const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
 
 const SINGLE_FIELD_OPTIONS: Record<string, string[]> = {
   size: SIZE_OPTIONS,
+  'attributes.size': SIZE_OPTIONS,
   gender: GENDER_OPTIONS,
   condition: CONDITION_OPTIONS,
 }
