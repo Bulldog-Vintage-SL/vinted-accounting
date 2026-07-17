@@ -4,15 +4,15 @@
 */
 
 import { deleteListing } from '@/app/inventory/listings/actions'
-import { MissingFieldsError, isUploadFailure } from '@/lib/validators'
-import type { UploadResult } from '@/lib/validators'
+import { MissingFieldsError, isUploadFailure } from '@/lib/external-integrations/validators'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
-import { importWardrobe, importWallapopWardrobe, importVestiaireWardrobe } from '@/lib/extensionBridge'
-import { uploadItem, uploadWallapopItem, uploadVestiaireItem } from '@/lib/extensionBridge'
-import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/extensionBridge'
-
+import {
+  importWardrobe, importWallapopWardrobe, importVestiaireWardrobe,
+  uploadItem, uploadWallapopItem, uploadVestiaireItem,
+  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem,
+} from '@/lib/external-integrations'
 
 // Entidad para upload
 interface UploadEntity {

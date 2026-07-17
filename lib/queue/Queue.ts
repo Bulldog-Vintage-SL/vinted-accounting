@@ -1,6 +1,6 @@
 import type { Job, JobAction, JobStatus, QueueEvent, Executor } from './types'
 import { executors } from './executors'
-import { MissingFieldsError } from '@/lib/validators'
+import { MissingFieldsError } from '@/lib/external-integrations/validators'
 
 
 const DEFAULT_ACTION_DELAYS: Partial<Record<JobAction, number>> = {
