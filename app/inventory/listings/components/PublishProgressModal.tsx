@@ -14,11 +14,37 @@ interface Props<T> {
   onRetryJob?: (job: Job<'upload', T>, patch: Record<string, string>) => void
 }
 
+// Listas cerradas
+const COLOR_OPTIONS = [
+  "Negro", "Blanco", "Rojo", "Azul", "Verde",
+  "Amarillo", "Gris", "Rosa", "Naranja", "Marrón",
+]
+
+const SIZE_OPTIONS = [
+  "XS", "S", "M", "L", "XL", "XXL", "XXXL",
+  "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única",
+]
+
+const GENDER_OPTIONS = ["hombre", "mujer", "unisex"]
+
+const CONDITION_OPTIONS = ["Nuevo", "Como nuevo", "Bueno", "Aceptable"]
+
+const CLOSED_FIELD_OPTIONS: Record<string, string[]> = {
+  color: COLOR_OPTIONS,
+  colors: COLOR_OPTIONS,
+  size: SIZE_OPTIONS,
+  gender: GENDER_OPTIONS,
+  condition: CONDITION_OPTIONS,
+}
+
 export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, onRetryJob }: Props<T>) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
+  const hasActiveJob = jobs.some((job) => job.status === 'processing' || job.status === 'retrying')
+  const blockClose = isBusy || hasActiveJob
+
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && isBusy) return
+    if (!nextOpen && blockClose) return
     if (!nextOpen) onClose()
   }
 
@@ -30,16 +56,16 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="!max-w-[600px] w-full p-8 rounded-2xl overflow-hidden"
-        onPointerDownOutside={(e) => { if (isBusy) e.preventDefault() }}
-        onEscapeKeyDown={(e) => { if (isBusy) e.preventDefault() }}
-        showCloseButton={!isBusy}
+        onPointerDownOutside={(e) => { if (blockClose) e.preventDefault() }}
+        onEscapeKeyDown={(e) => { if (blockClose) e.preventDefault() }}
+        showCloseButton={!blockClose}
       >
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold text-gray-800 mb-1">
-            {isBusy ? (title ?? 'Publicando productos...') : '¡Publicación completada!'}
+            {blockClose ? (title ?? 'Publicando productos...') : '¡Publicación completada!'}
           </DialogTitle>
           <p className="text-gray-600 text-sm mb-6">
-            {isBusy
+            {blockClose
               ? 'No cierres esta ventana mientras se publican tus productos.'
               : 'Ya puedes cerrar esta ventana.'}
           </p>
@@ -91,7 +117,7 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
           })}
         </div>
 
-        {!isBusy && (
+        {!blockClose && (
           <button
             onClick={onClose}
             className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start"
@@ -123,17 +149,35 @@ function RetryForm({
 
   return (
     <div className="flex flex-col gap-3">
-      {missingFields.map((field) => (
-        <div key={field.key} className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
-          <input
-            type="text"
-            value={values[field.key] ?? ''}
-            onChange={(e) => handleChange(field.key, e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      ))}
+      {missingFields.map((field) => {
+        const options = CLOSED_FIELD_OPTIONS[field.key]
+
+        return (
+          <div key={field.key} className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+
+            {options ? (
+              <select
+                value={values[field.key] ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecciona {field.label.toLowerCase()}</option>
+                {options.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={values[field.key] ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
+          </div>
+        )
+      })}
 
       <div className="flex gap-2 mt-2">
         <button
