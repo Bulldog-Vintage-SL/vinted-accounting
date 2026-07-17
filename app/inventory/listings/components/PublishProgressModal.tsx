@@ -14,7 +14,7 @@ interface Props<T> {
   onRetryJob?: (job: Job<'upload', T>, patch: Record<string, string>) => void
 }
 
-// Listas cerradas
+// Listas cerradas 
 const COLOR_OPTIONS = [
   "Negro", "Blanco", "Rojo", "Azul", "Verde",
   "Amarillo", "Gris", "Rosa", "Naranja", "Marrón",
@@ -29,9 +29,12 @@ const GENDER_OPTIONS = ["hombre", "mujer", "unisex"]
 
 const CONDITION_OPTIONS = ["Nuevo", "Como nuevo", "Bueno", "Aceptable"]
 
-const CLOSED_FIELD_OPTIONS: Record<string, string[]> = {
+const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
   color: COLOR_OPTIONS,
   colors: COLOR_OPTIONS,
+}
+
+const SINGLE_FIELD_OPTIONS: Record<string, string[]> = {
   size: SIZE_OPTIONS,
   gender: GENDER_OPTIONS,
   condition: CONDITION_OPTIONS,
@@ -55,12 +58,12 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="!max-w-[600px] w-full p-8 rounded-2xl overflow-hidden"
+        className="!max-w-[600px] w-full p-8 rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
         onPointerDownOutside={(e) => { if (blockClose) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (blockClose) e.preventDefault() }}
         showCloseButton={!blockClose}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0">
           <DialogTitle className="text-2xl font-bold text-gray-800 mb-1">
             {blockClose ? (title ?? 'Publicando productos...') : '¡Publicación completada!'}
           </DialogTitle>
@@ -71,7 +74,7 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
           </p>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
           {jobs.map((job) => {
             const isExpandable = job.status === 'failed' && !!job.missingFields?.length && !!onRetryJob
             const isExpanded = expandedJobId === job.id
@@ -120,7 +123,7 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
         {!blockClose && (
           <button
             onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start shrink-0"
           >
             Cerrar
           </button>
@@ -139,31 +142,115 @@ function RetryForm({
   onSubmit: (patch: Record<string, string>) => void
   onCancel: () => void
 }) {
+  
   const [values, setValues] = useState<Record<string, string>>({})
+  
+  const [multiValues, setMultiValues] = useState<Record<string, string[]>>({})
+
+  const [pendingMultiSelection, setPendingMultiSelection] = useState<Record<string, string>>({})
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }))
   }
 
-  const allFilled = missingFields.every((f) => values[f.key]?.trim())
+  const addMultiValue = (key: string) => {
+    const selected = pendingMultiSelection[key]
+    if (!selected) return
+
+    setMultiValues((prev) => {
+      const current = prev[key] ?? []
+      if (current.includes(selected)) return prev
+      return { ...prev, [key]: [...current, selected] }
+    })
+    setPendingMultiSelection((prev) => ({ ...prev, [key]: '' }))
+  }
+
+  const removeMultiValue = (key: string, option: string) => {
+    setMultiValues((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).filter((v) => v !== option),
+    }))
+  }
+
+  const allFilled = missingFields.every((f) => {
+    if (MULTI_FIELD_OPTIONS[f.key]) return (multiValues[f.key]?.length ?? 0) > 0
+    return values[f.key]?.trim()
+  })
+
+  const buildPatch = (): Record<string, string> => {
+    const patch: Record<string, string> = { ...values }
+    for (const key of Object.keys(multiValues)) {
+      patch[key] = multiValues[key].join(', ')
+    }
+    return patch
+  }
 
   return (
     <div className="flex flex-col gap-3">
       {missingFields.map((field) => {
-        const options = CLOSED_FIELD_OPTIONS[field.key]
+        const multiOptions = MULTI_FIELD_OPTIONS[field.key]
+        const singleOptions = SINGLE_FIELD_OPTIONS[field.key]
+
+        if (multiOptions) {
+          const selectedValues = multiValues[field.key] ?? []
+
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+
+              <div className="flex gap-2">
+                <select
+                  value={pendingMultiSelection[field.key] ?? ''}
+                  onChange={(e) => setPendingMultiSelection((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecciona {field.label.toLowerCase()}</option>
+                  {multiOptions.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => addMultiValue(field.key)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 rounded-lg shrink-0"
+                >
+                  Añadir
+                </button>
+              </div>
+
+              {selectedValues.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {selectedValues.map((opt) => (
+                    <div key={opt} className="flex items-center gap-1.5 bg-gray-100 border px-2.5 py-1 rounded-full">
+                      <span className="text-xs">{opt}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeMultiValue(field.key, opt)}
+                        className="text-red-500 font-bold text-xs leading-none"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        }
 
         return (
           <div key={field.key} className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
 
-            {options ? (
+            {singleOptions ? (
               <select
                 value={values[field.key] ?? ''}
                 onChange={(e) => handleChange(field.key, e.target.value)}
                 className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Selecciona {field.label.toLowerCase()}</option>
-                {options.map((opt) => (
+                {singleOptions.map((opt) => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
@@ -181,7 +268,7 @@ function RetryForm({
 
       <div className="flex gap-2 mt-2">
         <button
-          onClick={() => onSubmit(values)}
+          onClick={() => onSubmit(buildPatch())}
           disabled={!allFilled}
           className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
         >
