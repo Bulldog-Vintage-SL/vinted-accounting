@@ -58,7 +58,8 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="!max-w-[600px] w-full p-8 rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        className="!max-w-[600px] w-full p-8 rounded-2xl max-h-[90vh] flex flex-col"
+
         onPointerDownOutside={(e) => { if (blockClose) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (blockClose) e.preventDefault() }}
         showCloseButton={!blockClose}
@@ -74,7 +75,7 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
           </p>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           {jobs.map((job) => {
             const isExpandable = job.status === 'failed' && !!job.missingFields?.length && !!onRetryJob
             const isExpanded = expandedJobId === job.id
@@ -142,9 +143,9 @@ function RetryForm({
   onSubmit: (patch: Record<string, string>) => void
   onCancel: () => void
 }) {
-  
+
   const [values, setValues] = useState<Record<string, string>>({})
-  
+
   const [multiValues, setMultiValues] = useState<Record<string, string[]>>({})
 
   const [pendingMultiSelection, setPendingMultiSelection] = useState<Record<string, string>>({})
