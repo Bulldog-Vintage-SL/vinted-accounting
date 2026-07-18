@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useEffect, useState } from "react";
 import type { SyncStatus } from "@/app/settings/accounts/types";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/extensionBridge';
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/external-integrations'
 import { useToast } from "@/components/toast"
 
 const PLATFORM_LOGOS: Record<string, string> = {

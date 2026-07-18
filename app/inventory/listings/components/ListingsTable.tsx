@@ -7,7 +7,7 @@
 
 import useSWR from 'swr'
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { applyFieldPatch } from '@/lib/validators'
+import { applyFieldPatch } from '@/lib/external-integrations/validators'
 import { Loader2 } from 'lucide-react'
 import { DataTable, DataTableHandle } from '@/components/ui/data-table'
 import { PageLoader } from '@/components/ui/page-loader'

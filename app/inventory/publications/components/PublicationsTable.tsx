@@ -13,7 +13,7 @@ import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/extensionBridge'
+import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/external-integrations/'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
 

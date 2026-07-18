@@ -11,7 +11,7 @@ import {
   syncVintedAccount,
   syncWallapopAccount,
   syncVestiaireAccount,
-} from "@/lib/extensionBridge";
+} from '@/lib/external-integrations';
 
 interface Props {
   account: Account;

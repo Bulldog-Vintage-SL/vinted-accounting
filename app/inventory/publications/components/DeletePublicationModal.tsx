@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/extensionBridge';
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 
 interface Props {

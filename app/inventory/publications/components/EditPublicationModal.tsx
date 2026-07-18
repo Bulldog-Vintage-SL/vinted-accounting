@@ -12,7 +12,7 @@ import {
     updateVintedItem,
     updateWallapopItem,
     updateVestiaireItem,
-} from '@/lib/extensionBridge';
+} from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
 

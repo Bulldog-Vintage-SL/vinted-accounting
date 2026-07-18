@@ -8,7 +8,7 @@ import {
   searchVintedAccount,
   searchWallapopAccount,
   searchVestiaireAccount,
-} from "@/lib/extensionBridge";
+} from '@/lib/external-integrations';
 
 interface Props {
   open: boolean;
