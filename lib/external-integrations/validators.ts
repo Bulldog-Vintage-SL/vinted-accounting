@@ -14,25 +14,68 @@ export class MissingFieldsError extends Error {
   }
 }
 
-// Campos obligatorios para publicar
-export function validateListingRequiredFields(listing: any): MissingField[] {
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire'
+
+type FieldValidator = (listing: any) => MissingField | null
+
+const FIELD_VALIDATORS: Record<string, FieldValidator> = {
+  title: (listing) =>
+    !listing?.title?.trim() ? { key: 'title', label: 'título' } : null,
+
+  description: (listing) =>
+    !listing?.description?.trim() ? { key: 'description', label: 'descripción' } : null,
+
+  price: (listing) =>
+    listing?.price === null || listing?.price === undefined || listing?.price === '' || Number(listing.price) <= 0
+      ? { key: 'price', label: 'precio' }
+      : null,
+
+  colors: (listing) =>
+    !Array.isArray(listing?.colors) || listing.colors.length === 0
+      ? { key: 'colors', label: 'colores' }
+      : null,
+
+  photo_url: (listing) =>
+    !Array.isArray(listing?.photo_url) || listing.photo_url.length === 0
+      ? { key: 'photo_url', label: 'foto' }
+      : null,
+
+  brand: (listing) =>
+    !listing?.attributes?.brand?.trim() ? { key: 'attributes.brand', label: 'marca' } : null,
+
+  condition: (listing) =>
+    !listing?.condition?.trim() ? { key: 'condition', label: 'condición' } : null,
+
+  size: (listing) =>
+    !listing?.attributes?.size?.trim() ? { key: 'attributes.size', label: 'talla' } : null,
+
+  item_type: (listing) =>
+    !listing?.item_type?.trim() ? { key: 'item_type', label: 'tipo' } : null,
+
+  gender: (listing) =>
+    !listing?.attributes?.gender?.trim() ? { key: 'gender', label: 'género' } : null,
+}
+
+// Campos requeridos por plataforma
+const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)[]> = {
+  vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size'],
+  wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
+  vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
+}
+
+export function validateListingRequiredFields(listing: any, platform: Platform): MissingField[] {
+  const requiredFields = PLATFORM_REQUIRED_FIELDS[platform]
+
+  if (!requiredFields) {
+    throw new Error(`Plataforma desconocida: ${platform}`)
+  }
+
   const missing: MissingField[] = []
 
-  if (!listing?.title?.trim()) missing.push({ key: 'title', label: 'título' })
-  if (!listing?.description?.trim()) missing.push({ key: 'description', label: 'descripción' })
-  if (listing?.price === null || listing?.price === undefined || listing?.price === "" || Number(listing.price) <= 0) {
-    missing.push({ key: 'price', label: 'precio' })
+  for (const fieldKey of requiredFields) {
+    const result = FIELD_VALIDATORS[fieldKey](listing)
+    if (result) missing.push(result)
   }
-  if (!Array.isArray(listing?.colors) || listing.colors.length === 0) {
-    missing.push({ key: 'colors', label: 'colores' })
-  }
-  if (!Array.isArray(listing?.photo_url) || listing.photo_url.length === 0) {
-    missing.push({ key: 'photo_url', label: 'foto' })
-  }
-  if (!listing?.attributes?.brand?.trim()) missing.push({ key: 'attributes.brand', label: 'marca' })
-  if (!listing?.condition?.trim()) missing.push({ key: 'condition', label: 'condición' })
-  if (!listing?.attributes?.size?.trim()) missing.push({ key: 'attributes.size', label: 'talla' })
-  if (!listing?.item_type?.trim()) missing.push({ key: 'item_type', label: 'tipo' })
 
   return missing
 }

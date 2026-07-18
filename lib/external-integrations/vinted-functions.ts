@@ -7,7 +7,7 @@ export async function uploadItem(listing: any, accountId: string): Promise<Uploa
 
   try {
 
-    const missing = validateListingRequiredFields(listing)
+    const missing = validateListingRequiredFields(listing, 'vinted')
     if (missing.length > 0) throw new MissingFieldsError(missing)
 
     const result = await runFlow('UPLOAD_ITEM', { listing })

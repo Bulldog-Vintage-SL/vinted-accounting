@@ -6,7 +6,7 @@ import type { UploadResult } from '@/lib/external-integrations/validators'
 export async function uploadWallapopItem(listing: any, accountId: string): Promise<UploadResult> {
   try {
 
-    const missing = validateListingRequiredFields(listing)
+    const missing = validateListingRequiredFields(listing, 'wallapop')
     if (missing.length > 0) throw new MissingFieldsError(missing)
 
     const result = await runFlow('UPLOAD_WALLAPOP_ITEM', { listing })

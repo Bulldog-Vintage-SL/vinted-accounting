@@ -8,12 +8,16 @@ const PLATFORM_NAMES: Record<string, string> = {
   vinted: "Vinted",
   wallapop: "Wallapop",
   vestiaire: "Vestiaire Collective",
+  ebay: "eBay",
+  shopify: "Shopify",
 };
 
-const PLATFORM_STYLES: Record<string, string> = {
-  vinted: "bg-teal-100 text-teal-700",
-  wallapop: "bg-orange-100 text-orange-700",
-  vestiaire: "bg-purple-100 text-purple-700",
+const PLATFORM_ICONS: Record<string, string> = {
+  vinted: "/icons/vinted.svg",
+  wallapop: "/icons/wallapop.svg",
+  vestiaire: "/icons/vestiaire.jpeg",
+  ebay: "/icons/ebay.svg",
+  shopify: "/icons/shopify.svg",
 };
 
 export const createColumns = (
@@ -89,11 +93,23 @@ export const createColumns = (
       cell: ({ row }) => {
         const platform = row.getValue("platform") as string;
         const label = PLATFORM_NAMES[platform] || platform;
-        const style = PLATFORM_STYLES[platform] || "bg-gray-100 text-gray-700";
+        const icon = PLATFORM_ICONS[platform];
+
+        if (!icon) {
+          return (
+            <span className="px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-700">
+              {label}
+            </span>
+          );
+        }
+
         return (
-          <span className={`px-2 py-1 rounded-md text-xs font-semibold ${style}`}>
-            {label}
-          </span>
+          <img
+            src={icon}
+            alt={label}
+            title={label}
+            className="w-6 h-6 rounded-md object-contain"
+          />
         );
       },
     },

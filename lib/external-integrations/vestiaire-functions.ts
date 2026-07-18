@@ -10,7 +10,7 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
       throw new Error(`La marca "${listing.attributes.brand}" no está aceptada en Vestiaire Collective`)
     }
 
-    const missing = validateListingRequiredFields(listing)
+    const missing = validateListingRequiredFields(listing, 'vestiaire')
     if (missing.length > 0) throw new MissingFieldsError(missing)
 
     const result = await runFlow('UPLOAD_VESTIAIRE_ITEM', { listing })
@@ -256,7 +256,7 @@ const REJECTED_BRANDS = new Set([
   "topshop unique", "topshop boutique", "topshop x j.w. anderson",
   "u.s. polo assn.", "us polo assn", "uniqlo", "urban outfitters",
   "vero moda", "wallis", "warehouse", "weekday", "zara",
-  // Essentials
+  
   "fear of god essentials", "fog essentials", "essentials",
 ])
 
