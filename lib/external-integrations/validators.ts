@@ -53,7 +53,7 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
     !listing?.item_type?.trim() ? { key: 'item_type', label: 'tipo' } : null,
 
   gender: (listing) =>
-    !listing?.attributes?.gender?.trim() ? { key: 'gender', label: 'género' } : null,
+    !listing?.gender ? { key: 'gender', label: 'género' } : null,
 }
 
 // Campos requeridos por plataforma
