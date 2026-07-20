@@ -157,7 +157,7 @@ export const authOptions = {
   },
   theme: {
     brandColor: config.colors.main,
-    logo: `https://${config.domainName}/icon.png`,
+    logo: `${process.env.NEXT_PUBLIC_APP_URL ?? `https://${config.domainName}`}/logo.png`,
   },
 };
 
