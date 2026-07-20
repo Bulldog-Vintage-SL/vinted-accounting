@@ -100,6 +100,7 @@ async function importPublication(
     platformId: String(platformId),
     externalId: String(externalId),
     price,
+    status: "active",
     syncStatus: "live",
     lastSync: new Date(),
     accountId: new mongoose.Types.ObjectId(accountId),

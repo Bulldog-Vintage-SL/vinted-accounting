@@ -91,6 +91,7 @@ async function importPublication(
     platformId,
     externalId: String(externalId),
     price: item.price.amount,
+    status: "active",
     syncStatus: "live",
     lastSync: new Date(),
     publicationUrl,

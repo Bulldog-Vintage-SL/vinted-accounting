@@ -94,6 +94,7 @@ async function importPublication(
     platformId,
     externalId: String(externalId),
     price: item.price.amount,
+    status: getVintedStatus(item),
     syncStatus: "live",
     lastSync: new Date(),
     publicationUrl,

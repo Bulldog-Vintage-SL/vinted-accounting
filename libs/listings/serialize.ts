@@ -60,7 +60,7 @@ export function serializePublication(doc: unknown) {
   return {
     id: (raw.id as string) || raw._id?.toString() || "",
     platform: raw.platform as string,
-    status: (raw.status as string) ?? null,
+    status: (raw.status as string) ?? "active",
     price: (raw.price as number) ?? null,
     sync_status:
       (raw.syncStatus as string) ?? (raw.sync_status as string) ?? null,

@@ -21,6 +21,7 @@ import { PublishProgressModal } from './PublishProgressModal'
 import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
+import { ListingMobileCard } from './ListingMobileCard'
 import type { Job } from '@/lib/queue/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -259,6 +260,15 @@ export function ListingsTable() {
     [handleDeleteClick, handlePublish, publishingListingId]
   )
 
+  const handleMobileSelect = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      if (checked) return prev.includes(id) ? prev : [...prev, id]
+      return prev.filter((itemId) => itemId !== id)
+    })
+  }, [])
+
+  const listings = data ?? []
+
   if (isLoading) return <PageLoader label="Cargando productos..." />
   if (error) return <div className="p-4 text-red-500">Error cargando listings</div>
 
@@ -274,22 +284,43 @@ export function ListingsTable() {
         />
       )}
 
-      <DataTable
-        ref={tableRef}
-        columns={columns}
-        data={data ?? []}
-        onSelectionChange={setSelectedIds}
-      />
+      <div className="hidden md:block">
+        <DataTable
+          ref={tableRef}
+          columns={columns}
+          data={listings}
+          onSelectionChange={setSelectedIds}
+          compact
+        />
+      </div>
+
+      <div className="md:hidden space-y-3">
+        {listings.length === 0 ? (
+          <p className="text-center text-gray-500 py-8">Sin resultados.</p>
+        ) : (
+          listings.map((listing) => (
+            <ListingMobileCard
+              key={listing.id}
+              listing={listing}
+              selected={selectedIds.includes(listing.id)}
+              onSelect={handleMobileSelect}
+              onPublish={handlePublish}
+              onDelete={handleDeleteClick}
+              isPublishing={publishingListingId === listing.id}
+            />
+          ))
+        )}
+      </div>
 
       {selectedIds.length > 0 && (
-        <div className="mb-3 flex justify-between items-center bg-blue-50 p-3 rounded-md gap-2">
+        <div className="mb-3 mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">
           <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <LoadingButton
               onClick={handleBulkPublish}
               loading={isBulkPublishing}
               loadingText="Publicando..."
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
             >
               Publicar seleccionados
             </LoadingButton>
@@ -297,7 +328,7 @@ export function ListingsTable() {
               onClick={handleBulkDeleteClick}
               loading={isBulkDeleting}
               loadingText="Eliminando..."
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
             >
               Eliminar seleccionados
             </LoadingButton>

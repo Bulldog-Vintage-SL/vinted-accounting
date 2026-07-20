@@ -14,6 +14,7 @@ import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/external-integrations/'
+import { PublicationMobileCard } from './PublicationMobileCard'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
 
@@ -178,6 +179,15 @@ export function PublicationsTable() {
         [handleDeleteClick, handleEditClick]
     )
 
+    const handleMobileSelect = useCallback((id: string, checked: boolean) => {
+        setSelectedIds((prev) => {
+            if (checked) return prev.includes(id) ? prev : [...prev, id]
+            return prev.filter((itemId) => itemId !== id)
+        })
+    }, [])
+
+    const publications = data ?? []
+
     if (isLoading) return <PageLoader label="Cargando publicaciones..." />
     if (error) return <div className="p-4 text-red-500">Error cargando publicaciones</div>
 
@@ -193,26 +203,44 @@ export function PublicationsTable() {
                 />
             )}
 
-            <DataTable
-                ref={tableRef}
-                columns={columns}
-                data={data ?? []}
-                onSelectionChange={setSelectedIds}
-            />
+            <div className="hidden md:block">
+                <DataTable
+                    ref={tableRef}
+                    columns={columns}
+                    data={publications}
+                    onSelectionChange={setSelectedIds}
+                    compact
+                />
+            </div>
+
+            <div className="md:hidden space-y-3">
+                {publications.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">Sin resultados.</p>
+                ) : (
+                    publications.map((publication) => (
+                        <PublicationMobileCard
+                            key={publication.id}
+                            publication={publication}
+                            selected={selectedIds.includes(publication.id)}
+                            onSelect={handleMobileSelect}
+                            onEdit={handleEditClick}
+                            onDelete={handleDeleteClick}
+                        />
+                    ))
+                )}
+            </div>
 
             {selectedIds.length > 0 && (
-                <div className="mt-3 flex justify-between items-center bg-blue-50 p-3 rounded-md gap-2">
+                <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">
                     <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
-                    <div className="flex gap-2">
-                        <LoadingButton
-                            onClick={handleBulkDeleteClick}
-                            loading={isBulkDeleting}
-                            loadingText="Eliminando..."
-                            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
-                        >
-                            Eliminar seleccionados
-                        </LoadingButton>
-                    </div>
+                    <LoadingButton
+                        onClick={handleBulkDeleteClick}
+                        loading={isBulkDeleting}
+                        loadingText="Eliminando..."
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
+                    >
+                        Eliminar seleccionados
+                    </LoadingButton>
                 </div>
             )}
 

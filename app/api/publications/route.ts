@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       externalId: String(externalId),
       price: listing.price,
       syncStatus: "synced",
+      status: "active",
       lastSync: new Date(),
       publicationUrl,
       accountId: new mongoose.Types.ObjectId(accountId),
