@@ -15,6 +15,7 @@ import {
   getExpenseDetails,
   processEmailsBatch,
 } from "@/libs/gmail-api";
+import { backfillMissingSaleImagesFromGmail } from "@/libs/sales/backfill-images";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 3 minutos para sincronización completa
@@ -201,6 +202,7 @@ export async function POST(req: NextRequest) {
           labelMessageId: pending.messageId,
           hasLabel: pending.hasAttachment,
           snippet: pending.snippet,
+          itemImageUrl: pending.itemImageUrl || completed?.itemImageUrl,
         };
 
         console.log(`💾 Guardando venta: ${pending.messageId} - ${pending.itemName}`);
@@ -275,6 +277,7 @@ export async function POST(req: NextRequest) {
           completedDate: new Date(completed.date),
           hasLabel: false,
           snippet: completed.snippet,
+          itemImageUrl: completed.itemImageUrl,
         };
 
         console.log(`💾 Guardando venta completada: ${completed.messageId} - ${completed.itemName}`);
@@ -456,6 +459,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    console.log(`   💾 Gastos: ${newExpenses} nuevos, ${updatedExpenses} actualizados, ${expensesErrors} errores`);
+
+    const imageBackfill = await backfillMissingSaleImagesFromGmail(gmail, user._id);
+    console.log(`   🖼️ Imágenes: ${imageBackfill.updated}/${imageBackfill.checked} ventas actualizadas desde Gmail`);
+
     console.log(`✅ Sincronización completada:`);
     console.log(`   📧 Ventas: ${pendingMessageIds.length} etiquetas, ${completedMessageIds.length} transferencias`);
     console.log(`   💾 Ventas: ${newSales} nuevas, ${updatedSales} actualizadas, ${expiredSales} vencidas, ${salesErrors} errores`);
@@ -491,6 +499,7 @@ export async function POST(req: NextRequest) {
         updatedExpenses,
         errors: expensesErrors,
       },
+      images: imageBackfill,
     });
   } catch (error: any) {
     console.error("❌ Sync error:", error);

@@ -130,6 +130,7 @@ export interface CompletedSaleDetails {
   amount: number;
   date: string;
   snippet: string;
+  itemImageUrl?: string;
 }
 
 // Tipo para detalles de venta pendiente (etiqueta de envío)
@@ -144,6 +145,7 @@ export interface PendingSaleDetails {
   hasAttachment: boolean;
   attachmentId?: string;
   snippet: string;
+  itemImageUrl?: string;
 }
 
 // Tipo para detalles de gasto (armario o destacado)
@@ -290,6 +292,7 @@ export async function getCompletedSaleDetails(
 
     // Extract transaction ID - usar messageId como fallback si no se encuentra
     const transactionId = parseTransactionId(text) || messageId;
+    const itemImageUrl = extractVintedItemImageUrl(extractHtmlFromMessage(message));
 
     return {
       messageId,
@@ -298,6 +301,7 @@ export async function getCompletedSaleDetails(
       amount,
       date: new Date(date).toISOString(),
       snippet: message.snippet || text.substring(0, 200),
+      itemImageUrl,
     };
   } catch (error) {
     console.error(`Error getting completed sale ${messageId}:`, error);
@@ -374,6 +378,8 @@ export async function getPendingSaleDetails(
       findAttachment(message.payload.parts);
     }
 
+    const itemImageUrl = extractVintedItemImageUrl(extractHtmlFromMessage(message));
+
     return {
       messageId,
       transactionId,
@@ -385,6 +391,7 @@ export async function getPendingSaleDetails(
       hasAttachment,
       attachmentId,
       snippet: message.snippet || text.substring(0, 200),
+      itemImageUrl,
     };
   } catch (error) {
     console.error(`Error getting pending sale ${messageId}:`, error);
@@ -418,11 +425,9 @@ export async function getEmailAttachment(
 }
 
 /**
- * Extract text from email message parts
- * Prioriza texto plano sobre HTML para evitar CSS inline
+ * Extract plain text and HTML from email message parts
  */
-function extractTextFromMessage(message: any): string {
-  let bodyText = "";
+function extractPartsFromMessage(message: any): { plain: string; html: string } {
   let plainText = "";
   let htmlText = "";
 
@@ -456,12 +461,81 @@ function extractTextFromMessage(message: any): string {
     htmlText = result.html;
   }
 
+  return { plain: plainText, html: htmlText };
+}
+
+function extractHtmlFromMessage(message: any): string {
+  return extractPartsFromMessage(message).html;
+}
+
+/**
+ * Fetch product image URL from a stored Gmail message id.
+ */
+export async function getItemImageUrlFromEmail(
+  gmail: any,
+  messageId: string
+): Promise<string | undefined> {
+  try {
+    const response = await gmail.users.messages.get({
+      userId: "me",
+      id: messageId,
+      format: "full",
+    });
+
+    return extractVintedItemImageUrl(extractHtmlFromMessage(response.data));
+  } catch (error) {
+    console.warn(`Could not fetch image from email ${messageId}:`, error);
+    return undefined;
+  }
+}
+
+/**
+ * Extract product image URL from Vinted transactional emails (HTML body).
+ */
+function extractVintedItemImageUrl(html: string): string | undefined {
+  if (!html) return undefined;
+
+  const normalizedHtml = html.replace(/&amp;/g, "&");
+  const candidates: string[] = [];
+
+  const srcMatches = normalizedHtml.matchAll(/src=["']([^"']+)["']/gi);
+  for (const match of srcMatches) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  const srcsetMatches = normalizedHtml.matchAll(/srcset=["']([^"']+)["']/gi);
+  for (const match of srcsetMatches) {
+    const firstUrl = match[1]?.split(",")[0]?.trim().split(/\s+/)[0];
+    if (firstUrl) candidates.push(firstUrl);
+  }
+
+  for (const rawUrl of candidates) {
+    const url = rawUrl.trim();
+    if (!url.startsWith("http")) continue;
+    if (!/(images|marketplace-images|photos)\.vinted/i.test(url)) continue;
+    if (/logo|icon|pixel|spacer|banner|avatar|profile|social|facebook|instagram|twitter/i.test(url)) {
+      continue;
+    }
+    return url;
+  }
+
+  return undefined;
+}
+
+/**
+ * Extract text from email message parts
+ * Prioriza texto plano sobre HTML para evitar CSS inline
+ */
+function extractTextFromMessage(message: any): string {
+  const { plain, html } = extractPartsFromMessage(message);
+  let bodyText = "";
+
   // Priorizar texto plano, si no existe usar HTML limpiado
-  if (plainText) {
-    bodyText = plainText;
-  } else if (htmlText) {
+  if (plain) {
+    bodyText = plain;
+  } else if (html) {
     // Limpiar HTML básico: eliminar etiquetas y estilos
-    bodyText = htmlText
+    bodyText = html
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ") // Eliminar bloques <style>
       .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ") // Eliminar bloques <script>
       .replace(/<[^>]+>/g, " ") // Eliminar todas las etiquetas HTML

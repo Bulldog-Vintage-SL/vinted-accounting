@@ -12,6 +12,7 @@ import {
   getPendingSaleDetails,
   processEmailsBatch,
 } from "@/libs/gmail-api";
+import { backfillMissingSaleImagesFromGmail } from "@/libs/sales/backfill-images";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // 2 minutos para sincronización completa
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
           labelMessageId: pending.messageId,
           hasLabel: pending.hasAttachment,
           snippet: pending.snippet,
+          itemImageUrl: pending.itemImageUrl || completed?.itemImageUrl,
         };
 
         const result = await Sale.findOneAndUpdate(
@@ -165,6 +167,7 @@ export async function POST(req: NextRequest) {
           completedDate: new Date(completed.date),
           hasLabel: false,
           snippet: completed.snippet,
+          itemImageUrl: completed.itemImageUrl,
         };
 
         const result = await Sale.findOneAndUpdate(
@@ -203,6 +206,8 @@ export async function POST(req: NextRequest) {
     console.log(`   📧 Correos encontrados: ${pendingMessageIds.length} etiquetas, ${completedMessageIds.length} transferencias`);
     console.log(`   💾 Nuevas ventas: ${newSales}, Actualizadas: ${updatedSales}, Vencidas: ${expiredSales}, Errores: ${errors}`);
 
+    const imageBackfill = await backfillMissingSaleImagesFromGmail(gmail, user._id);
+
     return NextResponse.json({
       success: true,
       message: "Sincronización completada",
@@ -213,6 +218,8 @@ export async function POST(req: NextRequest) {
         updatedSales,
         expiredSales,
         errors,
+        imagesUpdated: imageBackfill.updated,
+        imagesChecked: imageBackfill.checked,
       },
       stats: {
         pending: pendingStats,

@@ -25,6 +25,7 @@ export interface ISale {
   labelMessageId?: string;
   hasLabel: boolean;
   snippet?: string;
+  itemImageUrl?: string;
   isManual?: boolean; // Si fue añadida manualmente
   bundleId?: mongoose.Types.ObjectId; // Enlace al bundle
   createdAt?: Date;
@@ -114,6 +115,11 @@ const saleSchema = new mongoose.Schema(
     // Snippet del correo para referencia
     snippet: {
       type: String,
+    },
+    // Imagen del artículo extraída del correo de Vinted
+    itemImageUrl: {
+      type: String,
+      trim: true,
     },
     // Si la venta fue añadida manualmente
     isManual: {

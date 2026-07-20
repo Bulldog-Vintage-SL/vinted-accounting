@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/libs/next-auth";
 import connectMongo from "@/libs/mongoose";
 import Sale from "@/models/Sale";
+import Listing from "@/models/Listing";
 import User from "@/models/User";
+import {
+  buildListingImageLookup,
+  resolveSaleImageUrl,
+} from "@/libs/sales/images";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +55,17 @@ export async function GET(req: NextRequest) {
       .sort({ saleDate: -1 })
       .lean();
 
-    const total = sales.length;
+    const listings = await Listing.find({ userId: user._id })
+      .select("title photoUrl")
+      .lean();
+    const listingImageLookup = buildListingImageLookup(listings);
+
+    const enrichedSales = sales.map((sale) => ({
+      ...sale,
+      itemImageUrl: resolveSaleImageUrl(sale, listingImageLookup),
+    }));
+
+    const total = enrichedSales.length;
 
     // Calcular estadísticas
     const stats = await Sale.aggregate([
@@ -68,7 +83,7 @@ export async function GET(req: NextRequest) {
     const completedStats = stats.find((s) => s._id === "completed") || { count: 0, totalAmount: 0 };
 
     return NextResponse.json({
-      sales,
+      sales: enrichedSales,
       total,
       stats: {
         pending: pendingStats,

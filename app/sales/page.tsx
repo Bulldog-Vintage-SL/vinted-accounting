@@ -20,6 +20,8 @@ import {
   Unlink
 } from "lucide-react";
 import apiClient from "@/libs/api";
+import { SaleItemThumbnail } from "./components/SaleItemThumbnail";
+import { SaleMobileCard } from "./components/SaleMobileCard";
 
 interface Sale {
   _id: string;
@@ -35,6 +37,7 @@ interface Sale {
   completedDate?: string;
   hasLabel: boolean;
   labelMessageId?: string;
+  itemImageUrl?: string;
   isManual?: boolean;
   bundleId?: string;
 }
@@ -426,8 +429,8 @@ export default function SalesPage() {
     .slice((completedPage - 1) * ITEMS_PER_PAGE, completedPage * ITEMS_PER_PAGE);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
@@ -481,76 +484,98 @@ export default function SalesPage() {
               </div>
 
               {showPending && (
-                <div className="overflow-x-auto">
+                <div className="overflow-hidden">
                   {pendingSales.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
                       <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                       <p>No hay ventas pendientes dentro del plazo</p>
                     </div>
                   ) : (
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50">
-                          <th className="text-left py-3 px-2 md:px-4 text-sm font-medium text-gray-500">
-                            <input
-                              type="checkbox"
-                              className="checkbox checkbox-sm"
-                              checked={selectedPending.size === pendingSales.filter(s => s.hasLabel).length && pendingSales.filter(s => s.hasLabel).length > 0}
-                              onChange={() => toggleSelectAll(pendingSales)}
-                            />
-                          </th>
-                          <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-medium text-gray-500">Fecha</th>
-                          <th className="text-left py-3 px-2 md:px-4 text-sm font-medium text-gray-500">Artículo</th>
-                          <th className="text-left py-3 px-2 md:px-4 text-sm font-medium text-gray-500">Envío</th>
-                          <th className="hidden lg:table-cell text-left py-3 px-4 text-sm font-medium text-gray-500">Límite</th>
-                          <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-medium text-gray-500">Etiqueta</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <>
+                      <div className="md:hidden p-3 space-y-3">
                         {pendingSales.map((sale) => (
-                          <tr key={sale._id} className="border-b border-gray-50 hover:bg-gray-50">
-                            <td className="py-3 px-2 md:px-4">
+                          <SaleMobileCard
+                            key={sale._id}
+                            sale={sale}
+                            variant="pending"
+                            carrierNames={carrierNames}
+                            carrierColors={carrierColors}
+                            formatCurrency={formatCurrency}
+                            formatDate={formatDate}
+                            formatDeadline={formatDeadline}
+                            selected={selectedPending.has(sale._id)}
+                            onToggleSelect={() => toggleSelect(sale._id)}
+                            onDownloadLabel={() => downloadLabel(sale._id)}
+                            downloadingLabel={downloadingLabel === sale._id}
+                          />
+                        ))}
+                      </div>
+
+                      <table className="hidden md:table w-full table-fixed">
+                        <thead>
+                          <tr className="border-b border-gray-100 bg-gray-50">
+                            <th className="w-10 text-left py-3 px-3 text-sm font-medium text-gray-500">
                               <input
                                 type="checkbox"
                                 className="checkbox checkbox-sm"
-                                disabled={!sale.hasLabel}
-                                checked={selectedPending.has(sale._id)}
-                                onChange={() => toggleSelect(sale._id)}
+                                checked={selectedPending.size === pendingSales.filter(s => s.hasLabel).length && pendingSales.filter(s => s.hasLabel).length > 0}
+                                onChange={() => toggleSelectAll(pendingSales)}
                               />
-                            </td>
-                            <td className="hidden md:table-cell py-3 px-4 text-sm text-gray-600">{formatDate(sale.saleDate)}</td>
-                            <td className="py-3 px-2 md:px-4">
-                              <div className="max-w-xs">
-                                <p className="text-sm font-medium text-gray-900 truncate">{sale.itemName}</p>
-                                <p className="text-xs text-gray-400">#{sale.transactionId}</p>
-                                <p className="text-xs text-gray-500 md:hidden mt-1">{formatDate(sale.saleDate)}</p>
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 md:px-4">
-                              <span className={`inline-flex items-center gap-1.5 px-2 md:px-2.5 py-1 rounded-full text-xs font-medium ${carrierColors[sale.shippingCarrier] || carrierColors.unknown}`}>
-                                <Truck className="w-3 h-3" />
-                                <span className="hidden sm:inline">{carrierNames[sale.shippingCarrier] || sale.shippingCarrier}</span>
-                              </span>
-                            </td>
-                            <td className="hidden lg:table-cell py-3 px-4 text-sm">{sale.shippingDeadline ? formatDeadline(sale.shippingDeadline) : "-"}</td>
-                            <td className="hidden md:table-cell py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                {sale.hasLabel && (
+                            </th>
+                            <th className="hidden lg:table-cell w-28 text-left py-3 px-3 text-sm font-medium text-gray-500">Fecha</th>
+                            <th className="w-14 text-left py-3 px-2 text-sm font-medium text-gray-500">Foto</th>
+                            <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Artículo</th>
+                            <th className="w-24 text-left py-3 px-2 text-sm font-medium text-gray-500">Envío</th>
+                            <th className="hidden xl:table-cell w-28 text-left py-3 px-3 text-sm font-medium text-gray-500">Límite</th>
+                            <th className="hidden lg:table-cell w-28 text-left py-3 px-3 text-sm font-medium text-gray-500">Etiqueta</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pendingSales.map((sale) => (
+                            <tr key={sale._id} className="border-b border-gray-50 hover:bg-gray-50">
+                              <td className="py-3 px-3">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm"
+                                  disabled={!sale.hasLabel}
+                                  checked={selectedPending.has(sale._id)}
+                                  onChange={() => toggleSelect(sale._id)}
+                                />
+                              </td>
+                              <td className="hidden lg:table-cell py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(sale.saleDate)}</td>
+                              <td className="py-3 px-2">
+                                <SaleItemThumbnail itemName={sale.itemName} itemImageUrl={sale.itemImageUrl} size="sm" />
+                              </td>
+                              <td className="py-3 px-2 min-w-0">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{sale.itemName}</p>
+                                  <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
+                                </div>
+                              </td>
+                              <td className="py-3 px-2">
+                                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${carrierColors[sale.shippingCarrier] || carrierColors.unknown}`}>
+                                  <Truck className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{carrierNames[sale.shippingCarrier] || sale.shippingCarrier}</span>
+                                </span>
+                              </td>
+                              <td className="hidden xl:table-cell py-3 px-3 text-sm">{sale.shippingDeadline ? formatDeadline(sale.shippingDeadline) : "-"}</td>
+                              <td className="hidden lg:table-cell py-3 px-3">
+                                {sale.hasLabel ? (
                                   <button
                                     onClick={() => downloadLabel(sale._id)}
                                     disabled={downloadingLabel === sale._id}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-medium text-gray-700 disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-xs font-medium text-gray-700 disabled:opacity-50"
                                   >
                                     <FileText className="w-3.5 h-3.5" />
-                                    <span className="hidden sm:inline">Descargar</span>
+                                    PDF
                                   </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
                   )}
                 </div>
               )}
@@ -586,7 +611,7 @@ export default function SalesPage() {
               </div>
 
               {showCompleted && (
-                <div className="overflow-x-auto">
+                <div className="overflow-hidden">
                   {completedSales.length === 0 ? (
                     <div className="p-8 text-center text-gray-500">
                       <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -594,17 +619,38 @@ export default function SalesPage() {
                     </div>
                   ) : (
                     <>
-                      <table className="w-full">
+                      <div className="md:hidden p-3 space-y-3">
+                        {paginatedCompletedSales.map((sale) => (
+                          <SaleMobileCard
+                            key={sale._id}
+                            sale={sale}
+                            variant="completed"
+                            carrierNames={carrierNames}
+                            carrierColors={carrierColors}
+                            formatCurrency={formatCurrency}
+                            formatDate={formatDate}
+                            bundles={bundles}
+                            linkingBundle={linkingBundle === sale._id}
+                            onLinkBundle={(bundleId) => linkSaleToBundle(sale._id, bundleId)}
+                            onEdit={() => openEditModal(sale)}
+                            onDelete={() => deleteSale(sale._id)}
+                            deleting={deletingSale === sale._id}
+                          />
+                        ))}
+                      </div>
+
+                      <table className="hidden md:table w-full table-fixed">
                         <thead>
                           <tr className="border-b border-gray-100 bg-gray-50">
-                            <th className="hidden md:table-cell text-left py-3 px-4 text-sm font-medium text-gray-500">Fecha</th>
-                            <th className="text-left py-3 px-2 md:px-4 text-sm font-medium text-gray-500">Artículo</th>
-                            <th className="hidden lg:table-cell text-right py-3 px-4 text-sm font-medium text-gray-500">Coste</th>
-                            <th className="text-right py-3 px-2 md:px-4 text-sm font-medium text-gray-500">Precio</th>
-                            <th className="hidden lg:table-cell text-right py-3 px-4 text-sm font-medium text-gray-500">Ganancia</th>
-                            <th className="hidden xl:table-cell text-right py-3 px-4 text-sm font-medium text-gray-500">ROI</th>
-                            <th className="hidden xl:table-cell text-left py-3 px-4 text-sm font-medium text-gray-500">Lote</th>
-                            <th className="text-center py-3 px-2 md:px-4 text-sm font-medium text-gray-500">Acciones</th>
+                            <th className="hidden lg:table-cell w-28 text-left py-3 px-3 text-sm font-medium text-gray-500">Fecha</th>
+                            <th className="w-14 text-left py-3 px-2 text-sm font-medium text-gray-500">Foto</th>
+                            <th className="text-left py-3 px-2 text-sm font-medium text-gray-500">Artículo</th>
+                            <th className="hidden xl:table-cell w-20 text-right py-3 px-3 text-sm font-medium text-gray-500">Coste</th>
+                            <th className="w-20 text-right py-3 px-2 text-sm font-medium text-gray-500">Precio</th>
+                            <th className="hidden lg:table-cell w-20 text-right py-3 px-3 text-sm font-medium text-gray-500">Ganancia</th>
+                            <th className="hidden xl:table-cell w-16 text-right py-3 px-3 text-sm font-medium text-gray-500">ROI</th>
+                            <th className="hidden 2xl:table-cell w-32 text-left py-3 px-3 text-sm font-medium text-gray-500">Lote</th>
+                            <th className="w-20 text-center py-3 px-2 text-sm font-medium text-gray-500">Acc.</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -613,28 +659,30 @@ export default function SalesPage() {
                             const hasCost = sale.purchasePrice && sale.purchasePrice > 0;
                             return (
                               <tr key={sale._id} className="border-b border-gray-50 hover:bg-gray-50">
-                                <td className="hidden md:table-cell py-3 px-4 text-sm text-gray-600">{formatDate(sale.completedDate || sale.saleDate)}</td>
-                                <td className="py-3 px-2 md:px-4">
-                                  <div className="max-w-xs">
+                                <td className="hidden lg:table-cell py-3 px-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(sale.completedDate || sale.saleDate)}</td>
+                                <td className="py-3 px-2">
+                                  <SaleItemThumbnail itemName={sale.itemName} itemImageUrl={sale.itemImageUrl} size="sm" />
+                                </td>
+                                <td className="py-3 px-2 min-w-0">
+                                  <div className="min-w-0">
                                     <p className="text-sm font-medium text-gray-900 truncate">{sale.itemName}</p>
-                                    <p className="text-xs text-gray-400">#{sale.transactionId}</p>
-                                    <p className="text-xs text-gray-500 md:hidden mt-1">{formatDate(sale.completedDate || sale.saleDate)}</p>
+                                    <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
                                   </div>
                                 </td>
-                                <td className="hidden lg:table-cell py-3 px-4 text-sm text-gray-500 text-right">{hasCost ? formatCurrency(sale.purchasePrice!) : "-"}</td>
-                                <td className="py-3 px-2 md:px-4 text-sm font-semibold text-gray-900 text-right">{formatCurrency(sale.amount || 0)}</td>
-                                <td className={`hidden lg:table-cell py-3 px-4 text-sm font-semibold text-right ${!hasCost ? 'text-gray-400' : profit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                <td className="hidden xl:table-cell py-3 px-3 text-sm text-gray-500 text-right whitespace-nowrap">{hasCost ? formatCurrency(sale.purchasePrice!) : "-"}</td>
+                                <td className="py-3 px-2 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">{formatCurrency(sale.amount || 0)}</td>
+                                <td className={`hidden lg:table-cell py-3 px-3 text-sm font-semibold text-right whitespace-nowrap ${!hasCost ? 'text-gray-400' : profit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                                   {hasCost ? formatCurrency(profit) : "-"}
                                 </td>
-                                <td className="hidden xl:table-cell py-3 px-4 text-sm text-right text-indigo-600 font-medium">
+                                <td className="hidden xl:table-cell py-3 px-3 text-sm text-right text-indigo-600 font-medium whitespace-nowrap">
                                   {hasCost ? `${((sale.amount || 0) / sale.purchasePrice!).toFixed(2)}x` : "-"}
                                 </td>
-                                <td className="hidden xl:table-cell py-3 px-4">
+                                <td className="hidden 2xl:table-cell py-3 px-3">
                                   <select
                                     value={sale.bundleId || ""}
                                     onChange={(e) => linkSaleToBundle(sale._id, e.target.value || null)}
                                     disabled={linkingBundle === sale._id}
-                                    className={`text-sm border rounded-lg px-2 py-1 focus:outline-none ${sale.bundleId ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200"}`}
+                                    className={`w-full max-w-[120px] text-xs border rounded-lg px-2 py-1 focus:outline-none truncate ${sale.bundleId ? "border-blue-200 bg-blue-50 text-blue-700" : "border-gray-200"}`}
                                   >
                                     <option value="">Sin vincular</option>
                                     {bundles
@@ -646,10 +694,10 @@ export default function SalesPage() {
                                       ))}
                                   </select>
                                 </td>
-                                <td className="py-3 px-2 md:px-4 text-center">
-                                  <div className="flex items-center justify-center gap-1">
+                                <td className="py-3 px-2 text-center">
+                                  <div className="flex items-center justify-center gap-0.5">
                                     <button onClick={() => openEditModal(sale)} className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit className="w-4 h-4" /></button>
-                                    <button onClick={() => deleteSale(sale._id)} disabled={deletingSale === sale._id} className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4" /></button>
+                                    <button onClick={() => deleteSale(sale._id)} disabled={deletingSale === sale._id} className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
                                   </div>
                                 </td>
                               </tr>
@@ -659,13 +707,13 @@ export default function SalesPage() {
                       </table>
 
                       {totalCompletedPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3 border-t border-gray-100">
                           <p className="text-sm text-gray-500">
                             Mostrando {(completedPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(completedPage * ITEMS_PER_PAGE, completedSales.length)} de {completedSales.length}
                           </p>
                           <div className="flex items-center gap-2">
                             <button onClick={() => setCompletedPage(p => Math.max(1, p - 1))} disabled={completedPage === 1} className="btn btn-sm btn-ghost"><ChevronLeft className="w-4 h-4" /></button>
-                            <span className="text-sm">Página {completedPage} de {totalCompletedPages}</span>
+                            <span className="text-sm whitespace-nowrap">Página {completedPage} de {totalCompletedPages}</span>
                             <button onClick={() => setCompletedPage(p => Math.min(totalCompletedPages, p + 1))} disabled={completedPage === totalCompletedPages} className="btn btn-sm btn-ghost"><ChevronRight className="w-4 h-4" /></button>
                           </div>
                         </div>
