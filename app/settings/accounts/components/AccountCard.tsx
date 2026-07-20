@@ -35,6 +35,7 @@ export default function AccountCard({ account }: Props) {
     vinted: "Vinted",
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
+    depop: "Depop",
     shopify: "Shopify",
   };
 

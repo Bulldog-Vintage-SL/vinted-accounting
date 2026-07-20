@@ -16,6 +16,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   vestiaire: "Vestiaire Collective",
   ebay: "eBay",
   shopify: "Shopify",
+  depop: "Depop"
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
@@ -23,6 +24,7 @@ const PLATFORM_ICONS: Record<string, string> = {
   wallapop: "/icons/wallapop.svg",
   vestiaire: "/icons/vestiaire.jpeg",
   ebay: "/icons/ebay.svg",
+  depop:  "/icons/depop.jpeg",
   shopify: "/icons/shopify.svg",
 };
 

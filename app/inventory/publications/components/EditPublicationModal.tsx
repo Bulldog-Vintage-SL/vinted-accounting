@@ -28,6 +28,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
+    depop: "Depop"
 };
 
 const SHOPIFY_STATUS_OPTIONS = [

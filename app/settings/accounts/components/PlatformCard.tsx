@@ -81,6 +81,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     wallapop: "/icons/wallapop.svg",
     vestiaire: "/icons/vestiaire.jpeg",
     shopify: "/icons/shopify.svg",
+    depop: "/icons/depop.jpeg",
     unknown: "/icons/vinted.svg",
   };
 

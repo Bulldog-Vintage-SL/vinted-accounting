@@ -22,6 +22,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
+    depop: "Depop"
 };
 
 // Plataformas cuya auth es server-side (OAuth) y no requieren sincronización manual
@@ -75,7 +76,7 @@ export function DeletePublicationModal({
     const runSync = (acc: any) => {
         if (acc.platform === "vinted") return syncVintedAccount(acc.external_id);
         if (acc.platform === "wallapop") return syncWallapopAccount(acc.external_id);
-        return syncVestiaireAccount(acc.external_id, acc.vestiaire_id ?? null);
+        if (acc.platform === "depop") return syncVestiaireAccount(acc.external_id, acc.vestiaire_id ?? null);
     };
 
     const handleSync = async () => {

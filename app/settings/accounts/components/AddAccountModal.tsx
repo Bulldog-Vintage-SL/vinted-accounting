@@ -140,6 +140,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
               />
               <PlatformOption
                 disabled={pending}
+                loading={pendingPlatform === "depop"}
+                onClick={() => handleSelect("depop")}
+                icon="/icons/depop.jpeg"
+                label="Depop"
+              />
+              <PlatformOption
+                disabled={pending}
                 onClick={() => handleSelect("shopify")}
                 icon="/icons/shopify.svg"
                 label="Shopify"
@@ -194,6 +201,12 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "vestiaire") {
     return searchVestiaireAccount();
+  }
+  if (platform === "depop") {
+    return {
+      ok: false,
+      message: "Plataforma no soportada",
+    }
   }
 
   return {

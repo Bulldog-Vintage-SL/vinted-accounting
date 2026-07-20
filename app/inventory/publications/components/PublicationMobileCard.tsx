@@ -15,6 +15,7 @@ const PLATFORM_ICONS: Record<string, string> = {
   vestiaire: "/icons/vestiaire.jpeg",
   ebay: "/icons/ebay.svg",
   shopify: "/icons/shopify.svg",
+  depop: "/icons/depop.jpeg"
 };
 
 interface Props {

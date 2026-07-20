@@ -20,10 +20,11 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
+    depop: "Depop"
 };
 
 // Plataformas que requieren la extension
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire"]);
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
 
 interface AccountGroup {
     key: string;
