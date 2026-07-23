@@ -43,8 +43,8 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
   brand: (listing) =>
     !listing?.attributes?.brand?.trim() ? { key: 'attributes.brand', label: 'marca' } : null,
 
-  condition: (listing) =>
-    !listing?.condition?.trim() ? { key: 'condition', label: 'condición' } : null,
+  status: (listing) =>
+    !listing?.status?.trim() ? { key: 'status', label: 'condición' } : null,
 
   size: (listing) =>
     !listing?.attributes?.size?.trim() ? { key: 'attributes.size', label: 'talla' } : null,
