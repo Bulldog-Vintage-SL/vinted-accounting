@@ -43,8 +43,8 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
   brand: (listing) =>
     !listing?.attributes?.brand?.trim() ? { key: 'attributes.brand', label: 'marca' } : null,
 
-  status: (listing) =>
-    !listing?.status?.trim() ? { key: 'status', label: 'condición' } : null,
+  condition: (listing) =>
+    !listing?.condition?.trim() ? { key: 'condition', label: 'condición' } : null,
 
   size: (listing) =>
     !listing?.attributes?.size?.trim() ? { key: 'attributes.size', label: 'talla' } : null,
@@ -58,9 +58,9 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
 
 // Campos requeridos por plataforma
 const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)[]> = {
-  vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'status', 'size'],
-  wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'status', 'size', 'item_type'],
-  vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'status', 'size', 'item_type', 'gender'],
+  vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size'],
+  wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
+  vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
 }
 
 export function validateListingRequiredFields(listing: any, platform: Platform): MissingField[] {
