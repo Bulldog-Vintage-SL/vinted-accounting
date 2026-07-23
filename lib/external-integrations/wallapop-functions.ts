@@ -9,7 +9,7 @@ export async function uploadWallapopItem(listing: any, accountId: string): Promi
     const missing = validateListingRequiredFields(listing, 'wallapop')
     if (missing.length > 0) throw new MissingFieldsError(missing)
 
-    const result = await runFlow('UPLOAD_WALLAPOP_ITEM', { listing })
+    const result = await runFlow('UPLOAD_WALLAPOP_ITEM', { listing, platform: 'wallapop' })
     const item = result?.result?.result
 
     if (item?.id) {
@@ -113,7 +113,8 @@ export async function searchWallapopAccount() {
 // Sincronizar cuenta de Wallapop
 export async function syncWallapopAccount(externalId: string) {
   try {
-    const result = await runFlow('SYNC_WALLAPOP_ACCOUNT', { externalId })
+    const result = await runFlow('SYNC_WALLAPOP_ACCOUNT', { externalId, platform: 'wallapop'
+     })
 
     if (!result?.result?.state) {
 
@@ -179,7 +180,7 @@ export async function importWallapopWardrobe(userId: string) {
   try {
 
     // Iniciamos el workflow en la extension con el nombre pertinente
-    const result = await runFlow('IMPORT_WALLAPOP_WARDROBE');
+    const result = await runFlow('IMPORT_WALLAPOP_WARDROBE', {platform: 'wallapop'});
 
     if (result?.result?.state?.items) {
 
@@ -225,7 +226,7 @@ export async function importWallapopWardrobe(userId: string) {
 
 export async function deleteWallapopItem(itemExternalId: string, publicationId: string) {
   try {
-    const result = await runFlow('DELETE_WALLAPOP_ITEM', { itemExternalId });
+    const result = await runFlow('DELETE_WALLAPOP_ITEM', { itemExternalId, platform: 'wallapop' });
 
     if (!result || !result.ok || !result.result?.done) {
       const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al eliminar en Wallapop';
@@ -266,7 +267,7 @@ export async function deleteWallapopItem(itemExternalId: string, publicationId: 
 // Obtener datos actuales (titulo, descripcion, precio) de un item de Wallapop
 export async function getWallapopItem(itemExternalId: string) {
   try {
-    const result = await runFlow('GET_WALLAPOP_ITEM', { itemExternalId });
+    const result = await runFlow('GET_WALLAPOP_ITEM', { itemExternalId, platform: 'wallapop' });
 
     if (!result || !result.ok || !result.result?.done) {
       const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al obtener el item de Wallapop';
@@ -297,42 +298,6 @@ export async function getWallapopItem(itemExternalId: string) {
 }
 
 
-// Obtener datos actuales (titulo, descripcion, precio) de un item de Vestiaire Collective
-export async function getVestiaireItem(itemExternalId: string) {
-  try {
-    const result = await runFlow('GET_VESTIAIRE_ITEM', { itemExternalId });
-
-    if (!result || !result.ok || !result.result?.done) {
-      const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al obtener el item de Vestiaire';
-      return { ok: false, message: errorMsg };
-    }
-
-    const item = result.result.result;
-
-    if (!item) {
-      return { ok: false, message: 'No se recibieron datos del item' };
-    }
-
-    return {
-      ok: true,
-      item: {
-        title: item.title?.original ?? '',
-        description: item.description?.original ?? '',
-        price: item.price?.cash?.amount != null ? Number(item.price.cash.amount) : null,
-      },
-    };
-
-  } catch (err: any) {
-    return {
-      ok: false,
-      message: err?.message || 'Error inesperado',
-    };
-  }
-}
-
-
-
-
 // Actualizar campos de un item de Wallapop
 export async function updateWallapopItem(
   itemExternalId: string,
@@ -340,7 +305,7 @@ export async function updateWallapopItem(
   fields: { title: string; description: string; price: number }
 ) {
   try {
-    const result = await runFlow('UPDATE_WALLAPOP_ITEM', { itemExternalId, fields });
+    const result = await runFlow('UPDATE_WALLAPOP_ITEM', { itemExternalId, fields, platform: 'wallapop' });
 
     if (!result || !result.ok || !result.result?.done) {
       const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al actualizar en Wallapop';

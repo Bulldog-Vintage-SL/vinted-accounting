@@ -13,7 +13,7 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
     const missing = validateListingRequiredFields(listing, 'vestiaire')
     if (missing.length > 0) throw new MissingFieldsError(missing)
 
-    const result = await runFlow('UPLOAD_VESTIAIRE_ITEM', { listing })
+    const result = await runFlow('UPLOAD_VESTIAIRE_ITEM', { listing, platform: 'vestiaire' })
 
     const vestProductId = result?.result?.state?.vestProductId
     const vestPublicationUrl = result?.result?.state?.vestPublicationUrl
@@ -57,7 +57,7 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
 // Buscar cuenta de Vestiaire Collective
 export async function searchVestiaireAccount() {
   try {
-    const result = await runFlow("SEARCH_VESTIAIRE_ACCOUNT");
+    const result = await runFlow("SEARCH_VESTIAIRE_ACCOUNT", {platform: 'vestiaire'});
 
     if (!result?.result?.state) {
       return {
@@ -104,7 +104,7 @@ export async function searchVestiaireAccount() {
 export async function syncVestiaireAccount(externalId: string, vestiaireId: string | null) {
   try {
 
-    const result = await runFlow('SYNC_VESTIAIRE_ACCOUNT', { vestiaireId });
+    const result = await runFlow('SYNC_VESTIAIRE_ACCOUNT', { vestiaireId, platform: 'vestiaire' });
     if (!result?.result?.state) {
       await fetch('/api/accounts/sync', {
         method: 'POST',
@@ -161,7 +161,7 @@ export async function syncVestiaireAccount(externalId: string, vestiaireId: stri
 
 export async function deleteVestiaireItem(itemExternalId: string, publicationId: string) {
   try {
-    const result = await runFlow('DELETE_VESTIAIRE_ITEM', { itemExternalId });
+    const result = await runFlow('DELETE_VESTIAIRE_ITEM', { itemExternalId, platform: 'vestiaire' });
 
     if (!result || !result.ok || !result.result?.done) {
       const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al eliminar en Vestiaire';
@@ -188,6 +188,40 @@ export async function deleteVestiaireItem(itemExternalId: string, publicationId:
     return {
       ok: true,
       message: 'Publicación eliminada correctamente de Vestiaire y de la BD',
+    };
+
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: err?.message || 'Error inesperado',
+    };
+  }
+}
+
+
+// Obtener datos actuales (titulo, descripcion, precio) de un item de Vestiaire Collective
+export async function getVestiaireItem(itemExternalId: string) {
+  try {
+    const result = await runFlow('GET_VESTIAIRE_ITEM', { itemExternalId, platform: 'vestiaire' });
+
+    if (!result || !result.ok || !result.result?.done) {
+      const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al obtener el item de Vestiaire';
+      return { ok: false, message: errorMsg };
+    }
+
+    const item = result.result.result;
+
+    if (!item) {
+      return { ok: false, message: 'No se recibieron datos del item' };
+    }
+
+    return {
+      ok: true,
+      item: {
+        title: item.title?.original ?? '',
+        description: item.description?.original ?? '',
+        price: item.price?.cash?.amount != null ? Number(item.price.cash.amount) : null,
+      },
     };
 
   } catch (err: any) {
