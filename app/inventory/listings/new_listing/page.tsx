@@ -14,7 +14,7 @@ export default function NewListingPage() {
       initialData={{
         title: "",
         description: "",
-        condition: "good",
+        condition: "",
         price: "",
         photo_url: [],
         colors: [],
