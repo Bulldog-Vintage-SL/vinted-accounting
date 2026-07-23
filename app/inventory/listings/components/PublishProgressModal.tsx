@@ -38,7 +38,7 @@ const SINGLE_FIELD_OPTIONS: Record<string, string[]> = {
   size: SIZE_OPTIONS,
   'attributes.size': SIZE_OPTIONS,
   gender: GENDER_OPTIONS,
-  condition: CONDITION_OPTIONS,
+  status: CONDITION_OPTIONS,
 }
 
 export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, onRetryJob }: Props<T>) {
