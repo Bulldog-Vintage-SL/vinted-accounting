@@ -1,8 +1,7 @@
-import Image from "next/image";
 import TestimonialsAvatars from "./TestimonialsAvatars";
 import config from "@/config";
 import ButtonCheckout from "@/components/ButtonCheckout";
-import logo from "@/app/icon.png";
+import { HeroLogoShowcase } from "./HeroLogoShowcase";
 
 const Hero = () => {
   return (
@@ -23,15 +22,8 @@ const Hero = () => {
         <TestimonialsAvatars priority={true} />
       </div>
 
-      <div className="lg:w-full flex items-center justify-center">
-        <div className="relative flex items-center justify-center w-full max-w-[420px] aspect-square rounded-full bg-brand-black p-6 sm:p-10 shadow-2xl ring-4 ring-primary">
-          <Image
-            src={logo}
-            alt={`${config.appName} logo`}
-            priority
-            className="w-full h-full object-contain"
-          />
-        </div>
+      <div className="lg:w-full flex items-center justify-center overflow-visible">
+        <HeroLogoShowcase />
       </div>
     </section>
   );

@@ -9,7 +9,7 @@ const themes = {
 
 const config = {
   // REQUIRED
-  appName: "Vinted Libertad",
+  appName: "Reventa Libertad",
   // REQUIRED: a short description of your app for SEO tags (can be overwritten)
   appDescription:
     "La plataforma de contabilidad creada exclusivamente para revendedores. Controla ventas, pedidos, gastos, inventario y beneficios reales sin Excel, sin líos y sin perder dinero.",

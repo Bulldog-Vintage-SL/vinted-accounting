@@ -14,10 +14,6 @@ const links: {
   label: string;
 }[] = [
   {
-    href: "/#pricing",
-    label: "Precio",
-  },
-  {
     href: "/documentation",
     label: "Documentación",
   },

@@ -7,7 +7,7 @@ import { signInWithEmail, signInWithGoogle } from "./actions";
 
 export const metadata = getSEOTags({
   title: `Iniciar sesión | ${config.appName}`,
-  description: "Accede a tu cuenta de Vinted Libertad con Google o email.",
+  description: "Accede a tu cuenta de Reventa Libertad con Google o email.",
   canonicalUrlRelative: "/login",
 });
 
