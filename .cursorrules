@@ -169,3 +169,68 @@ Use Conventional Commits format:
 - Don't create components without proper TypeScript interfaces
 - Don't forget to connect to MongoDB in API routes
 - Don't skip webhook signature verification for Stripe 
+
+When the user asks to create, update, or explain a diagram for any code flow, architecture, API flow, or system behavior:
+
+1. Analyze the actual codebase before creating the diagram.
+2. Trace the real execution flow through functions, classes, services, APIs, databases, queues, and external services.
+3. Never invent components or interactions that cannot be verified from the code.
+4. If the flow is unclear or cannot be verified, explicitly state the uncertainty.
+
+Use Mermaid diagrams by default.
+
+Choose the appropriate Mermaid diagram type:
+- flowchart for application flows and decision trees
+- sequenceDiagram for API and service interactions
+- stateDiagram-v2 for state machines and lifecycle flows
+- erDiagram for database relationships
+- graph for high-level architecture
+
+Store diagrams under:
+
+docs/diagrams/
+
+Organize them as:
+
+docs/diagrams/
+├── architecture/
+├── flows/
+├── sequence/
+└── data/
+
+Use descriptive filenames.
+
+For every generated diagram, include:
+
+1. The Mermaid diagram.
+2. A "Flow Summary" section explaining the flow.
+3. A "Source Files" section listing the relevant files.
+4. An "Important Decisions" section describing branches, error handling, retries, and asynchronous operations.
+5. An "External Dependencies" section listing external APIs, services, databases, or queues.
+
+When creating a diagram, prefer showing major components and interactions rather than every individual function call.
+
+For complex systems, create diagrams at multiple levels:
+1. High-level architecture
+2. Service-level flow
+3. Detailed sequence flow
+
+When code changes affect an existing diagram, check the corresponding diagram under docs/diagrams/ and update it if the documented flow is no longer accurate.
+
+All diagrams must reflect the current implementation.
+
+When asked to generate a diagram, save the Mermaid diagram as a Markdown file in the appropriate docs/diagrams/ directory.
+
+Example:
+docs/diagrams/flows/authentication.md
+
+The default workflow should be:
+
+1. Understand the requested flow.
+2. Locate the entry point.
+3. Trace the execution path.
+4. Identify dependencies and external systems.
+5. Identify success and failure paths.
+6. Generate the Mermaid diagram.
+7. Save it to docs/diagrams/.
+8. Provide a concise summary of the flow and the source files analyzed.

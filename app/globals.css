@@ -79,6 +79,19 @@
     50% { transform: scale(1.1); opacity: 1; }
     100% { transform: scale(1); opacity: 1; }
   }
+
+  @keyframes hero-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes hero-float-tilt {
+    0%, 100% { transform: translateY(0) rotate(-3deg); }
+    50% { transform: translateY(-12px) rotate(3deg); }
+  }
+
+  --animate-hero-float: hero-float 4s ease-in-out infinite;
+  --animate-hero-float-tilt: hero-float-tilt 4.5s ease-in-out infinite;
 }
 
 html,

@@ -34,7 +34,7 @@ const CTA = () => {
           No más líos con Excel, no más pérdidas de dinero.
         </p>
 
-        <ButtonLead />
+        <ButtonLead extraStyle="items-center" />
       </div>
     </section>
   );
