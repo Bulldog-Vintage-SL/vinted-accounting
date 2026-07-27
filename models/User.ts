@@ -1,6 +1,20 @@
 import mongoose from "mongoose";
 import toJSON from "./plugins/toJSON";
 
+export interface IUser {
+  _id?: mongoose.Types.ObjectId;
+  name?: string;
+  email?: string;
+  image?: string;
+  password?: string;
+  customerId?: string;
+  priceId?: string;
+  hasAccess?: boolean;
+  lastSyncAt?: Date | null;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 // USER SCHEMA
 const userSchema = new mongoose.Schema(
   {
@@ -13,9 +27,16 @@ const userSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
       private: true,
+      unique: true,
+      sparse: true,
     },
     image: {
       type: String,
+    },
+    password: {
+      type: String,
+      private: true,
+      select: false,
     },
     // Used in the Stripe webhook to identify the user in Stripe and later create Customer Portal or prefill user credit card details
     customerId: {
@@ -51,4 +72,5 @@ const userSchema = new mongoose.Schema(
 // add plugin that converts mongoose to json
 userSchema.plugin(toJSON);
 
-export default (mongoose.models.User || mongoose.model("User", userSchema)) as mongoose.Model<any>;
+export default (mongoose.models.User ||
+  mongoose.model("User", userSchema)) as mongoose.Model<IUser>;

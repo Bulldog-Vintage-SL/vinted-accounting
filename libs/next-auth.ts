@@ -1,9 +1,11 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
+import CredentialsProvider from "next-auth/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import config from "@/config";
 import { ensureAuthEnv } from "@/libs/app-url";
+import { verifyUserPassword } from "@/libs/auth-credentials";
 import connectMongo from "./mongo";
 
 ensureAuthEnv();
@@ -38,6 +40,24 @@ export const authOptions = {
     },
   },
   providers: [
+    CredentialsProvider({
+      id: "credentials",
+      name: "Email y contraseña",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Contraseña", type: "password" },
+      },
+      async authorize(credentials) {
+        const email = credentials?.email as string | undefined;
+        const password = credentials?.password as string | undefined;
+
+        if (!email?.trim() || !password) {
+          return null;
+        }
+
+        return verifyUserPassword(email, password);
+      },
+    }),
     GoogleProvider({
       clientId: process.env.GOOGLE_ID!,
       clientSecret: process.env.GOOGLE_SECRET!,
@@ -87,6 +107,14 @@ export const authOptions = {
   callbacks: {
     async jwt({ token, account, user }: any) {
       if (account && user) {
+        if (account.provider === "credentials") {
+          return {
+            ...token,
+            sub: user.id,
+            hasAccess: user.hasAccess ?? true,
+          };
+        }
+
         const expiresAt = account.expires_at
           ? account.expires_at * 1000
           : Date.now() + 3600 * 1000;
@@ -147,7 +175,7 @@ export const authOptions = {
         session.refreshToken = token.refreshToken;
         session.accessTokenExpires = token.accessTokenExpires;
         session.error = token.error;
-        session.user.hasAccess = true;
+        session.user.hasAccess = token.hasAccess ?? true;
       }
       return session;
     },
