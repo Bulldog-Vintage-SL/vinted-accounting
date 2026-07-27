@@ -1,13 +1,7 @@
 import { processStepResult } from "@/lib/workflows/step-executor";
 import { buildVintedSteps } from "@/lib/workflows/vinted/vinted-steps";
-import {
-  buildSearchAccountSteps,
-  buildSyncAccountSteps,
-} from "@/lib/workflows/vinted/sync-steps";
-import {
-  buildSearchWallapopAccountSteps,
-  buildSyncWallapopAccountSteps,
-} from "@/lib/workflows/wallapop/wallapop-sync-steps";
+import { buildSearchAccountSteps, buildSyncAccountSteps } from "@/lib/workflows/vinted/sync-steps";
+import { buildSearchWallapopAccountSteps, buildSyncWallapopAccountSteps } from "@/lib/workflows/wallapop/wallapop-sync-steps";
 import { buildImportWardrobeSteps } from "@/lib/workflows/vinted/import-steps";
 import { buildWallapopImportSteps } from "@/lib/workflows/wallapop/wallapop-import-steps";
 import { buildWallapopSteps } from "@/lib/workflows/wallapop/wallapop-upload-steps";
@@ -18,13 +12,11 @@ import { buildGetVintedItemSteps } from "@/lib/workflows/vinted/vinted-get-item-
 import { buildGetWallapopItemSteps } from "@/lib/workflows/wallapop/wallapop-get-item-steps";
 import { buildUpdateVintedItemSteps } from "@/lib/workflows/vinted/vinted-update-steps";
 import { buildUpdateWallapopItemSteps } from "@/lib/workflows/wallapop/wallapop-update-steps";
-import {
-  buildSearchVestiaireAccountSteps,
-  buildSyncVestiaireAccountSteps,
-} from "@/lib/workflows/vestiaire/vestiaire-sync-steps";
+import { buildSearchVestiaireAccountSteps, buildSyncVestiaireAccountSteps } from "@/lib/workflows/vestiaire/vestiaire-sync-steps";
 import { buildImportVestiaireSteps } from "@/lib/workflows/vestiaire/vestiaire-import-steps";
 import { buildVestiaireUploadSteps } from "@/lib/workflows/vestiaire/vestiaire-upload-steps";
 import { buildUpdateVestiaireItemSteps } from "@/lib/workflows/vestiaire/vestiaire-update-steps";
+import { buildSearchDepopAccountSteps, buildSyncDepopAccountSteps } from "@/lib/workflows/depop/depop-sync-steps";
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +59,10 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
       p.itemExternalId,
       p.fields.price
     ),
+
+  SEARCH_DEPOP_ACCOUNT: () => buildSearchDepopAccountSteps(),
+  SYNC_DEPOP_ACCOUNT: (p) => buildSyncDepopAccountSteps(p.externalId),
+
 };
 
 export async function POST(req: Request) {

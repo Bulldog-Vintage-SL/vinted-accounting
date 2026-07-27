@@ -20,7 +20,7 @@ export function processStepResult(
 
   // Acumulamos los datos en cada paso 
   switch (completed.type) {
- 
+
     // VINTED
     case 'UPLOAD_PHOTO':
       s.photoIds = [...(s.photoIds ?? []), result.id]
@@ -201,6 +201,13 @@ export function processStepResult(
       s.vestProductId = result.data?.id
       s.vestPublicationUrl = `https://es.vestiairecollective.com/proponer-un-articulo.shtml?id=${result.data?.reference}`
       break
+
+    // Depop
+    case 'GET_DEPOP_USER_ID':
+      s.userId = result.userId
+      s.profileLink = result.profileLink
+      break
+
     case 'GET_ITEMS_NEW':
     case 'GET_CONFIGURATION':
     case 'GET_PROFILE':

@@ -85,7 +85,7 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     platform: 'vestiaire',
     type: 'GET_VEST_PHOTOS',
     request: {
-      url: 'DYNAMIC', // /deposit/photos/products/drafts/:draftId
+      url: 'DYNAMIC',
       method: 'GET'
     }
   })
@@ -98,7 +98,7 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
       url: 'DYNAMIC',
       method: 'POST',
       isFormData: true,
-      body: {} // relleno dinámico
+      body: {} 
     }
   })
 
@@ -117,7 +117,7 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     platform: 'vestiaire',
     type: 'SET_VEST_SHIPPING_ADDRESS',
     request: {
-      url: 'DYNAMIC', // /users/me/addresses/:addressId/flags
+      url: 'DYNAMIC',
       method: 'PUT',
       body: { flags: ['shipping'] }
     }
@@ -128,51 +128,22 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     platform: 'vestiaire',
     type: 'GET_VEST_DRAFT_DETAILS',
     request: {
-      url: 'DYNAMIC', // /product-listing/product-drafts/:draftId/details
+      url: 'DYNAMIC', 
       method: 'GET'
     }
   })
 
-  // 10. Enviar el draft
   steps.push({
     id: crypto.randomUUID(),
     platform: 'vestiaire',
     type: 'SUBMIT_VEST_PRODUCT',
     request: {
-      url: 'DYNAMIC', // /deposit/products/drafts/:draftId/submit
+      url: 'DYNAMIC',
       method: 'PUT',
       isFormData: true,
       body: { withAddressV2: '1' }
     }
   })
-
-  /*
-
- 
-  
-
-  // 4. Rellenar campos del draft (condition, material, color, pattern, size_unit, size, pvp)
-  //    Se manda como FormData en el content script
- 
-  
-
-  // 5. Subir fotos (una por una)
-  
-
-  // 6. Verificar que las fotos se han subido correctamente
-  
-
-  // 7. Rellenar descripción (mismo endpoint PATCH que FILL_VEST_FIELDS pero solo description)
-  
-
-  // 8. Obtener direcciones del usuario para elegir la de envío
-  
-
-  // 9. Seleccionar dirección de envío
-  
-
-  
-  */
 
   return steps
 
