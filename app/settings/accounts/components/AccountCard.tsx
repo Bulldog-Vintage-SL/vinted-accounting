@@ -11,6 +11,7 @@ import {
   syncVintedAccount,
   syncWallapopAccount,
   syncVestiaireAccount,
+  syncDepopAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -29,6 +30,7 @@ export default function AccountCard({ account }: Props) {
     wallapop: syncWallapopAccount,
     vestiaire: (externalId) =>
       syncVestiaireAccount(externalId, account.vestiaire_id ?? null),
+    depop: syncDepopAccount
   };
 
   const platformNames: Record<string, string> = {

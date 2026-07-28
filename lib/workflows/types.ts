@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop'
 
 export type StepType =
   // Vinted
@@ -52,6 +52,9 @@ export type StepType =
   | 'GET_VEST_DRAFT_DETAILS'
   | 'DELETE_VEST_ITEM'
   | 'UPDATE_VEST_ITEM'
+  // Depop
+  | 'GET_DEPOP_USER_ID'
+  | 'GET_DEPOP_USER_INFO  '
 
 export interface WorkflowStep {
   id: string
@@ -129,5 +132,8 @@ export interface WorkflowState {
   vestAddressId?: string
   vestProductId?: string
   vestPublicationUrl?: string
-
+  
+  // Depop
+  username?: string
+  
 }

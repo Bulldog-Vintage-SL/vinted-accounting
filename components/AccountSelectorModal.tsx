@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useEffect, useState } from "react";
 import type { SyncStatus } from "@/app/settings/accounts/types";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/external-integrations'
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations'
 import { useToast } from "@/components/toast"
 
 const PLATFORM_LOGOS: Record<string, string> = {
@@ -55,6 +55,7 @@ export default function AccountSelectorModal() {
     vinted: (acc) => syncVintedAccount(acc.external_id),
     wallapop: (acc) => syncWallapopAccount(acc.external_id),
     vestiaire: (acc) => syncVestiaireAccount(acc.external_id, acc.vestiaire_id ?? null),
+    depop: (acc) => syncDepopAccount(acc.external_id),
   };
   // Nombre legible para errores
   const platformName = (platform: string) => PLATFORM_NAMES[platform] || platform;

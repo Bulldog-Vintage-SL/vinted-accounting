@@ -8,6 +8,7 @@ import {
   searchVintedAccount,
   searchWallapopAccount,
   searchVestiaireAccount,
+  searchDepopAccount
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -203,10 +204,7 @@ async function startAccountSearch(platform: string): Promise<any> {
     return searchVestiaireAccount();
   }
   if (platform === "depop") {
-    return {
-      ok: false,
-      message: "Plataforma no soportada",
-    }
+    return searchDepopAccount();
   }
 
   return {
