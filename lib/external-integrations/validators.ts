@@ -16,6 +16,8 @@ export class MissingFieldsError extends Error {
 
 export type Platform = 'vinted' | 'wallapop' | 'vestiaire'
 
+export const VESTIAIRE_MIN_PRICE = 16
+
 type FieldValidator = (listing: any) => MissingField | null
 
 const FIELD_VALIDATORS: Record<string, FieldValidator> = {
@@ -54,13 +56,24 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
 
   gender: (listing) =>
     !listing?.gender ? { key: 'gender', label: 'género' } : null,
+
+  vestiaire_min_price: (listing) => {
+    const price = Number(listing?.price)
+    if (Number.isNaN(price) || price < VESTIAIRE_MIN_PRICE) {
+      return {
+        key: 'price',
+        label: `precio (mínimo ${VESTIAIRE_MIN_PRICE}€ en Vestiaire)`,
+      }
+    }
+    return null
+  },
 }
 
 // Campos requeridos por plataforma
 const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)[]> = {
   vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size'],
   wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
-  vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
+  vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender', 'vestiaire_min_price'],
 }
 
 export function validateListingRequiredFields(listing: any, platform: Platform): MissingField[] {

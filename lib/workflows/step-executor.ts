@@ -5,6 +5,7 @@
 */
 
 import type { WorkflowStep, WorkflowState } from './types'
+import { buildVestiaireFieldSteps } from './vestiaire/vestiaire-field-mapper'
 
 export function processStepResult(
   steps: WorkflowStep[],
@@ -177,6 +178,7 @@ export function processStepResult(
 
     case 'GET_VEST_FORM_OPTIONS':
       s.vestFormOptions = result.formOptions
+      steps.splice(currentStep + 1, 0, ...buildVestiaireFieldSteps(s))
       break
 
     case 'UPLOAD_VEST_PHOTO':
@@ -206,6 +208,7 @@ export function processStepResult(
     case 'GET_PROFILE':
     case 'DELETE_VINTED':
     case 'DELETE_WALLA':
+    case 'FILL_VEST_FIELD':
     case 'FILL_VEST_FIELDS':
     case 'GET_VEST_PHOTOS':
     case 'DELETE_VEST_ITEM':
@@ -321,9 +324,9 @@ export function processStepResult(
       next.request.url = `https://es.vestiairecollective.com/proponer-un-articulo.shtml?id=${s.vestDraftId}`
       break
 
+    case 'FILL_VEST_FIELD':
     case 'FILL_VEST_FIELDS':
       next.request.url = `https://apiv2.vestiairecollective.com/product-listing/product-drafts/${s.vestDraftId}`
-      next.request.body = buildVestiaireFieldsFormData(s)
       break
 
     case 'UPLOAD_VEST_PHOTO':
@@ -332,11 +335,6 @@ export function processStepResult(
 
     case 'GET_VEST_PHOTOS':
       next.request.url = `https://apiv2.vestiairecollective.com/deposit/photos/products/drafts/${s.vestDraftId}`
-      break
-
-    case 'FILL_VEST_DESCRIPTION':
-      next.request.url = `https://apiv2.vestiairecollective.com/product-listing/product-drafts/${s.vestDraftId}`
-      next.request.body = buildVestiaireDescriptionFormData(s)
       break
 
     case 'SET_VEST_SHIPPING_ADDRESS':
@@ -350,6 +348,9 @@ export function processStepResult(
 
     case 'SUBMIT_VEST_PRODUCT':
       next.request.url = `https://apiv2.vestiairecollective.com/deposit/products/drafts/${s.vestDraftId}/submit`
+      next.request.method = 'PUT'
+      next.request.isFormData = true
+      next.request.body = { withAddressV2: '1' }
       break
 
   }
@@ -743,6 +744,36 @@ function resolveVestiaireCategory(
   const normItemType = normalize(params.itemType ?? '')
   const normTitle = normalize(params.title ?? '')
 
+  const bagKeywords = ['bolso', 'bolsos', 'bag', 'handbag', 'mochila', 'clutch', 'bandolera']
+  const isBag = bagKeywords.some(kw => normItemType.includes(kw) || normTitle.includes(kw))
+
+  if (isBag) {
+    for (const category of universe.categories ?? []) {
+      const normCat = normalize(category.title)
+      if (!normCat.includes('bolso') && !normCat.includes('bag') && !normCat.includes('accesor')) continue
+
+      for (const sub of category.subCategories ?? []) {
+        const normSub = normalize(sub.title)
+        if (bagKeywords.some(kw => normSub.includes(kw)) || normSub.includes('bolso')) {
+          return {
+            universeId,
+            categoryId: String(category.id),
+            subcategoryId: String(sub.id),
+          }
+        }
+      }
+
+      const firstSub = category.subCategories?.[0]
+      if (firstSub) {
+        return {
+          universeId,
+          categoryId: String(category.id),
+          subcategoryId: String(firstSub.id),
+        }
+      }
+    }
+  }
+
   // Buscar subcategoría que matchee itemType o título
   for (const category of universe.categories ?? []) {
     for (const sub of category.subCategories ?? []) {
@@ -768,81 +799,6 @@ function resolveVestiaireCategory(
   return {
     universeId,
     categoryId: String(ropaCategory?.id ?? universe.categories?.[0]?.id ?? '12'),
-    subcategoryId: String(fallbackSub?.id ?? '525')
-  }
-}
-
-function buildVestiaireFieldsFormData(s: WorkflowState): Record<string, string> {
-  const l = s.originalPayload.listing
-  const opts = s.vestFormOptions
-
-  function resolveId(mnemonic: string, displayName: string): string | null {
-    const section = opts?.informations?.find((info: any) => info.mnemonic === mnemonic)
-    const field = section?.fields?.[0]
-    const normalize = (s: string) => s?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-    const match = field?.values?.find((v: any) => normalize(v.displayName) === normalize(displayName))
-    return match ? String(match.id) : null
-  }
-
-  function resolveSizeIds(sizeStr: string): { size_unit: string; size: string } | null {
-    const sizeSection = opts?.informations?.find((info: any) => info.mnemonic === 'size')
-    const unitField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size_unit')
-    const sizeField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size')
-
-    // Usamos siempre International 
-    const unitId = unitField?.values?.[0]?.id
-    if (!unitId) return null
-
-    const normalize = (s: string) => s?.toLowerCase().trim()
-    const match = sizeField?.values?.find((v: any) =>
-      normalize(v.displayName) === normalize(sizeStr) &&
-      v.dependsOn?.some((d: any) => d.field === 'size_unit' && d.values.includes(unitId))
-    )
-
-    return match ? { size_unit: String(unitId), size: String(match.id) } : null
-  }
-
-  const fields: Record<string, string> = {}
-
-  const conditionMap: Record<string, string> = {
-    'Nuevo': '9',
-    'Como nuevo': '3',
-    'Bueno': '4',
-    'Aceptable': '5'
-  }
-
-  const conditionId = conditionMap[l.condition]
-  if (conditionId) fields.preduct_condition = conditionId
-
-  const color = resolveId('color', l.colors?.[0])
-  if (color) fields.preduct_color = color
-
-  const materialId = resolveId('material', l.attributes.material) ?? '2'
-  fields.preduct_material = materialId
-
-  // Pattern: por defecto "Ninguno"
-  const pattern = resolveId('pattern', 'Ninguno')
-  if (pattern) fields.preduct_pattern = pattern
-
-  const sizeIds = resolveSizeIds(l.attributes?.size)
-  if (sizeIds) {
-    fields.preduct_size_unit = sizeIds.size_unit
-    fields.preduct_size = sizeIds.size
-  }
-
-  // Currency EUR y precio siempre presentes
-  const currencyField = opts?.price?.[0]?.fields?.find((f: any) => f.mnemonic === 'currency')
-  const eur = currencyField?.values?.find((v: any) => v.code === 'EUR')
-  fields.preduct_currency = eur ? String(eur.id) : '38'
-  fields.preduct_pvp = String(l.price)
-  fields.preduct_purchase_place = '4'
-
-  return fields
-}
-
-function buildVestiaireDescriptionFormData(s: WorkflowState): Record<string, string> {
-  const l = s.originalPayload.listing
-  return {
-    preduct_description: encodeURIComponent(l.description ?? ''),
+    subcategoryId: String(fallbackSub?.id ?? '525'),
   }
 }
