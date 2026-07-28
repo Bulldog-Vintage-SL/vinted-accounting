@@ -14,12 +14,12 @@ export async function searchDepopAccount() {
             };
         }
 
-        const { userId, profileLink } = result.result.state;
+        const { userId, username, profileLink } = result.result.state;
 
         const res = await fetch("/api/accounts/depop", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ externalId: userId, profileLink }),
+            body: JSON.stringify({ externalId: userId, accountName: username, profileLink }),
         });
 
         const data = await res.json();

@@ -54,6 +54,7 @@ export type StepType =
   | 'UPDATE_VEST_ITEM'
   // Depop
   | 'GET_DEPOP_USER_ID'
+  | 'GET_DEPOP_USER_INFO  '
 
 export interface WorkflowStep {
   id: string
@@ -131,5 +132,8 @@ export interface WorkflowState {
   vestAddressId?: string
   vestProductId?: string
   vestPublicationUrl?: string
-
+  
+  // Depop
+  username?: string
+  
 }

@@ -205,6 +205,7 @@ export function processStepResult(
     // Depop
     case 'GET_DEPOP_USER_ID':
       s.userId = result.userId
+      s.username = result.username
       s.profileLink = result.profileLink
       break
 

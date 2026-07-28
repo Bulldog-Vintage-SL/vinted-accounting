@@ -16,6 +16,7 @@ export function buildSearchDepopAccountSteps(): WorkflowStep[] {
         extractFromDom: 'userId'
       }
     }
+
   ]
 }
 
