@@ -209,7 +209,11 @@ export function processStepResult(
     case 'DELETE_VINTED':
     case 'DELETE_WALLA':
     case 'FILL_VEST_FIELD':
-    case 'FILL_VEST_FIELDS':
+    case 'FILL_VEST_FIELDS': {
+      const fieldKey = Object.keys(completed.request?.body ?? {})[0]
+      console.log('processStepResult — FILL_VEST_FIELD sent:', fieldKey, '=', completed.request?.body?.[fieldKey])
+      break
+    }
     case 'GET_VEST_PHOTOS':
     case 'DELETE_VEST_ITEM':
       break
