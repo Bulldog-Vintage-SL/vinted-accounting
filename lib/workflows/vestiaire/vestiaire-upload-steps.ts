@@ -1,11 +1,12 @@
 /*
   Builder de pasos de un workflow concreto. (Subir producto a Vestiaire Collective).
+  Los campos preduct_* se generan dinámicamente tras GET_VEST_FORM_OPTIONS (un campo por paso).
 */
 
 import type { WorkflowStep } from '../types'
 
 const BASE = 'https://apiv2.vestiairecollective.com'
-const PARAMS = 'isoCountry=ES&x-siteid=12&x-language=es&x-currency=EUR'
+const PARAMS = 'isoCountry=ES&x-siteid=12&x-language=en&x-currency=EUR'
 
 export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
   const steps: WorkflowStep[] = []
@@ -16,8 +17,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     type: 'GET_VEST_BRANDS',
     request: {
       url: `${BASE}/deposit/brands?${PARAMS}`,
-      method: 'GET'
-    }
+      method: 'GET',
+    },
   })
 
   steps.push({
@@ -26,8 +27,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     type: 'GET_VEST_CATALOG',
     request: {
       url: `${BASE}/deposit/catalog?${PARAMS}`,
-      method: 'GET'
-    }
+      method: 'GET',
+    },
   })
 
   steps.push({
@@ -37,8 +38,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     request: {
       url: `${BASE}/deposit/addPreduct?${PARAMS}`,
       method: 'POST',
-      body: {}
-    }
+      body: {},
+    },
   })
 
   steps.push({
@@ -48,20 +49,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     request: {
       url: 'DYNAMIC',
       method: 'GET',
-      extractFromDom: 'formOptions'
-    }
-  })
-
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'vestiaire',
-    type: 'FILL_VEST_FIELDS',
-    request: {
-      url: 'DYNAMIC',
-      method: 'POST',
-      isFormData: true,
-      body: {}
-    }
+      extractFromDom: 'formOptions',
+    },
   })
 
   for (let i = 0; i < listing.photo_url.length; i++) {
@@ -74,9 +63,9 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
         method: 'POST',
         isMultipart: true,
         photoUrl: listing.photo_url[i],
-        photoIndex: i,
-        body: {}
-      }
+        photoIndex: i + 1,
+        body: {},
+      },
     })
   }
 
@@ -86,20 +75,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     type: 'GET_VEST_PHOTOS',
     request: {
       url: 'DYNAMIC',
-      method: 'GET'
-    }
-  })
-
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'vestiaire',
-    type: 'FILL_VEST_DESCRIPTION',
-    request: {
-      url: 'DYNAMIC',
-      method: 'POST',
-      isFormData: true,
-      body: {} 
-    }
+      method: 'GET',
+    },
   })
 
   steps.push({
@@ -108,8 +85,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     type: 'GET_VEST_ADDRESSES',
     request: {
       url: `${BASE}/users/addressV2?context=deposit`,
-      method: 'GET'
-    }
+      method: 'GET',
+    },
   })
 
   steps.push({
@@ -119,8 +96,8 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     request: {
       url: 'DYNAMIC',
       method: 'PUT',
-      body: { flags: ['shipping'] }
-    }
+      body: { flags: ['shipping'] },
+    },
   })
 
   steps.push({
@@ -128,9 +105,9 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     platform: 'vestiaire',
     type: 'GET_VEST_DRAFT_DETAILS',
     request: {
-      url: 'DYNAMIC', 
-      method: 'GET'
-    }
+      url: 'DYNAMIC',
+      method: 'GET',
+    },
   })
 
   steps.push({
@@ -141,10 +118,9 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
       url: 'DYNAMIC',
       method: 'PUT',
       isFormData: true,
-      body: { withAddressV2: '1' }
-    }
+      body: { withAddressV2: '1' },
+    },
   })
 
   return steps
-
 }

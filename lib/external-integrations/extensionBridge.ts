@@ -6,6 +6,11 @@
 
 "use client"
 
+import {
+  checkExtensionAvailability,
+  getExtensionStatusMessage,
+} from "./extensionAvailability"
+
 const EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID!
 declare const chrome: any
 
@@ -28,7 +33,11 @@ async function syncTokenWithExtension() {
 }
 
 export async function runFlow(flow: string, payload: any = {}): Promise<any> {
-  if (typeof chrome === "undefined" || !chrome.runtime) return
+  const availability = await checkExtensionAvailability()
+  if (availability.available === false) {
+    const { title, description } = getExtensionStatusMessage(availability.reason)
+    throw new Error(`${title}. ${description}`)
+  }
 
   await syncTokenWithExtension()
 

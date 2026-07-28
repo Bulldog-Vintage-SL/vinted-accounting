@@ -9,6 +9,7 @@ import { useState, useTransition, type ChangeEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
+import { validateListingCreationFields } from "@/libs/listings/validation";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -24,6 +25,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   });
   const [isUploading, setIsUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [formError, setFormError] = useState<string | null>(null);
   const update = <K extends keyof ListingForm>(
     field: K,
     value: ListingForm[K]
@@ -379,8 +381,22 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
       </div>
 
       {/* Boton */}
+      {formError && (
+        <p className="text-sm text-red-600" role="alert">
+          {formError}
+        </p>
+      )}
       <button
-        onClick={() => startTransition(() => { onSubmit(form); })}
+        onClick={() => {
+          const validationError = validateListingCreationFields(form);
+          if (validationError) {
+            setFormError(validationError);
+            return;
+          }
+
+          setFormError(null);
+          startTransition(() => { onSubmit(form); });
+        }}
         disabled={isPending || isUploading}
         className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
       >

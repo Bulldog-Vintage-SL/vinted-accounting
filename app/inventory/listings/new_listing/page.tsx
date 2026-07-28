@@ -7,8 +7,29 @@
 
 import ItemForm from "@/app/inventory/listings/new_listing/components/ListingForm";
 import { createListingFromForm } from "./action";
+import { ListingForm } from "../types";
+import { useToast } from "@/components/toast";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 
 export default function NewListingPage() {
+  const { pushToast } = useToast();
+
+  const handleSubmit = async (data: ListingForm) => {
+    try {
+      await createListingFromForm(data);
+    } catch (error) {
+      if (isRedirectError(error)) throw error;
+
+      pushToast({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo crear el producto",
+      });
+    }
+  };
+
   return (
     <ItemForm
       initialData={{
@@ -26,7 +47,7 @@ export default function NewListingPage() {
         item_type: "",
         stock: 1
       }}
-      onSubmit={createListingFromForm}
+      onSubmit={handleSubmit}
     />
   );
 }

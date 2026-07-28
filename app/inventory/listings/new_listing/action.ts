@@ -6,10 +6,14 @@ import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import { ListingForm } from "../types";
 import { redirect } from "next/navigation";
 import mongoose from "mongoose";
+import { validateListingCreationFields } from "@/libs/listings/validation";
 
 export async function createListingFromForm(data: ListingForm) {
   const userId = await getAuthenticatedUserId();
   if (!userId) throw new Error("No autenticado");
+
+  const validationError = validateListingCreationFields(data);
+  if (validationError) throw new Error(validationError);
 
   await connectMongo();
   await Listing.create({

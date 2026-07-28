@@ -6,6 +6,7 @@ import {
   listingFormToMongo,
   serializeListing,
 } from "@/libs/listings/serialize";
+import { validateListingCreationFields } from "@/libs/listings/validation";
 import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,12 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
+
+    const validationError = validateListingCreationFields(body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+
     await connectMongo();
     const listing = await Listing.create({
       userId: new mongoose.Types.ObjectId(userId),
