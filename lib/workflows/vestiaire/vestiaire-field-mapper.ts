@@ -220,17 +220,7 @@ function resolveMaterialId(opts: any, listing: any): string {
     resolveDisplayNameId(opts, 'material', listing?.attributes?.material)
   if (fromListing) return fromListing
 
-  const field = findField(opts, 'material')
-  const values: any[] = field?.values ?? []
-  if (!values.length) return '2'
-
-  const preferred = ['leather', 'cuero', 'other', 'otro', 'cotton', 'algodon']
-  for (const keyword of preferred) {
-    const match = values.find((v: any) => normalize(v.displayName).includes(keyword))
-    if (match) return String(match.id)
-  }
-
-  return String(values[0].id)
+  return '2'
 }
 
 function resolveSizeIds(opts: any, sizeStr: string | undefined): { size_unit: string; size: string } | null {
@@ -270,7 +260,8 @@ function resolvePrice(listing: any): string {
   if (Number.isNaN(num) || num <= 0) {
     throw new Error(`Precio inválido para Vestiaire: ${raw}`)
   }
-  return String(num)
+  // Vestiaire only accepts integer prices (e.g. 49.95 → 49)
+  return String(Math.floor(num))
 }
 
 function findDimensionFields(opts: any): Array<{ apiKey: string; mnemonic: string }> {
