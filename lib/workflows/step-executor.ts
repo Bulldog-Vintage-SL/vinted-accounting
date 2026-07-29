@@ -35,10 +35,6 @@ export function processStepResult(
       s.packageSizeId = result.package_size_id
       break
 
-    // Sustituye a los antiguos GET_SIZE_OPTIONS + GET_CONDITION_OPTIONS.
-    // Este es el endpoint real que usa el frontend de Vinted
-    // (POST /api/v2/item_upload/attributes con { code: 'category', value: [catalogId] }),
-    // y devuelve talla + condición ya resueltas para la categoría exacta en una sola llamada.
     case 'GET_ITEM_ATTRIBUTES': {
       s.itemAttributesRaw = result.attributes
       s.sizeId = findSizeId(result.attributes, s.originalPayload?.listing?.attributes?.size)
@@ -211,6 +207,22 @@ export function processStepResult(
       s.profileLink = result.profileLink
       break
 
+    // Depop
+    case 'GET_DEPOP_WARDROBE':
+      s.items = [...(s.items ?? []), ...(result.products ?? [])]
+      s.depopLastOffsetId = result.meta?.last_offset_id ?? null
+      s.depopHasMore = result.meta?.end === false
+
+      if (s.depopHasMore) {
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_DEPOP_WARDROBE',
+          platform: 'depop',
+          request: { url: '', method: 'GET' }
+        })
+      }
+      break
+
     case 'GET_ITEMS_NEW':
     case 'GET_CONFIGURATION':
     case 'GET_PROFILE':
@@ -363,6 +375,13 @@ export function processStepResult(
       next.request.method = 'PUT'
       next.request.isFormData = true
       next.request.body = { withAddressV2: '1' }
+      break
+
+    // Depop
+    case 'GET_DEPOP_WARDROBE':
+      next.request.url =
+        `https://webapi.depop.com/api/v3/shop/${s.userId}/products/` +
+        `?limit=24&offset_id=${encodeURIComponent(s.depopLastOffsetId)}`
       break
 
   }

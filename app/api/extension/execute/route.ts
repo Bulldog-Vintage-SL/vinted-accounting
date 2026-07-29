@@ -14,6 +14,7 @@ import { buildUpdateVintedItemSteps } from "@/lib/workflows/vinted/vinted-update
 import { buildUpdateWallapopItemSteps } from "@/lib/workflows/wallapop/wallapop-update-steps";
 import { buildSearchVestiaireAccountSteps, buildSyncVestiaireAccountSteps } from "@/lib/workflows/vestiaire/vestiaire-sync-steps";
 import { buildImportVestiaireSteps } from "@/lib/workflows/vestiaire/vestiaire-import-steps";
+import { buildImportDepopWardrobeSteps } from "@/lib/workflows/depop/depop-import-steps";
 import { buildVestiaireUploadSteps } from "@/lib/workflows/vestiaire/vestiaire-upload-steps";
 import { buildUpdateVestiaireItemSteps } from "@/lib/workflows/vestiaire/vestiaire-update-steps";
 import { buildSearchDepopAccountSteps, buildSyncDepopAccountSteps } from "@/lib/workflows/depop/depop-sync-steps";
@@ -62,6 +63,7 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
 
   SEARCH_DEPOP_ACCOUNT: () => buildSearchDepopAccountSteps(),
   SYNC_DEPOP_ACCOUNT: (p) => buildSyncDepopAccountSteps(p.externalId),
+  IMPORT_DEPOP_WARDROBE: (p) => buildImportDepopWardrobeSteps(p.externalId)
 
 };
 

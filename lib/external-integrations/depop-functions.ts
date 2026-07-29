@@ -102,3 +102,57 @@ export async function syncDepopAccount(externalId: string) {
         };
     }
 }
+
+// Importar productos de Depop
+export async function importDepopWardrobe(userId: string) {
+
+  try {
+
+    // Primero obtenemos el id de la cuenta de depop correspondiente a userId
+    const res = await fetch(`/api/accounts/${userId}`);
+    const account = await res.json();
+    const externalId = (account.external_id ?? account.externalId)?.toString();
+
+    // Iniciamos el workflow en la extension con el id pertinente
+    const result = await runFlow('IMPORT_DEPOP_WARDROBE', { externalId });
+
+    if (result?.result?.state?.items) {
+
+      const items = result.result.state.items;
+
+      // Importamos los articulos que se nos han devuelto
+      const resApi = await fetch('/api/listings/import/depop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: userId,
+          wardrobe: items,
+          timestamp: Date.now()
+        })
+      });
+
+      const data = await resApi.json();
+
+      if (!resApi.ok || data.status !== "success") {
+        return {
+          ok: false,
+          message: data.message || "Error guardando la cuenta",
+        };
+      }
+
+      return {
+        ok: true,
+        message: data.message,
+        data,
+      };
+
+    }
+
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: err?.message || "Error inesperado",
+    };
+  }
+
+}

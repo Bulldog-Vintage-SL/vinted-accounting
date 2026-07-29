@@ -9,7 +9,7 @@ import type { Listing } from '@/app/inventory/listings/types'
 import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
-  importWardrobe, importWallapopWardrobe, importVestiaireWardrobe,
+  importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem,
 } from '@/lib/external-integrations'
@@ -88,6 +88,11 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
       updated: data.updated,
       total: data.total,
     }
+  }
+  else if (platform === 'depop') {
+    const res = await importDepopWardrobe(accountId)
+    if (!res?.ok) throw new Error(`Depop import: ${res?.message || 'Error desconocido'}`)
+    return { imported: true, platform: 'depop' }
   }
   else {
     throw new Error(`Plataforma no soportada: ${platform}`)
