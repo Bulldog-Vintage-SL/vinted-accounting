@@ -223,6 +223,80 @@ export function processStepResult(
       }
       break
 
+    case 'GET_DEPOP_CATEGORY_PREDICTION': {
+      const best = result.categories?.[0]
+      s.depopCategoryPrediction = best
+      s.depopInferenceId = result.inference_id
+
+      const photoUrls: string[] = s.originalPayload?.listing?.photoUrls ?? []
+      const photoSteps: WorkflowStep[] = photoUrls.map((url: string, index: number) => ({
+        id: crypto.randomUUID(),
+        type: 'UPLOAD_DEPOP_PHOTO',
+        platform: 'depop',
+        request: {
+          url: 'https://webapi.depop.com/presentation/api/v1/pictures/',
+          method: 'POST',
+          photoUrl: url,
+          photoIndex: index,
+          isPictureUpload: true,
+          body: { type: 'product', extension: 'jpg', dimensions: { width: 1280, height: 1280 } }
+        }
+      }))
+
+      steps.splice(currentStep + 1, 0,
+        ...photoSteps,
+        {
+          id: crypto.randomUUID(),
+          type: 'GET_DEPOP_SIZE_MAPPING',
+          platform: 'depop',
+          request: {
+            url: 'https://webapi.depop.com/presentation/api/v1/attributes/categories/size-mapping/',
+            method: 'GET'
+          }
+        },
+        {
+          id: crypto.randomUUID(),
+          type: 'CREATE_DEPOP_ITEM',
+          platform: 'depop',
+          request: {
+            url: 'https://webapi.depop.com/presentation/api/v1/listing/products/',
+            method: 'POST'
+          }
+        }
+      )
+      break
+    }
+
+    case 'UPLOAD_DEPOP_PHOTO':
+      s.depopPhotoIds = [...(s.depopPhotoIds ?? []), result.id]
+      break
+
+    case 'GET_DEPOP_SIZE_MAPPING': {
+      const cat = s.depopCategoryPrediction
+      const entry = result.category_size_mapping?.find((c: any) =>
+        c.department === cat?.department &&
+        c.group === cat?.group &&
+        c.product_type === cat?.product_type
+      )
+
+      const regions = entry?.size_set_by_region ?? {}
+      const region = regions['ES'] ? 'ES' : Object.keys(regions)[0]
+      s.depopVariantSetId = regions[region] ?? entry?.legacy_category_id
+
+      // TODO: esto es un placeholder. Para resolver el variant id real de la talla
+      // ("4" en el ejemplo capturado) hay que cruzar depopVariantSetId con el árbol
+      // de /search/sizeFilters/ y buscar el nodo cuyo "name" matchee la talla del
+      // originalPayload (l.attributes.size). De momento cae siempre en "One size"/talla 4.
+      s.depopVariantId = 1
+      break
+    }
+
+    case 'CREATE_DEPOP_ITEM':
+      s.depopProductId = result.id
+      s.depopProductSlug = result.slug
+      s.depopPublicationUrl = `https://www.depop.com/products/${result.slug}/`
+      break
+
     case 'GET_ITEMS_NEW':
     case 'GET_CONFIGURATION':
     case 'GET_PROFILE':
@@ -384,6 +458,48 @@ export function processStepResult(
         `?limit=24&offset_id=${encodeURIComponent(s.depopLastOffsetId)}`
       break
 
+    case 'GET_DEPOP_CATEGORY_PREDICTION': {
+      const l = s.originalPayload.listing
+      s.depopListingLifecycleId = s.depopListingLifecycleId ?? crypto.randomUUID()
+      next.request.body = {
+        description: l.description,
+        user_id: Number(s.userId),
+        listing_lifecycle_id: s.depopListingLifecycleId
+      }
+      break
+    }
+
+    case 'CREATE_DEPOP_ITEM': {
+      const l = s.originalPayload.listing
+      const cat = s.depopCategoryPrediction
+      s.depopPersistentId = s.depopPersistentId ?? crypto.randomUUID()
+
+      next.request.body = {
+        address: 'Spain',
+        attributes: {},
+        brand: (l.attributes?.brand ?? '').toLowerCase().trim().replace(/\s+/g, '-'),
+        colour: l.colors ?? [],
+        condition: mapDepopCondition(l.condition),
+        country: 'ES',
+        description: l.description,
+        gender: cat?.gender ?? 'male',
+        is_kids: cat?.is_kids ?? false,
+        listing_lifecycle_id: s.depopListingLifecycleId,
+        national_shipping_cost: String(l.shippingCost ?? '0'),
+        picture_ids: s.depopPhotoIds ?? [],
+        price_amount: String(l.price),
+        price_currency: 'EUR',
+        product_type: cat?.product_type,
+        shipping_methods: [],
+        source: [],
+        style: [],
+        variant_set: s.depopVariantSetId,
+        variants: { [String(s.depopVariantId)]: 1 },
+        persistent_id: s.depopPersistentId,
+        quantity: null
+      }
+      break
+    }
   }
 
   return { nextStep: next, updatedState: s, nextIndex }
@@ -832,4 +948,15 @@ function resolveVestiaireCategory(
     categoryId: String(ropaCategory?.id ?? universe.categories?.[0]?.id ?? '12'),
     subcategoryId: String(fallbackSub?.id ?? '525'),
   }
+}
+
+function mapDepopCondition(condition: string): string {
+  const map: Record<string, string> = {
+    'Nuevo con etiquetas': 'brand_new',
+    'Nuevo sin etiquetas': 'brand_new',
+    'Muy bueno': 'used_like_new',
+    'Bueno': 'used_good',
+    'Satisfactorio': 'used_fair'
+  }
+  return map[condition] ?? 'used_good'
 }

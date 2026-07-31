@@ -2,7 +2,61 @@ import { validateListingRequiredFields, MissingFieldsError } from './validators'
 import { runFlow } from './extensionBridge'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 
-// Buscar cuenta de Depop (primera vez, guarda el externalId detectado)
+// Publicar en Depop
+export async function uploadDepopItem(listing: any, accountId: string) {
+
+    try {
+
+        const result = await runFlow('UPLOAD_DEPOP_ITEM', {
+            platform: 'depop',
+            listing
+        });
+
+        const state = result?.result?.state;
+
+        if (state?.depopPublicationUrl) {
+
+            // Si hemos tenido exito creamos la publicacion asociada
+            const res = await fetch('/api/publications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    externalId: state.depopProductId,
+                    listingId: listing.id,
+                    platform: 'depop',
+                    publicationUrl: state.depopPublicationUrl,
+                    accountId: accountId
+                })
+            })
+
+            const data = await res.json();
+
+            if (!res.ok || data.status !== "success") {
+                return {
+                    ok: false,
+                    message: data.message || "Error guardando la cuenta",
+                };
+            }
+
+            return {
+                ok: true,
+                message: data.message,
+                data,
+            };
+        }
+
+        return { ok: false, message: "No se pudo completar la publicación en Depop" };
+
+    } catch (err: any) {
+        return {
+            ok: false,
+            message: err?.message || "Error inesperado",
+        };
+    }
+
+}
+
+// Buscar cuenta de Depop
 export async function searchDepopAccount() {
     try {
         const result = await runFlow("SEARCH_DEPOP_ACCOUNT", { platform: 'depop' });
@@ -45,7 +99,7 @@ export async function searchDepopAccount() {
     }
 }
 
-// Sincronizar cuenta de Depop (verifica que la pestaña abierta es la cuenta guardada)
+// Sincronizar cuenta de Depop
 export async function syncDepopAccount(externalId: string) {
     try {
 
@@ -106,53 +160,52 @@ export async function syncDepopAccount(externalId: string) {
 // Importar productos de Depop
 export async function importDepopWardrobe(userId: string) {
 
-  try {
+    try {
 
-    // Primero obtenemos el id de la cuenta de depop correspondiente a userId
-    const res = await fetch(`/api/accounts/${userId}`);
-    const account = await res.json();
-    const externalId = (account.external_id ?? account.externalId)?.toString();
+        // Primero obtenemos el id de la cuenta de depop correspondiente a userId
+        const res = await fetch(`/api/accounts/${userId}`);
+        const account = await res.json();
+        const externalId = (account.external_id ?? account.externalId)?.toString();
 
-    // Iniciamos el workflow en la extension con el id pertinente
-    const result = await runFlow('IMPORT_DEPOP_WARDROBE', { externalId });
+        const result = await runFlow('IMPORT_DEPOP_WARDROBE', { externalId });
 
-    if (result?.result?.state?.items) {
+        if (result?.result?.state?.items) {
 
-      const items = result.result.state.items;
+            const items = result.result.state.items;
 
-      // Importamos los articulos que se nos han devuelto
-      const resApi = await fetch('/api/listings/import/depop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: userId,
-          wardrobe: items,
-          timestamp: Date.now()
-        })
-      });
+            // Importamos los articulos que se nos han devuelto
+            const resApi = await fetch('/api/listings/import/depop', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accountId: userId,
+                    wardrobe: items,
+                    timestamp: Date.now()
+                })
+            });
 
-      const data = await resApi.json();
+            const data = await resApi.json();
 
-      if (!resApi.ok || data.status !== "success") {
+            if (!resApi.ok || data.status !== "success") {
+                return {
+                    ok: false,
+                    message: data.message || "Error guardando la cuenta",
+                };
+            }
+
+            return {
+                ok: true,
+                message: data.message,
+                data,
+            };
+
+        }
+
+    } catch (err: any) {
         return {
-          ok: false,
-          message: data.message || "Error guardando la cuenta",
+            ok: false,
+            message: err?.message || "Error inesperado",
         };
-      }
-
-      return {
-        ok: true,
-        message: data.message,
-        data,
-      };
-
     }
-
-  } catch (err: any) {
-    return {
-      ok: false,
-      message: err?.message || "Error inesperado",
-    };
-  }
 
 }

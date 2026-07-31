@@ -57,6 +57,10 @@ export type StepType =
   | 'GET_DEPOP_USER_ID'
   | 'GET_DEPOP_USER_INFO'
   | 'GET_DEPOP_WARDROBE'
+  | 'GET_DEPOP_CATEGORY_PREDICTION'
+  | 'UPLOAD_DEPOP_PHOTO'
+  | 'GET_DEPOP_SIZE_MAPPING'
+  | 'CREATE_DEPOP_ITEM'
 
 export interface WorkflowStep {
   id: string
@@ -108,7 +112,7 @@ export interface WorkflowState {
   itemAttributesRaw?: any
 
   // Wallapop
-  uploadId?: string          
+  uploadId?: string
   userType?: string
   isCommercial?: boolean
   subscriptions?: any[]
@@ -116,9 +120,9 @@ export interface WorkflowState {
   category_leaf_id?: string
   subcategoryIds?: string[]
   wallaLocation?: WallaLocation
-  wallaSizeId?: string       
-  wallaMaxWeightKg?: number  
-  wallaItemId?: string       
+  wallaSizeId?: string
+  wallaMaxWeightKg?: number
+  wallaItemId?: string
   wallaItem?: any
 
   // Vestiaire Collective
@@ -126,7 +130,7 @@ export interface WorkflowState {
   vestBrandId?: string
   vestBrandName?: string
   vestUniverseId?: string
-  vestCategoryId?: string 
+  vestCategoryId?: string
   vestSubcategoryId?: string
   vestDraftId?: string
   vestFormOptions?: any
@@ -134,10 +138,26 @@ export interface WorkflowState {
   vestAddressId?: string
   vestProductId?: string
   vestPublicationUrl?: string
-  
+
   // Depop
   username?: string
   depopLastOffsetId?: string | null
   depopHasMore?: boolean
+  depopCategoryPrediction?: {
+    department: string
+    group: string
+    product_type: string
+    gender: string
+    is_kids: boolean
+  }
+  depopInferenceId?: string
+  depopPhotoIds?: number[]
+  depopVariantSetId?: number
+  depopVariantId?: number
+  depopListingLifecycleId?: string
+  depopPersistentId?: string
+  depopProductId?: number
+  depopProductSlug?: string
+  depopPublicationUrl?: string
   
 }
