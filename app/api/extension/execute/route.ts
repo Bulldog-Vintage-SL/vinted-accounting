@@ -17,6 +17,7 @@ import { buildImportVestiaireSteps } from "@/lib/workflows/vestiaire/vestiaire-i
 import { buildImportDepopWardrobeSteps } from "@/lib/workflows/depop/depop-import-steps";
 import { buildVestiaireUploadSteps } from "@/lib/workflows/vestiaire/vestiaire-upload-steps";
 import { buildUpdateVestiaireItemSteps } from "@/lib/workflows/vestiaire/vestiaire-update-steps";
+import { buildDepopUploadSteps } from "@/lib/workflows/depop/depop-upload-steps";
 import { buildSearchDepopAccountSteps, buildSyncDepopAccountSteps } from "@/lib/workflows/depop/depop-sync-steps";
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 
@@ -63,7 +64,8 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
 
   SEARCH_DEPOP_ACCOUNT: () => buildSearchDepopAccountSteps(),
   SYNC_DEPOP_ACCOUNT: (p) => buildSyncDepopAccountSteps(p.externalId),
-  IMPORT_DEPOP_WARDROBE: (p) => buildImportDepopWardrobeSteps(p.externalId)
+  IMPORT_DEPOP_WARDROBE: (p) => buildImportDepopWardrobeSteps(p.externalId),
+  UPLOAD_DEPOP_ITEM: (p) => buildDepopUploadSteps(p.listing)
 
 };
 

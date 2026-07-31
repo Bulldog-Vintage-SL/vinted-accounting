@@ -10,7 +10,7 @@ import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
-  uploadItem, uploadWallapopItem, uploadVestiaireItem,
+  uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem,
 } from '@/lib/external-integrations'
 
@@ -140,6 +140,14 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
     }
 
     return { published: true, platform: 'shopify', publication: data.publication }
+  }
+  else if (account.platform === 'depop') {
+    const res = await uploadDepopItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Depop: ${res.message}`)
+    }
+    return { published: true, platform: 'vestiaire' }
   }
   else {
     throw new Error(`Plataforma no soportada: ${account.platform}`)

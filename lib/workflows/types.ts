@@ -57,6 +57,19 @@ export type StepType =
   | 'GET_DEPOP_USER_ID'
   | 'GET_DEPOP_USER_INFO'
   | 'GET_DEPOP_WARDROBE'
+  | 'GET_DEPOP_SELLER_STATUS'
+  | 'GET_DEPOP_COUNTRIES'
+  | 'GET_DEPOP_CATEGORY_FILTERS'
+  | 'GET_DEPOP_USER_SETTINGS'
+  | 'GET_DEPOP_PRODUCT_ATTRIBUTES'
+  | 'GET_DEPOP_BANNED_HASHTAGS'
+  | 'UPLOAD_DEPOP_PHOTO'
+  | 'PREDICT_DEPOP_CATEGORY'
+  | 'GET_DEPOP_SIZE_MAPPING'
+  | 'GET_DEPOP_SIZE_FILTERS'
+  | 'GET_DEPOP_PRICING_INSPIRATION'
+  | 'SUBMIT_DEPOP_PRODUCT'
+
 
 export interface WorkflowStep {
   id: string
@@ -73,6 +86,9 @@ export interface WorkflowStep {
     expectedUserId?: string
     extractTitle?: boolean
     isFormData?: boolean
+    isBinaryUpload?: boolean
+    isPictureUpload?: boolean 
+    noAuth?: boolean        
   }
 }
 
@@ -92,6 +108,8 @@ export interface WorkflowState {
   email?: string
   syncStatus?: 'OK' | 'ACCOUNT_NOT_FOUND'
   items?: any[]
+  listingLifecycleId?: string
+  persistentId?: string
 
   // Vinted
   photoIds: number[]
@@ -108,7 +126,7 @@ export interface WorkflowState {
   itemAttributesRaw?: any
 
   // Wallapop
-  uploadId?: string          
+  uploadId?: string
   userType?: string
   isCommercial?: boolean
   subscriptions?: any[]
@@ -116,9 +134,9 @@ export interface WorkflowState {
   category_leaf_id?: string
   subcategoryIds?: string[]
   wallaLocation?: WallaLocation
-  wallaSizeId?: string       
-  wallaMaxWeightKg?: number  
-  wallaItemId?: string       
+  wallaSizeId?: string
+  wallaMaxWeightKg?: number
+  wallaItemId?: string
   wallaItem?: any
 
   // Vestiaire Collective
@@ -126,7 +144,7 @@ export interface WorkflowState {
   vestBrandId?: string
   vestBrandName?: string
   vestUniverseId?: string
-  vestCategoryId?: string 
+  vestCategoryId?: string
   vestSubcategoryId?: string
   vestDraftId?: string
   vestFormOptions?: any
@@ -134,10 +152,30 @@ export interface WorkflowState {
   vestAddressId?: string
   vestProductId?: string
   vestPublicationUrl?: string
-  
+
   // Depop
   username?: string
   depopLastOffsetId?: string | null
   depopHasMore?: boolean
-  
+  depopCountryCode?: string
+  depopGeoLat?: number
+  depopGeoLng?: number
+  depopCategoryFilters?: any
+  depopConditionId?: string
+  depopColourIds?: string[]
+  depopBrandSlug?: string
+  depopBannedHashtags?: string[]
+  depopPictureIds?: number[]
+  depopLastPresignedUrl?: string
+  depopDepartment?: string
+  depopGroup?: string
+  depopProductType?: string
+  depopGender?: string
+  depopIsKids?: boolean
+  depopSizeMapping?: any
+  depopVariantSet?: number | null
+  depopVariants?: Record<string, number>
+  depopPricingInspiration?: any[]
+  depopProductId?: number
+  depopPublicationUrl?: string
 }
