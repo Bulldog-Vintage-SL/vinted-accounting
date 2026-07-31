@@ -65,7 +65,7 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   SEARCH_DEPOP_ACCOUNT: () => buildSearchDepopAccountSteps(),
   SYNC_DEPOP_ACCOUNT: (p) => buildSyncDepopAccountSteps(p.externalId),
   IMPORT_DEPOP_WARDROBE: (p) => buildImportDepopWardrobeSteps(p.externalId),
-  UPLOAD_DEPOP_ITEM: () => buildDepopUploadSteps()
+  UPLOAD_DEPOP_ITEM: (p) => buildDepopUploadSteps(p.listing)
 
 };
 

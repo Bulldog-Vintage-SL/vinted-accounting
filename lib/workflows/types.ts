@@ -57,10 +57,19 @@ export type StepType =
   | 'GET_DEPOP_USER_ID'
   | 'GET_DEPOP_USER_INFO'
   | 'GET_DEPOP_WARDROBE'
-  | 'GET_DEPOP_CATEGORY_PREDICTION'
+  | 'GET_DEPOP_SELLER_STATUS'
+  | 'GET_DEPOP_COUNTRIES'
+  | 'GET_DEPOP_CATEGORY_FILTERS'
+  | 'GET_DEPOP_USER_SETTINGS'
+  | 'GET_DEPOP_PRODUCT_ATTRIBUTES'
+  | 'GET_DEPOP_BANNED_HASHTAGS'
   | 'UPLOAD_DEPOP_PHOTO'
+  | 'PREDICT_DEPOP_CATEGORY'
   | 'GET_DEPOP_SIZE_MAPPING'
-  | 'CREATE_DEPOP_ITEM'
+  | 'GET_DEPOP_SIZE_FILTERS'
+  | 'GET_DEPOP_PRICING_INSPIRATION'
+  | 'SUBMIT_DEPOP_PRODUCT'
+
 
 export interface WorkflowStep {
   id: string
@@ -77,6 +86,9 @@ export interface WorkflowStep {
     expectedUserId?: string
     extractTitle?: boolean
     isFormData?: boolean
+    isBinaryUpload?: boolean
+    isPictureUpload?: boolean 
+    noAuth?: boolean        
   }
 }
 
@@ -96,6 +108,8 @@ export interface WorkflowState {
   email?: string
   syncStatus?: 'OK' | 'ACCOUNT_NOT_FOUND'
   items?: any[]
+  listingLifecycleId?: string
+  persistentId?: string
 
   // Vinted
   photoIds: number[]
@@ -143,21 +157,25 @@ export interface WorkflowState {
   username?: string
   depopLastOffsetId?: string | null
   depopHasMore?: boolean
-  depopCategoryPrediction?: {
-    department: string
-    group: string
-    product_type: string
-    gender: string
-    is_kids: boolean
-  }
-  depopInferenceId?: string
-  depopPhotoIds?: number[]
-  depopVariantSetId?: number
-  depopVariantId?: number
-  depopListingLifecycleId?: string
-  depopPersistentId?: string
+  depopCountryCode?: string
+  depopGeoLat?: number
+  depopGeoLng?: number
+  depopCategoryFilters?: any
+  depopConditionId?: string
+  depopColourIds?: string[]
+  depopBrandSlug?: string
+  depopBannedHashtags?: string[]
+  depopPictureIds?: number[]
+  depopLastPresignedUrl?: string
+  depopDepartment?: string
+  depopGroup?: string
+  depopProductType?: string
+  depopGender?: string
+  depopIsKids?: boolean
+  depopSizeMapping?: any
+  depopVariantSet?: number | null
+  depopVariants?: Record<string, number>
+  depopPricingInspiration?: any[]
   depopProductId?: number
-  depopProductSlug?: string
   depopPublicationUrl?: string
-  
 }

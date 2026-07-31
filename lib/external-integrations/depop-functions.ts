@@ -16,7 +16,6 @@ export async function uploadDepopItem(listing: any, accountId: string) {
 
         if (state?.depopPublicationUrl) {
 
-            // Si hemos tenido exito creamos la publicacion asociada
             const res = await fetch('/api/publications', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
