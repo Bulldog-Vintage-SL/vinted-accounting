@@ -13,7 +13,7 @@ const PLATFORM_ICONS: Record<string, string> = {
   vinted: "/icons/vinted.svg",
   wallapop: "/icons/wallapop.svg",
   vestiaire: "/icons/vestiaire.jpeg",
-  ebay: "/icons/ebay.svg",
+  ebay: "/icons/ebay.png",
   shopify: "/icons/shopify.svg",
   depop: "/icons/depop.jpeg"
 };

@@ -19,6 +19,10 @@ export interface IAccount {
   shopifyShopDomain?: string | null;
   shopifyAccessToken?: string | null;
   shopifyScopes?: string | null;
+  ebayAccessToken?: string | null;
+  ebayRefreshToken?: string | null;
+  ebayTokenExpiresAt?: Date | null;
+  ebayScopes?: string | null;
   lastSync?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -53,6 +57,10 @@ const accountSchema = new mongoose.Schema(
     shopifyShopDomain: { type: String, sparse: true, unique: true },
     shopifyAccessToken: { type: String, default: null },
     shopifyScopes: { type: String, default: null },
+    ebayAccessToken: { type: String, default: null },
+    ebayRefreshToken: { type: String, default: null },
+    ebayTokenExpiresAt: { type: Date, default: null },
+    ebayScopes: { type: String, default: null },
     lastSync: { type: Date, default: null },
   },
   {

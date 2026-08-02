@@ -5,6 +5,8 @@ import Account from "@/models/Account";
 import PlatformCard from "./components/PlatformCard";
 import AddAccountButton from "./components/AddAccountButton";
 import { ShopifyConnectionListener } from "@/components/ShopifyConnectionListener";
+import { EbayConnectionListener } from "@/components/EbayConnectionListener";
+import EbaySetupBanner from "./components/EbaySetupBanner";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import type { Account as LinkedAccount } from "./types";
 
@@ -41,6 +43,8 @@ export default async function AccountsPage() {
     <div className="min-h-screen bg-gray-50 p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
         <ShopifyConnectionListener />
+        <EbayConnectionListener />
+        <EbaySetupBanner />
 
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
           <div>

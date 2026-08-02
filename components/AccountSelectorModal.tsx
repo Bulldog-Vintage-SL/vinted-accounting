@@ -17,7 +17,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   wallapop: "/icons/wallapop.svg",
   vestiaire: "/icons/vestiaire.jpeg",
   shopify: "/icons/shopify.svg",
-  ebay: "/icons/ebay.svg",
+  ebay: "/icons/ebay.png",
   depop: "/icons/depop.jpeg",
   unknown: "/icons/default.svg",
 };
@@ -31,7 +31,7 @@ const PLATFORM_NAMES: Record<string, string> = {
   ebay: "eBay",
 };
 
-const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "shopify"];
+const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "shopify", "ebay"];
 
 // Plataformas cuyas cuentas no requieren sincronización manual (auth server-side vía OAuth/API)
 const NO_SYNC_REQUIRED = new Set(["shopify"]);

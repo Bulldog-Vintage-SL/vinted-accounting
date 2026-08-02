@@ -12,6 +12,7 @@ import {
   syncWallapopAccount,
   syncVestiaireAccount,
   syncDepopAccount,
+  syncEbayAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -24,13 +25,15 @@ export default function AccountCard({ account }: Props) {
 
   const status = normalizeStatus(account.sync_status);
   const isShopify = account.platform === "shopify";
+  const isEbay = account.platform === "ebay";
 
   const syncMap: Record<string, (externalId: string) => Promise<any>> = {
     vinted: syncVintedAccount,
     wallapop: syncWallapopAccount,
     vestiaire: (externalId) =>
       syncVestiaireAccount(externalId, account.vestiaire_id ?? null),
-    depop: syncDepopAccount
+    depop: syncDepopAccount,
+    ebay: () => syncEbayAccount(account.id),
   };
 
   const platformNames: Record<string, string> = {
@@ -39,6 +42,7 @@ export default function AccountCard({ account }: Props) {
     vestiaire: "Vestiaire Collective",
     depop: "Depop",
     shopify: "Shopify",
+    ebay: "eBay",
   };
 
   const handleSync = async () => {
@@ -71,7 +75,7 @@ export default function AccountCard({ account }: Props) {
     }
   };
 
-  const shopAdminUrl = isShopify
+  const profileUrl = isShopify
     ? `https://${account.shopify_shop_domain}/admin`
     : account.profile_link || "#";
 
@@ -79,7 +83,7 @@ export default function AccountCard({ account }: Props) {
     <div className="flex items-center justify-between border border-gray-200 rounded-lg p-3 bg-gray-50/50">
       <div className="flex flex-col min-w-0">
         <a
-          href={shopAdminUrl}
+          href={profileUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="font-medium text-blue-600 hover:underline truncate"
@@ -99,7 +103,7 @@ export default function AccountCard({ account }: Props) {
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Sincronizando..." : "Sincronizar"}
+            {syncing ? "Sincronizando..." : isEbay ? "Verificar" : "Sincronizar"}
           </button>
         )}
 

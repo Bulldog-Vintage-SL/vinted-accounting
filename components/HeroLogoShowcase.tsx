@@ -39,7 +39,7 @@ const FLOATING_ICONS = [
     delay: "0.6s",
   },
   {
-    src: "/icons/ebay.svg",
+    src: "/icons/ebay.png",
     alt: "eBay",
     className: "top-1/2 left-[-2%] -translate-y-1/2",
     animation: "animate-[hero-float-tilt_3.8s_ease-in-out_infinite]",

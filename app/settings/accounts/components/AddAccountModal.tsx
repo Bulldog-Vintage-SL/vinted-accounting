@@ -31,6 +31,11 @@ export default function AddAccountModal({ open, onClose }: Props) {
       return;
     }
 
+    if (platform === "ebay") {
+      window.location.href = "/api/ebay/install";
+      return;
+    }
+
     start(async () => {
       setPendingPlatform(platform);
       try {
@@ -152,6 +157,12 @@ export default function AddAccountModal({ open, onClose }: Props) {
                 icon="/icons/shopify.svg"
                 label="Shopify"
               />
+              <PlatformOption
+                disabled={pending}
+                onClick={() => handleSelect("ebay")}
+                icon="/icons/ebay.png"
+                label="eBay"
+              />
             </div>
 
             <button
@@ -173,12 +184,14 @@ function PlatformOption({
   icon,
   label,
   loading,
+  badge,
 }: {
   disabled: boolean;
   onClick: () => void;
   icon: string;
   label: string;
   loading?: boolean;
+  badge?: string;
 }) {
   return (
     <button
@@ -188,6 +201,11 @@ function PlatformOption({
     >
       <img src={icon} alt={label} className="w-10 h-10 object-contain" />
       <span className="text-lg font-medium text-gray-900 flex-1 text-left">{label}</span>
+      {badge && (
+        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+          {badge}
+        </span>
+      )}
       {loading && <Loader2 className="h-5 w-5 animate-spin text-gray-400" />}
     </button>
   );
