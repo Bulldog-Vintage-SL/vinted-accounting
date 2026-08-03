@@ -22,12 +22,13 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
-    depop: "Depop"
+    depop: "Depop",
+    ebay: "eBay",
 };
 
 // Plataformas cuya auth es server-side (OAuth) y no requieren sincronización manual
 // mediante la extensión antes de poder operar sobre sus publicaciones.
-const NO_SYNC_REQUIRED = new Set(["shopify"]);
+const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
 
 export function DeletePublicationModal({
     open,

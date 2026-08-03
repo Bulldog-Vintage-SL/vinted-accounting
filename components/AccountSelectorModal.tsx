@@ -34,7 +34,7 @@ const PLATFORM_NAMES: Record<string, string> = {
 const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "shopify", "ebay"];
 
 // Plataformas cuyas cuentas no requieren sincronización manual (auth server-side vía OAuth/API)
-const NO_SYNC_REQUIRED = new Set(["shopify"]);
+const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
 
 export default function AccountSelectorModal() {
   const { pushToast } = useToast();
@@ -185,7 +185,8 @@ export default function AccountSelectorModal() {
   };
 
   const handleAccountClick = (acc: any) => {
-    const needsSync = !syncedInSession.has(acc.id);
+    const needsSync =
+      !NO_SYNC_REQUIRED.has(acc.platform) && !syncedInSession.has(acc.id);
 
     if (needsSync) {
       // Obligar a sincronizar primero
@@ -247,7 +248,9 @@ export default function AccountSelectorModal() {
     .filter(group => group.accounts.length > 0);
 
   const selectedCount = selectedIds.size;
-  const unsyncedCount = accounts.filter(a => !syncedInSession.has(a.id)).length;
+  const unsyncedCount = accounts.filter(
+    (a) => !NO_SYNC_REQUIRED.has(a.platform) && !syncedInSession.has(a.id)
+  ).length;
 
   return (
     <Dialog open={open} onOpenChange={closeSelector}>
@@ -312,9 +315,9 @@ export default function AccountSelectorModal() {
                 <div className="divide-y divide-gray-100">
                   {platformAccounts.map((acc) => {
                     const isSelected = selectedIds.has(acc.id);
-                    const isSynced = syncedInSession.has(acc.id);
-                    const isSyncing = syncingId === acc.id;
                     const noSyncNeeded = NO_SYNC_REQUIRED.has(acc.platform);
+                    const isSynced = noSyncNeeded || syncedInSession.has(acc.id);
+                    const isSyncing = syncingId === acc.id;
 
                     return (
                       <div
@@ -359,7 +362,7 @@ export default function AccountSelectorModal() {
                                 }`}>
                                 {acc.account_name || "Cuenta sin nombre"}
                               </span>
-                              {!isSynced && (
+                              {!isSynced && !noSyncNeeded && (
                                 <span className="text-xs bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded font-medium shrink-0">
                                   Sincronizar para usar
                                 </span>
@@ -440,20 +443,22 @@ export default function AccountSelectorModal() {
   );
 }
 
-function statusLabel(status: SyncStatus) {
+function statusLabel(status: SyncStatus | "connected") {
+  if (status === "connected") return "Activa";
   const labels: Record<SyncStatus, string> = {
     OK: "Activa",
     NEEDS_SYNC: "Requiere sincronización",
     ACCOUNT_NOT_FOUND: "Sesión expirada",
   };
-  return labels[status] || status;
+  return labels[status as SyncStatus] || status;
 }
 
-function statusColor(status: SyncStatus) {
+function statusColor(status: SyncStatus | "connected") {
+  if (status === "connected" || status === "OK") return "text-green-600";
   const colors: Record<SyncStatus, string> = {
     OK: "text-green-600",
     NEEDS_SYNC: "text-yellow-600",
     ACCOUNT_NOT_FOUND: "text-red-600",
   };
-  return colors[status] || "text-gray-500";
+  return colors[status as SyncStatus] || "text-gray-500";
 }

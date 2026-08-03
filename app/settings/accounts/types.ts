@@ -8,6 +8,8 @@ export interface Account {
   created_at: string;
   vestiaire_id?: string | null;
   shopify_shop_domain?: string | null;
+  ebay_scopes?: string | null;
+  ebay_policies_ready?: boolean;
 }
 
 export type SyncStatus = "OK" | "NEEDS_SYNC" | "ACCOUNT_NOT_FOUND";

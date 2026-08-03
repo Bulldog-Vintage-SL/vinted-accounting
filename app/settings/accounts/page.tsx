@@ -27,6 +27,13 @@ export default async function AccountsPage() {
       created_at: doc.createdAt?.toISOString() ?? new Date().toISOString(),
       vestiaire_id: doc.vestiaireId ?? null,
       shopify_shop_domain: doc.shopifyShopDomain ?? null,
+      ebay_scopes: doc.ebayScopes ?? null,
+      ebay_policies_ready: Boolean(
+        doc.ebayFulfillmentPolicyId &&
+          doc.ebayPaymentPolicyId &&
+          doc.ebayReturnPolicyId &&
+          doc.ebayMerchantLocationKey
+      ),
     }));
   }
 

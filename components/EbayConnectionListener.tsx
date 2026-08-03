@@ -34,7 +34,20 @@ function EbayConnectionListenerInner(): null {
     handled.current = true;
 
     if (ebayStatus === "connected") {
-      toast.success("Cuenta de eBay conectada correctamente");
+      const policies = searchParams.get("policies");
+      if (policies === "missing_scope") {
+        toast.error(
+          "eBay conectado, pero falta el permiso sell.account. En developer.ebay.com activa ese scope en tu app sandbox y pulsa Reconectar.",
+          { duration: 10000 }
+        );
+      } else if (policies === "setup_failed") {
+        toast.error(
+          "eBay conectado, pero no se pudieron crear las políticas de venta. Pulsa Verificar o Reconectar.",
+          { duration: 8000 }
+        );
+      } else {
+        toast.success("Cuenta de eBay conectada correctamente");
+      }
     } else if (ebayStatus === "error") {
       const reason = searchParams.get("reason");
       const details = searchParams.get("details");

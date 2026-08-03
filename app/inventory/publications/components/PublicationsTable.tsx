@@ -45,6 +45,16 @@ async function deletePublication(publication: Publication): Promise<void> {
         const result = await deleteDepopItem(publication.external_id, publication.id);
         if (!result.ok) throw new Error(result.message);
 
+    } else if (publication.platform === 'ebay') {
+        const res = await fetch('/api/ebay/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicationId: publication.id }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+            throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
+        }
     }
     // Si no existe tal plataforma eliminamos de la base de datos
     else {

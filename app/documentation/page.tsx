@@ -152,10 +152,11 @@ const docSections: DocSection[] = [
         id: "ebay-cross",
         title: "eBay",
         points: [
-          "Conectar: Ajustes → Añadir cuenta → eBay. Te lleva a la página de eBay para autorizar la app (OAuth).",
-          "Tampoco usa extensión: es login oficial de eBay, igual que Shopify.",
-          "Tras conectar verás tu nombre de usuario de eBay en Cuentas vinculadas. El botón Verificar comprueba que el enlace sigue activo.",
-          "Importar, publicar y sincronizar ventas en eBay están en desarrollo; por ahora solo puedes vincular la cuenta.",
+          "Conectar: Ajustes → Añadir cuenta → eBay. Autoriza con OAuth (usuario sandbox TESTUSER en pruebas).",
+          "Importar: Inventario → Añadir listing → Importar → elige tu cuenta eBay.",
+          "Publicar: crea o edita un listing con título, descripción, precio y fotos → Publicar → eBay.",
+          "Editar o borrar: desde Publicaciones, igual que Shopify (sin extensión).",
+          "La primera publicación crea automáticamente políticas de envío/pago/devolución en eBay si no existen.",
         ],
       },
       {

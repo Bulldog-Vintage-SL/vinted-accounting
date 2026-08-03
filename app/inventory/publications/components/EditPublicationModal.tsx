@@ -31,7 +31,8 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
-    depop: "Depop"
+    depop: "Depop",
+    ebay: "eBay",
 };
 
 const SHOPIFY_STATUS_OPTIONS = [
@@ -51,6 +52,10 @@ interface ShopifyFields {
     productType: string;
     tags: string;
     status: string;
+    sku: string;
+}
+
+interface EbayFields {
     sku: string;
 }
 
@@ -88,6 +93,7 @@ export function EditPublicationModal({
         status: "ACTIVE",
         sku: "",
     });
+    const [ebayFields, setEbayFields] = useState<EbayFields>({ sku: "" });
 
     // Precio original de la publicacion, usado para limitar bajadas de precio en Vestiaire
     const [initialPrice, setInitialPrice] = useState<number | null>(null);
@@ -100,6 +106,8 @@ export function EditPublicationModal({
     const isVestiaire = platform === "vestiaire";
     const isShopify = platform === "shopify";
     const isDepop = platform === "depop";
+    const isEbay = platform === "ebay";
+    const isOAuthPlatform = isShopify || isEbay;
 
     useEffect(() => {
         if (!open) return;
@@ -111,12 +119,18 @@ export function EditPublicationModal({
         setAccountVestiaireId(null);
         setFields({ title: "", description: "", price: "" });
         setShopifyFields({ vendor: "", productType: "", tags: "", status: "ACTIVE", sku: "" });
+        setEbayFields({ sku: "" });
         setInitialPrice(publication?.price != null ? Number(publication.price) : null);
 
         if (!publication) return;
 
         if (isShopify) {
             fetchShopifyProduct();
+            return;
+        }
+
+        if (isEbay) {
+            fetchEbayProduct();
             return;
         }
 
@@ -163,6 +177,38 @@ export function EditPublicationModal({
             }
         } catch (e) {
             console.error("Error obteniendo producto de Shopify:", e);
+            pushToast({ type: "error", message: "Error obteniendo los datos del producto" });
+        } finally {
+            setIsLoadingItem(false);
+        }
+    };
+
+    const fetchEbayProduct = async () => {
+        if (!publication) return;
+        setIsLoadingItem(true);
+
+        try {
+            const res = await fetch(`/api/ebay/get-product?publicationId=${publication.id}`);
+            const data = await res.json();
+
+            if (data?.ok && data.product) {
+                setFields({
+                    title: data.product.title ?? "",
+                    description: data.product.description ?? "",
+                    price: data.product.price != null ? String(data.product.price) : "",
+                });
+                setEbayFields({
+                    sku: data.product.sku ?? "",
+                });
+                setStep("edit");
+            } else {
+                pushToast({
+                    type: "error",
+                    message: data?.error ?? "No se pudieron obtener los datos del producto",
+                });
+            }
+        } catch (e) {
+            console.error("Error obteniendo producto de eBay:", e);
             pushToast({ type: "error", message: "Error obteniendo los datos del producto" });
         } finally {
             setIsLoadingItem(false);
@@ -325,6 +371,39 @@ export function EditPublicationModal({
             return;
         }
 
+        if (isEbay) {
+            try {
+                const res = await fetch("/api/ebay/update-product", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        publicationId: publication.id,
+                        fields: {
+                            title: fields.title.trim(),
+                            description: fields.description.trim(),
+                            price: fields.price,
+                            sku: ebayFields.sku.trim(),
+                        },
+                    }),
+                });
+                const data = await res.json();
+
+                if (res.ok && data?.ok) {
+                    pushToast({ type: "info", message: "Producto actualizado correctamente en eBay" });
+                    onUpdated();
+                    onClose();
+                } else {
+                    pushToast({ type: "error", message: data?.error ?? "Error actualizando el producto" });
+                }
+            } catch (e) {
+                console.error("Error actualizando producto de eBay:", e);
+                pushToast({ type: "error", message: "Error actualizando el producto" });
+            } finally {
+                setIsUpdating(false);
+            }
+            return;
+        }
+
         if (!accountExternalId) {
             pushToast({ type: "error", message: "No se encontró la cuenta vinculada a esta publicación" });
             setIsUpdating(false);
@@ -418,7 +497,7 @@ export function EditPublicationModal({
                 {/* Body */}
                 <div className="p-6 flex flex-col gap-4 max-h-[70vh] overflow-y-auto">
                     {/* Paso 1: sincronizar cuenta (se omite para Shopify) */}
-                    {step === "sync" && !isShopify && (
+                    {step === "sync" && !isOAuthPlatform && (
                         <div className="flex flex-col gap-2">
                             <div
                                 className={`flex items-center justify-between px-4 py-3 rounded-xl border ${accountSynced
@@ -473,17 +552,17 @@ export function EditPublicationModal({
                     )}
 
                     {/* Carga inicial para Shopify (sin paso de sync) */}
-                    {step === "sync" && isShopify && (
+                    {step === "sync" && isOAuthPlatform && (
                         <div className="flex items-center justify-center py-6 gap-2 text-gray-500 text-sm">
                             <Loader2 size={16} className="animate-spin" />
-                            Obteniendo datos del producto desde Shopify…
+                            Obteniendo datos del producto desde {platformLabel}…
                         </div>
                     )}
 
                     {/* Paso 2: edicion de campos */}
                     {step === "edit" && (
                         <div className="flex flex-col gap-4">
-                            {!isShopify && (
+                            {!isOAuthPlatform && (
                                 <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                                     <CheckCircle2 size={14} className="shrink-0" />
                                     Cuenta sincronizada · {accountName || platformLabel}
@@ -616,6 +695,19 @@ export function EditPublicationModal({
                                                 </select>
                                             </div>
                                         </>
+                                    )}
+
+                                    {isEbay && (
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-sm font-medium text-gray-700">SKU</label>
+                                            <input
+                                                type="text"
+                                                value={ebayFields.sku}
+                                                onChange={(e) => setEbayFields((f) => ({ ...f, sku: e.target.value }))}
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                placeholder="SKU"
+                                            />
+                                        </div>
                                     )}
                                 </>
                             )}
