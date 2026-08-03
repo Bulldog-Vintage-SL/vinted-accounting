@@ -160,7 +160,7 @@ export default function AddAccountModal({ open, onClose }: Props) {
               <PlatformOption
                 disabled={pending}
                 onClick={() => handleSelect("ebay")}
-                icon="/icons/ebay.png"
+                icon="/icons/ebay.svg"
                 label="eBay"
               />
             </div>

@@ -17,7 +17,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   wallapop: "/icons/wallapop.svg",
   vestiaire: "/icons/vestiaire.jpeg",
   shopify: "/icons/shopify.svg",
-  ebay: "/icons/ebay.png",
+  ebay: "/icons/ebay.svg",
   depop: "/icons/depop.jpeg",
   unknown: "/icons/default.svg",
 };
