@@ -41,13 +41,14 @@ export default function EbaySetupBanner() {
           Guarda y copia el <strong>RuName</strong> generado (no es una URL)
         </li>
         <li>
-          Añádelo a <code className="rounded bg-amber-100 px-1">.env.local</code>:
+          Añade las variables en <strong>Vercel</strong> (Settings → Environment
+          Variables) y en <code className="rounded bg-amber-100 px-1">.env.local</code>:
           <br />
           <code className="mt-1 inline-block rounded bg-white border border-amber-200 px-2 py-1 text-xs">
-            EBAY_RUNAME=tu-runame-aqui
+            EBAY_RUNAME=Juan_Gomez-JuanGome-Revent-mvzawo
           </code>
         </li>
-        <li>Reinicia el servidor de desarrollo</li>
+        <li>Redeploy en Vercel y reinicia el servidor local si aplica</li>
       </ol>
     </div>
   );

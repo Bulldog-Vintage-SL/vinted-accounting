@@ -94,10 +94,32 @@ export function buildEbayAuthorizeUrl(state: string): string {
   return `${getAuthBaseUrl(env)}?${params.toString()}`;
 }
 
+/** eBay returns URL-encoded codes containing ^ and # — decode once for token exchange. */
+export function normalizeEbayAuthorizationCode(rawCode: string): string {
+  let code = rawCode.trim();
+  try {
+    code = decodeURIComponent(code);
+  } catch {
+    // keep raw value if already decoded
+  }
+  return code;
+}
+
+export class EbayOAuthError extends Error {
+  constructor(
+    message: string,
+    readonly details?: string
+  ) {
+    super(message);
+    this.name = "EbayOAuthError";
+  }
+}
+
 export async function exchangeEbayAuthorizationCode(
   code: string
 ): Promise<EbayTokenResponse> {
   const env = getEnvironment();
+  const normalizedCode = normalizeEbayAuthorizationCode(code);
   const res = await fetch(getTokenUrl(env), {
     method: "POST",
     headers: {
@@ -106,14 +128,14 @@ export async function exchangeEbayAuthorizationCode(
     },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      code,
+      code: normalizedCode,
       redirect_uri: getRuName(),
     }),
   });
 
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`eBay token exchange failed: ${body}`);
+    throw new EbayOAuthError("eBay token exchange failed", body);
   }
 
   return res.json();
