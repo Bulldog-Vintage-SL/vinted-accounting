@@ -45,7 +45,8 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
   const hasActiveJob = jobs.some((job) => job.status === 'processing' || job.status === 'retrying')
-  const blockClose = isBusy || hasActiveJob
+  const allFailed = jobs.length > 0 && jobs.every((job) => job.status === 'failed')
+  const blockClose = (isBusy || hasActiveJob) && !allFailed
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && blockClose) return
@@ -67,12 +68,18 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
       >
         <DialogHeader className="shrink-0">
           <DialogTitle className="text-2xl font-bold text-gray-800 mb-1">
-            {blockClose ? (title ?? 'Publicando productos...') : '¡Publicación completada!'}
+            {blockClose
+              ? (title ?? 'Publicando productos...')
+              : allFailed
+                ? 'No se pudo completar ninguna publicación'
+                : '¡Publicación completada!'}
           </DialogTitle>
           <p className="text-gray-600 text-sm mb-6">
             {blockClose
               ? 'No cierres esta ventana mientras se publican tus productos.'
-              : 'Ya puedes cerrar esta ventana.'}
+              : allFailed
+                ? 'Revisa los errores de cada producto o cierra esta ventana.'
+                : 'Ya puedes cerrar esta ventana.'}
           </p>
         </DialogHeader>
 

@@ -3,9 +3,12 @@ import { runFlow } from './extensionBridge'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 
 // Publicar en Depop
-export async function uploadDepopItem(listing: any, accountId: string) {
+export async function uploadDepopItem(listing: any, accountId: string): Promise<UploadResult> {
 
     try {
+
+        const missing = validateListingRequiredFields(listing, 'depop')
+        if (missing.length > 0) throw new MissingFieldsError(missing)
 
         const result = await runFlow('UPLOAD_DEPOP_ITEM', {
             platform: 'depop',
@@ -50,6 +53,7 @@ export async function uploadDepopItem(listing: any, accountId: string) {
         return {
             ok: false,
             message: err?.message || "Error inesperado",
+            missingFields: err instanceof MissingFieldsError ? err.fields : undefined,
         };
     }
 

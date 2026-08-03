@@ -14,7 +14,7 @@ export class MissingFieldsError extends Error {
   }
 }
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop'
 
 export const VESTIAIRE_MIN_PRICE = 16
 
@@ -74,6 +74,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size'],
   wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender', 'vestiaire_min_price'],
+  depop: ['description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
 }
 
 export function validateListingRequiredFields(listing: any, platform: Platform): MissingField[] {
