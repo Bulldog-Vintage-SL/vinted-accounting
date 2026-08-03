@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/external-integrations/';
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
 
@@ -120,7 +120,8 @@ export function BulkDeletePublicationModal({
     const runSync = (group: AccountGroup) => {
         if (group.platform === "vinted") return syncVintedAccount(group.external_id ?? group.accountId);
         if (group.platform === "wallapop") return syncWallapopAccount(group.external_id ?? group.accountId);
-        return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
+        if (group.platform === "vestiaire") return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
+        if (group.platform === "depop") return syncDepopAccount(group.external_id ?? group.accountId);
     };
 
     const syncOne = async (group: AccountGroup) => {

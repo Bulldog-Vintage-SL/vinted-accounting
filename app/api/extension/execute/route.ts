@@ -18,6 +18,8 @@ import { buildImportDepopWardrobeSteps } from "@/lib/workflows/depop/depop-impor
 import { buildVestiaireUploadSteps } from "@/lib/workflows/vestiaire/vestiaire-upload-steps";
 import { buildUpdateVestiaireItemSteps } from "@/lib/workflows/vestiaire/vestiaire-update-steps";
 import { buildDepopUploadSteps } from "@/lib/workflows/depop/depop-upload-steps";
+import { buildDepopDeleteSteps } from "@/lib/workflows/depop/depop-delete-steps";
+import { buildDepopUpdateSteps, buildDepopGetItemSteps } from "@/lib/workflows/depop/depop-update-steps";
 import { buildSearchDepopAccountSteps, buildSyncDepopAccountSteps } from "@/lib/workflows/depop/depop-sync-steps";
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 
@@ -65,7 +67,10 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   SEARCH_DEPOP_ACCOUNT: () => buildSearchDepopAccountSteps(),
   SYNC_DEPOP_ACCOUNT: (p) => buildSyncDepopAccountSteps(p.externalId),
   IMPORT_DEPOP_WARDROBE: (p) => buildImportDepopWardrobeSteps(p.externalId),
-  UPLOAD_DEPOP_ITEM: (p) => buildDepopUploadSteps(p.listing)
+  UPLOAD_DEPOP_ITEM: (p) => buildDepopUploadSteps(p.listing),
+  DELETE_DEPOP_ITEM: (p) => buildDepopDeleteSteps(p.externalId),
+  GET_DEPOP_ITEM: (p) => buildDepopGetItemSteps(p.slug),
+  UPDATE_DEPOP_ITEM: (p) => buildDepopUpdateSteps(p.slug)
 
 };
 

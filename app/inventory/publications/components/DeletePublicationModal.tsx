@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount } from '@/lib/external-integrations/';
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 
 interface Props {
@@ -76,7 +76,8 @@ export function DeletePublicationModal({
     const runSync = (acc: any) => {
         if (acc.platform === "vinted") return syncVintedAccount(acc.external_id);
         if (acc.platform === "wallapop") return syncWallapopAccount(acc.external_id);
-        if (acc.platform === "depop") return syncVestiaireAccount(acc.external_id, acc.vestiaire_id ?? null);
+        if (acc.platform === "vestiaire") return syncVestiaireAccount(acc.external_id, acc.vestiaire_id ?? null);
+        if (acc.platform === "depop") return syncDepopAccount(acc.external_id);
     };
 
     const handleSync = async () => {
