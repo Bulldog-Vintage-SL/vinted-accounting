@@ -9,8 +9,11 @@ import {
   getEbayTokenExpiryDate,
   getEbayUserIdentity,
   normalizeEbayAuthorizationCode,
+  normalizeEbayScopesForStorage,
+  hasEbaySellAccountScope,
   EbayOAuthError,
 } from "@/libs/ebay/client";
+import { ensureEbayListingPolicies } from "@/libs/ebay/policies";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +104,8 @@ export async function GET(req: NextRequest) {
       identity.registrationMarketplaceId
     );
 
+    const grantedScopes = normalizeEbayScopesForStorage(tokens.scope);
+
     await Account.findOneAndUpdate(
       {
         userId: stateRow.userId,
@@ -116,17 +121,42 @@ export async function GET(req: NextRequest) {
         ebayAccessToken: tokens.access_token,
         ebayRefreshToken: tokens.refresh_token ?? null,
         ebayTokenExpiresAt: getEbayTokenExpiryDate(tokens.expires_in),
-        ebayScopes: "sell.inventory sell.fulfillment commerce.identity.readonly",
+        ebayScopes: grantedScopes || null,
+        ebayFulfillmentPolicyId: null,
+        ebayPaymentPolicyId: null,
+        ebayReturnPolicyId: null,
+        ebayMerchantLocationKey: null,
         syncStatus: "connected",
         lastSync: new Date(),
       },
       { upsert: true, new: true }
     );
 
+    const linkedAccount = await Account.findOne({
+      userId: stateRow.userId,
+      platform: "ebay",
+      externalId: identity.userId,
+    });
+
+    let policiesReady = false;
+    if (linkedAccount && hasEbaySellAccountScope(tokens.scope ?? grantedScopes)) {
+      try {
+        await ensureEbayListingPolicies(linkedAccount, tokens.access_token);
+        policiesReady = true;
+      } catch (policyErr) {
+        console.warn("eBay policies not configured on connect:", policyErr);
+      }
+    }
+
     await EbayOAuthState.deleteOne({ state });
 
     const successUrl = new URL(ACCOUNTS_PAGE, getAppUrl());
     successUrl.searchParams.set("ebay", "connected");
+    if (!hasEbaySellAccountScope(tokens.scope ?? grantedScopes)) {
+      successUrl.searchParams.set("policies", "missing_scope");
+    } else if (!policiesReady) {
+      successUrl.searchParams.set("policies", "setup_failed");
+    }
     return NextResponse.redirect(successUrl);
   } catch (err) {
     console.error("eBay OAuth callback error:", err);

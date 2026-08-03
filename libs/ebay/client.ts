@@ -8,6 +8,7 @@ export interface EbayTokenResponse {
   refresh_token?: string;
   refresh_token_expires_in?: number;
   token_type: string;
+  scope?: string;
 }
 
 export interface EbayUserIdentity {
@@ -21,6 +22,7 @@ const EBAY_SCOPES = [
   "https://api.ebay.com/oauth/api_scope",
   "https://api.ebay.com/oauth/api_scope/sell.inventory",
   "https://api.ebay.com/oauth/api_scope/sell.fulfillment",
+  "https://api.ebay.com/oauth/api_scope/sell.account",
   "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly",
 ];
 
@@ -68,6 +70,42 @@ function getIdentityUrl(env: EbayEnvironment): string {
   return env === "production"
     ? "https://apiz.ebay.com/commerce/identity/v1/user/"
     : "https://apiz.sandbox.ebay.com/commerce/identity/v1/user/";
+}
+
+export function getEbayApiBaseUrl(): string {
+  return getEnvironment() === "production"
+    ? "https://api.ebay.com"
+    : "https://api.sandbox.ebay.com";
+}
+
+export function getEbayMarketplaceId(): string {
+  return process.env.EBAY_MARKETPLACE_ID || "EBAY_ES";
+}
+
+/** Normalize eBay scope URLs to short names for storage, e.g. sell.account */
+export function normalizeEbayScopesForStorage(scope?: string | null): string {
+  if (!scope?.trim()) return "";
+
+  return scope
+    .trim()
+    .split(/\s+/)
+    .map((entry) => {
+      const short = entry.split("/").pop() ?? entry;
+      return short.replace(/^api_scope$/, "base");
+    })
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function hasEbaySellAccountScope(scope?: string | null): boolean {
+  if (!scope?.trim()) return false;
+  return (
+    scope.includes("sell.account") || scope.includes("api_scope/sell.account")
+  );
+}
+
+export function getRequestedEbayScopes(): string[] {
+  return [...EBAY_SCOPES];
 }
 
 function getBasicAuthHeader(): string {

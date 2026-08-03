@@ -16,6 +16,8 @@ export interface IPublication {
   createdAt?: Date;
   updatedAt?: Date;
   shopifyVariantId?: string | null;
+  ebayOfferId?: string | null;
+  ebaySku?: string | null;
 }
 
 const publicationSchema = new mongoose.Schema(
@@ -49,6 +51,8 @@ const publicationSchema = new mongoose.Schema(
     },
     lastSync: { type: Date, default: null },
     shopifyVariantId: { type: String, default: null},
+    ebayOfferId: { type: String, default: null },
+    ebaySku: { type: String, default: null },
   },
   {
     timestamps: true,

@@ -33,6 +33,7 @@ function getQueue<T>(): Queue<T> {
         wallapop: { upload: 3000 },
         vestiaire: { upload: 6000, import: 1000 },
         shopify: { upload: 0 },
+        ebay: { upload: 1500, import: 500 },
       },
       noRateLimitActions: ['delete'],
     })

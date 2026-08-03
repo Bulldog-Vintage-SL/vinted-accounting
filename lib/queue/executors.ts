@@ -94,6 +94,30 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
     if (!res?.ok) throw new Error(`Depop import: ${res?.message || 'Error desconocido'}`)
     return { imported: true, platform: 'depop' }
   }
+  else if (platform === 'ebay') {
+    const res = await fetchWithTimeout('/api/ebay/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId }),
+    }, 120000)
+    const data = await res.json()
+
+    if (!res.ok || !data?.ok) {
+      throw new Error(`eBay import: ${data?.error || 'Error desconocido'}`)
+    }
+
+    if (data.errors?.length > 0) {
+      console.warn('Errores parciales en import de eBay:', data.errors)
+    }
+
+    return {
+      imported: true,
+      platform: 'ebay',
+      created: data.created,
+      updated: data.updated,
+      total: data.total,
+    }
+  }
   else {
     throw new Error(`Plataforma no soportada: ${platform}`)
   }
@@ -147,7 +171,21 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
       if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
       throw new Error(`Depop: ${res.message}`)
     }
-    return { published: true, platform: 'vestiaire' }
+    return { published: true, platform: 'depop' }
+  }
+  else if (account.platform === 'ebay') {
+    const res = await fetchWithTimeout('/api/ebay/upload-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ listingId: listing.id, accountId: account.accountId }),
+    }, 120000)
+    const data = await res.json()
+
+    if (!res.ok || !data?.ok) {
+      throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
+    }
+
+    return { published: true, platform: 'ebay', publication: data.publication }
   }
   else {
     throw new Error(`Plataforma no soportada: ${account.platform}`)
@@ -174,6 +212,16 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
     const data = await res.json()
     if (!res.ok || !data?.ok) {
       throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
+    }
+  } else if (publication.platform === 'ebay') {
+    const res = await fetchWithTimeout('/api/ebay/delete-product', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicationId: publication.id }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data?.ok) {
+      throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
     }
   } else {
     const res = await fetchWithTimeout(`/api/publications?id=${publication.id}`, { method: 'DELETE' })

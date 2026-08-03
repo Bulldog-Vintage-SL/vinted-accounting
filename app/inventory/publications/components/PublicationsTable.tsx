@@ -40,6 +40,16 @@ async function deletePublication(publication: Publication): Promise<void> {
         if (!res.ok || !data?.ok) {
             throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
         }
+    } else if (publication.platform === 'ebay') {
+        const res = await fetch('/api/ebay/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicationId: publication.id }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+            throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
+        }
     }
     // Si no existe tal plataforma eliminamos de la base de datos
     else {

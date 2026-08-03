@@ -34,7 +34,7 @@ const PLATFORM_NAMES: Record<string, string> = {
 const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "shopify", "ebay"];
 
 // Plataformas cuyas cuentas no requieren sincronización manual (auth server-side vía OAuth/API)
-const NO_SYNC_REQUIRED = new Set(["shopify"]);
+const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
 
 export default function AccountSelectorModal() {
   const { pushToast } = useToast();

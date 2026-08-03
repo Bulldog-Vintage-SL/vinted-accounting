@@ -14,6 +14,7 @@ import {
   syncDepopAccount,
   syncEbayAccount,
 } from '@/lib/external-integrations';
+import { hasEbaySellAccountScope } from "@/libs/ebay/client";
 
 interface Props {
   account: Account;
@@ -26,6 +27,9 @@ export default function AccountCard({ account }: Props) {
   const status = normalizeStatus(account.sync_status);
   const isShopify = account.platform === "shopify";
   const isEbay = account.platform === "ebay";
+  const ebayNeedsReconnect =
+    isEbay && account.ebay_scopes && !hasEbaySellAccountScope(account.ebay_scopes);
+  const ebayNeedsPolicies = isEbay && !account.ebay_policies_ready;
 
   const syncMap: Record<string, (externalId: string) => Promise<any>> = {
     vinted: syncVintedAccount,
@@ -93,9 +97,24 @@ export default function AccountCard({ account }: Props) {
         <span className={`text-sm mt-1 ${statusColor(status)}`}>
           {statusLabel(status)}
         </span>
+        {isEbay && (ebayNeedsReconnect || ebayNeedsPolicies) && (
+          <span className="text-xs mt-1 text-amber-700">
+            {ebayNeedsReconnect
+              ? "Faltan permisos de políticas — pulsa Reconectar"
+              : "Políticas de venta pendientes — pulsa Verificar"}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0 ml-3">
+        {isEbay && (
+          <a
+            href="/api/ebay/install"
+            className="px-3 py-1.5 text-sm rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 transition"
+          >
+            Reconectar
+          </a>
+        )}
         {!isShopify && (
           <button
             onClick={handleSync}

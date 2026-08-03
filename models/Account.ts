@@ -23,6 +23,11 @@ export interface IAccount {
   ebayRefreshToken?: string | null;
   ebayTokenExpiresAt?: Date | null;
   ebayScopes?: string | null;
+  ebayMarketplaceId?: string | null;
+  ebayMerchantLocationKey?: string | null;
+  ebayFulfillmentPolicyId?: string | null;
+  ebayPaymentPolicyId?: string | null;
+  ebayReturnPolicyId?: string | null;
   lastSync?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -61,6 +66,11 @@ const accountSchema = new mongoose.Schema(
     ebayRefreshToken: { type: String, default: null },
     ebayTokenExpiresAt: { type: Date, default: null },
     ebayScopes: { type: String, default: null },
+    ebayMarketplaceId: { type: String, default: null },
+    ebayMerchantLocationKey: { type: String, default: null },
+    ebayFulfillmentPolicyId: { type: String, default: null },
+    ebayPaymentPolicyId: { type: String, default: null },
+    ebayReturnPolicyId: { type: String, default: null },
     lastSync: { type: Date, default: null },
   },
   {
