@@ -310,6 +310,15 @@ export function processStepResult(
       s.depopPublicationUrl = `https://www.depop.com/products/${result.slug}`
       break
 
+    case 'GET_DEPOP_ITEM':
+      s.depopItemRaw = result
+      s.depopCountryCode = result.country ?? s.depopCountryCode ?? 'ES'
+      break
+
+    case 'UPDATE_DEPOP_ITEM':
+      s.depopUpdateDone = true
+      break
+
     case 'GET_ITEMS_NEW':
     case 'GET_CONFIGURATION':
     case 'GET_PROFILE':
@@ -527,6 +536,10 @@ export function processStepResult(
       }
       break
     }
+
+    case 'UPDATE_DEPOP_ITEM':
+      next.request.body = buildDepopUpdateItemBody(s)
+      break
   }
 
   return { nextStep: next, updatedState: s, nextIndex }
@@ -1096,4 +1109,34 @@ function resolveDepopSize(
 function countryToAddressName(countryCode: string): string {
   const map: Record<string, string> = { ES: 'Spain', IT: 'Italy', FR: 'France', PT: 'Portugal' }
   return map[countryCode] ?? 'Spain'
+}
+
+function buildDepopUpdateItemBody(s: WorkflowState) {
+  const item = s.depopItemRaw
+  const fields = s.originalPayload?.fields ?? {}
+
+  return {
+    age: item.age ?? [],
+    address: item.location,
+    attributes: item.attributes ?? {},
+    brand: item.brand,
+    colour: item.colour ?? [],
+    condition: item.condition,
+    country: item.country,
+    description: fields.description ?? item.description,
+    gender: item.gender,
+    geo_position_lat: s.depopGeoLat,
+    geo_position_lng: s.depopGeoLng,
+    is_kids: item.is_kids ?? false,
+    national_shipping_cost: item.national_shipping_cost,
+    picture_ids: (item.pictures ?? []).map((p: any) => p.id),
+    price_amount: fields.price != null ? String(fields.price) : item.pricing?.original_price?.total_price,
+    price_currency: item.pricing?.currency ?? 'EUR',
+    product_type: item.product_type,
+    shipping_methods: item.shipping_methods ?? [],
+    source: item.source ?? [],
+    style: item.style ?? [],
+    variant_set: item.variant_set_id,
+    variants: item.variants ?? {},
+  }
 }

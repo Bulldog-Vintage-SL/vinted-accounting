@@ -11,7 +11,7 @@ import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem,
-  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem,
+  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem
 } from '@/lib/external-integrations'
 
 // Entidad para upload
@@ -213,6 +213,9 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
     if (!res.ok || !data?.ok) {
       throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
     }
+  } else if (publication.platform === 'depop') {
+    const result = await deleteDepopItem(publication.external_id, publication.id)
+    if (!result.ok) throw new Error(result.message || 'Error en Depop')
   } else if (publication.platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/delete-product', {
       method: 'POST',

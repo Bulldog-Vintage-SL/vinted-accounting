@@ -69,6 +69,10 @@ export type StepType =
   | 'GET_DEPOP_SIZE_FILTERS'
   | 'GET_DEPOP_PRICING_INSPIRATION'
   | 'SUBMIT_DEPOP_PRODUCT'
+  | 'DELETE_DEPOP_PRODUCT'
+  | 'GET_DEPOP_ITEM'
+  | 'UPDATE_DEPOP_ITEM'
+
 
 
 export interface WorkflowStep {
@@ -87,8 +91,8 @@ export interface WorkflowStep {
     extractTitle?: boolean
     isFormData?: boolean
     isBinaryUpload?: boolean
-    isPictureUpload?: boolean 
-    noAuth?: boolean        
+    isPictureUpload?: boolean
+    noAuth?: boolean
   }
 }
 
@@ -178,4 +182,7 @@ export interface WorkflowState {
   depopPricingInspiration?: any[]
   depopProductId?: number
   depopPublicationUrl?: string
+  depopItemRaw?: any        
+  depopUpdateDone?: boolean 
+
 }

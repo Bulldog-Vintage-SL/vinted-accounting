@@ -13,7 +13,7 @@ import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem } from '@/lib/external-integrations/'
+import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem } from '@/lib/external-integrations/'
 import { PublicationMobileCard } from './PublicationMobileCard'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
@@ -29,7 +29,7 @@ async function deletePublication(publication: Publication): Promise<void> {
     } else if (publication.platform === 'vestiaire') {
         const result = await deleteVestiaireItem(publication.external_id, publication.id);
         if (!result.ok) throw new Error(result.message);
-       
+
     } else if (publication.platform === 'shopify') {
         const res = await fetch('/api/shopify/delete-product', {
             method: 'POST',
@@ -40,6 +40,11 @@ async function deletePublication(publication: Publication): Promise<void> {
         if (!res.ok || !data?.ok) {
             throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
         }
+
+    } else if (publication.platform === 'depop') {
+        const result = await deleteDepopItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+
     } else if (publication.platform === 'ebay') {
         const res = await fetch('/api/ebay/delete-product', {
             method: 'POST',

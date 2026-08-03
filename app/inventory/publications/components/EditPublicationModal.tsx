@@ -7,11 +7,14 @@ import {
     syncVintedAccount,
     syncWallapopAccount,
     syncVestiaireAccount,
+    syncDepopAccount,
     getVintedItem,
     getWallapopItem,
+    getDepopItem,
     updateVintedItem,
     updateWallapopItem,
     updateVestiaireItem,
+    updateDepopItem,
 } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
@@ -102,6 +105,7 @@ export function EditPublicationModal({
     const platformLabel = PLATFORM_NAMES[platform] || platform;
     const isVestiaire = platform === "vestiaire";
     const isShopify = platform === "shopify";
+    const isDepop = platform === "depop";
     const isEbay = platform === "ebay";
     const isOAuthPlatform = isShopify || isEbay;
 
@@ -215,6 +219,7 @@ export function EditPublicationModal({
         if (!accountExternalId) return null;
         if (platform === "vinted") return syncVintedAccount(accountExternalId);
         if (platform === "wallapop") return syncWallapopAccount(accountExternalId);
+        if (platform === "depop") return syncDepopAccount(accountExternalId);
         return syncVestiaireAccount(accountExternalId, accountVestiaireId);
     };
 
@@ -240,7 +245,7 @@ export function EditPublicationModal({
         setIsSyncing(false);
 
         if (isVestiaire) {
-            
+
             setFields({
                 title: "",
                 description: "",
@@ -260,8 +265,21 @@ export function EditPublicationModal({
         setIsLoadingItem(true);
 
         try {
-            const getFn = platform === "vinted" ? getVintedItem : getWallapopItem;
-            const resItem = await getFn(publication.external_id);
+            let resItem;
+
+            if (platform === "vinted") {
+                resItem = await getVintedItem(publication.external_id);
+            } else if (platform === "wallapop") {
+                resItem = await getWallapopItem(publication.external_id);
+            } else if (platform === "depop") {
+                const slug = publication.publication_url?.split('/').filter(Boolean).pop();
+                if (!slug) {
+                    pushToast({ type: "error", message: "No se pudo determinar el slug de la publicación" });
+                    setIsLoadingItem(false);
+                    return;
+                }
+                resItem = await getDepopItem(slug);
+            }
 
             if (resItem?.ok && resItem.item) {
                 setFields({
@@ -302,8 +320,12 @@ export function EditPublicationModal({
                 });
                 return;
             }
-        } else if (!fields.title.trim()) {
+        } else if (!isDepop && !fields.title.trim()) {
+            // Depop no tiene título propio (usa la descripción), así que no lo exigimos aquí
             pushToast({ type: "error", message: "El título no puede estar vacío" });
+            return;
+        } else if (isDepop && !fields.description.trim()) {
+            pushToast({ type: "error", message: "La descripción no puede estar vacía" });
             return;
         }
 
@@ -415,6 +437,18 @@ export function EditPublicationModal({
                     description: fields.description.trim(),
                     price: priceNumber,
                 });
+            } else if (platform === "depop") {
+                const slug = publication.publication_url?.split('/').filter(Boolean).pop();
+                if (!slug) {
+                    pushToast({ type: "error", message: "No se pudo determinar el slug de la publicación" });
+                    setIsUpdating(false);
+                    return;
+                }
+                resUpdate = await updateDepopItem(slug, publication.id, {
+                    title: fields.description.trim(),
+                    description: fields.description.trim(),
+                    price: priceNumber,
+                });
             } else {
                 resUpdate = await updateVestiaireItem(accountExternalId, publication.external_id, publication.id, {
                     title: "",
@@ -467,17 +501,17 @@ export function EditPublicationModal({
                         <div className="flex flex-col gap-2">
                             <div
                                 className={`flex items-center justify-between px-4 py-3 rounded-xl border ${accountSynced
-                                        ? 'bg-green-50/50 border-green-200'
-                                        : 'bg-yellow-50/50 border-yellow-200'
+                                    ? 'bg-green-50/50 border-green-200'
+                                    : 'bg-yellow-50/50 border-yellow-200'
                                     }`}
                             >
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div
                                         className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${isSyncing
-                                                ? 'text-blue-500'
-                                                : accountSynced
-                                                    ? 'text-green-500'
-                                                    : 'text-yellow-500'
+                                            ? 'text-blue-500'
+                                            : accountSynced
+                                                ? 'text-green-500'
+                                                : 'text-yellow-500'
                                             }`}
                                     >
                                         {isSyncing || isLoadingItem ? (
@@ -554,16 +588,19 @@ export function EditPublicationModal({
                                 </div>
                             ) : (
                                 <>
-                                    <div className="flex flex-col gap-1.5">
-                                        <label className="text-sm font-medium text-gray-700">Título</label>
-                                        <input
-                                            type="text"
-                                            value={fields.title}
-                                            onChange={(e) => setFields((f) => ({ ...f, title: e.target.value }))}
-                                            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                                            placeholder="Título de la publicación"
-                                        />
-                                    </div>
+                                    {/* Depop no tiene título como campo independiente: usa la descripción para ambos conceptos */}
+                                    {!isDepop && (
+                                        <div className="flex flex-col gap-1.5">
+                                            <label className="text-sm font-medium text-gray-700">Título</label>
+                                            <input
+                                                type="text"
+                                                value={fields.title}
+                                                onChange={(e) => setFields((f) => ({ ...f, title: e.target.value }))}
+                                                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                                placeholder="Título de la publicación"
+                                            />
+                                        </div>
+                                    )}
 
                                     <div className="flex flex-col gap-1.5">
                                         <label className="text-sm font-medium text-gray-700">Descripción</label>
@@ -574,6 +611,11 @@ export function EditPublicationModal({
                                             className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
                                             placeholder="Descripción de la publicación"
                                         />
+                                        {isDepop && (
+                                            <p className="text-xs text-gray-500">
+                                                Depop no tiene un campo de título independiente: este texto se usa como descripción del producto.
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="flex flex-col gap-1.5">

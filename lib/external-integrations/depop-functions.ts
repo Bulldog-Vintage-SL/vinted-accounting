@@ -208,3 +208,102 @@ export async function importDepopWardrobe(userId: string) {
     }
 
 }
+
+// Borrar publicacion en Depop
+export async function deleteDepopItem(itemExternalId: string, publicationId: string) {
+    try {
+        const result = await runFlow('DELETE_DEPOP_ITEM', { externalId: itemExternalId, platform: 'depop' });
+
+        if (!result || !result.ok || !result.result?.done) {
+            const errorMsg = result?.result?.result?.message || result?.result?.message || 'Error al eliminar en Depop';
+            return { ok: false, message: errorMsg };
+        }
+
+        const deleteRes = await fetch(`/api/publications?id=${publicationId}`, {
+            method: 'DELETE',
+        });
+
+        if (!deleteRes.ok) {
+            const errorData = await deleteRes.json();
+            return {
+                ok: false,
+                message: errorData.message || 'Error al eliminar el registro en la base de datos',
+            };
+        }
+
+        return {
+            ok: true,
+            message: 'Publicación eliminada correctamente de Depop y de la BD',
+        };
+
+    } catch (err: any) {
+        return {
+            ok: false,
+            message: err?.message || 'Error inesperado',
+        };
+    }
+}
+
+export async function getDepopItem(slug: string) {
+    try {
+        const result = await runFlow('GET_DEPOP_ITEM', { slug, platform: 'depop' });
+
+        const item = result?.result?.state?.depopItemRaw;
+
+        if (!result?.ok || !item) {
+            return { ok: false, message: result?.result?.message || 'Error al obtener el item de Depop' };
+        }
+
+        return {
+            ok: true,
+            item: {
+                title: item.description ?? '',
+                description: item.description ?? '',
+                price: item.pricing?.original_price?.total_price != null
+                    ? Number(item.pricing.original_price.total_price)
+                    : null,
+            },
+        };
+
+    } catch (err: any) {
+        return { ok: false, message: err?.message || 'Error inesperado' };
+    }
+}
+
+export async function updateDepopItem(
+    slug: string,
+    publicationId: string,
+    fields: { title: string; description: string; price: number }
+) {
+    try {
+        const result = await runFlow('UPDATE_DEPOP_ITEM', {
+            slug,
+            platform: 'depop',
+            fields: { description: fields.description, price: fields.price },
+        });
+
+        if (!result?.ok || !result.result?.state?.depopUpdateDone) {
+            const errorMsg = result?.result?.message || 'Error al actualizar en Depop';
+            return { ok: false, message: errorMsg };
+        }
+
+        const patchRes = await fetch(`/api/publications?id=${publicationId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ price: fields.price }),
+        });
+
+        if (!patchRes.ok) {
+            const errorData = await patchRes.json().catch((): null => null);
+            return {
+                ok: false,
+                message: errorData?.message || 'Publicación actualizada en Depop, pero no se pudo sincronizar el precio en la base de datos',
+            };
+        }
+
+        return { ok: true, message: 'Publicación actualizada correctamente en Depop' };
+
+    } catch (err: any) {
+        return { ok: false, message: err?.message || 'Error inesperado' };
+    }
+}
