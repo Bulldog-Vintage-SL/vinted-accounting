@@ -15,66 +15,99 @@ interface Toast {
 export type { Toast }
 
 export const TOAST_EXIT_DURATION_MS = 400
+export const DEFAULT_TOAST_DURATION_MS = 12000
 
 interface ToastContextType {
   pushToast: (toast: Omit<Toast, "id">) => void
   dismissToast: (id: string) => void
+  pauseToasts: (ids: string[]) => void
+  resumeToasts: (ids: string[]) => void
 }
 
 const ToastContext = createContext<ToastContextType | null>(null)
 
+interface TimerMeta {
+  remaining: number
+  startedAt: number
+  timers: ReturnType<typeof setTimeout>[]
+  paused: boolean
+}
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
-
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>[]>>(new Map())
+  const metaRef = useRef<Map<string, TimerMeta>>(new Map())
 
   const clearTimersFor = useCallback((id: string) => {
-    const timers = timersRef.current.get(id)
-    if (timers) {
-      timers.forEach(clearTimeout)
-      timersRef.current.delete(id)
-    }
+    const meta = metaRef.current.get(id)
+    if (meta) meta.timers.forEach(clearTimeout)
+  }, [])
+
+  const scheduleTimers = useCallback((id: string, remaining: number) => {
+    const exitTimer = setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
+    }, Math.max(0, remaining - TOAST_EXIT_DURATION_MS))
+
+    const removalTimer = setTimeout(() => {
+      metaRef.current.delete(id)
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, remaining)
+
+    metaRef.current.set(id, {
+      remaining,
+      startedAt: Date.now(),
+      timers: [exitTimer, removalTimer],
+      paused: false,
+    })
   }, [])
 
   const dismissToast = useCallback((id: string) => {
     clearTimersFor(id)
+    metaRef.current.delete(id)
     setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
 
-    const removalTimer = setTimeout(() => {
+    setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id))
     }, TOAST_EXIT_DURATION_MS)
-
-    timersRef.current.set(id, [removalTimer])
   }, [clearTimersFor])
 
   const pushToast = useCallback((toast: Omit<Toast, "id">) => {
     const id = crypto.randomUUID()
-    const duration = toast.duration ?? 5000
+    const duration = toast.duration ?? DEFAULT_TOAST_DURATION_MS
 
     setToasts(prev => [...prev, { ...toast, id }])
+    scheduleTimers(id, duration)
+  }, [scheduleTimers])
 
-    const exitTimer = setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
-    }, Math.max(0, duration - TOAST_EXIT_DURATION_MS))
-
-    const removalTimer = setTimeout(() => {
-      timersRef.current.delete(id)
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, duration)
-
-    timersRef.current.set(id, [exitTimer, removalTimer])
+  const pauseToasts = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      const meta = metaRef.current.get(id)
+      if (!meta || meta.paused) continue
+      meta.timers.forEach(clearTimeout)
+      const elapsed = Date.now() - meta.startedAt
+      meta.remaining = Math.max(0, meta.remaining - elapsed)
+      meta.timers = []
+      meta.paused = true
+    }
   }, [])
 
+  const resumeToasts = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      const meta = metaRef.current.get(id)
+      if (!meta || !meta.paused) continue
+      scheduleTimers(id, meta.remaining)
+    }
+  }, [scheduleTimers])
+
   useEffect(() => {
-    const timersMap = timersRef.current
+    const metaMap = metaRef.current
     return () => {
-      timersMap.forEach(timers => timers.forEach(clearTimeout))
-      timersMap.clear()
+      metaMap.forEach(meta => meta.timers.forEach(clearTimeout))
+      metaMap.clear()
     }
   }, [])
 
   return (
-    <ToastContext.Provider value={{ pushToast, dismissToast }}>
+    <ToastContext.Provider value={{ pushToast, dismissToast, pauseToasts, resumeToasts }}>
       {children}
       <ToastRenderer toasts={toasts} onDismiss={dismissToast} />
     </ToastContext.Provider>
