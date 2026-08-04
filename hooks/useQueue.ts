@@ -6,7 +6,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react'
 import { Queue } from '@/lib/queue/Queue'
-import type { QueueEvent, JobAction, ActionPayload } from '@/lib/queue/types'
+import type { QueueEvent, JobAction, ActionPayload, Job } from '@/lib/queue/types'
 
 
 let globalQueue: Queue<any> | null = null
@@ -70,10 +70,14 @@ export function useQueue<T = unknown>() {
 
   const [stats, setStats] = useState(getStats)
   const [isPaused, setIsPaused] = useState(isPausedGlobal)
+  const [jobs, setJobs] = useState<Job<JobAction, T>[]>(() => queue.getAllJobs())
 
   useEffect(() => {
     const unsubscribeStats = queue.on(() => {
       setStats(getStats())
+      // Nuevo array en cada evento para que React detecte el cambio
+      // (mismo patrón que stats: refrescamos en cada evento de la cola).
+      setJobs([...queue.getAllJobs()])
     })
 
     const onPauseChange = (paused: boolean) => setIsPaused(paused)
@@ -93,12 +97,14 @@ export function useQueue<T = unknown>() {
   ) => {
     const jobs = queue.enqueue(action, entities, payload, getLabel)
     setStats(getStats())
+    setJobs([...queue.getAllJobs()])
     return jobs
   }, [queue, getStats])
 
   const clear = useCallback(() => {
     queue.clear()
     setStats(getStats())
+    setJobs([...queue.getAllJobs()])
   }, [queue, getStats])
 
   const pause = useCallback(() => {
@@ -115,6 +121,13 @@ export function useQueue<T = unknown>() {
     const failed = queue.getAllJobs().filter(j => j.status === 'failed')
     queue.retryJobs(failed)
     setStats(getStats())
+    setJobs([...queue.getAllJobs()])
+  }, [queue, getStats])
+
+  const retryJob = useCallback((job: Job<JobAction, T>) => {
+    queue.retryJobs([job])
+    setStats(getStats())
+    setJobs([...queue.getAllJobs()])
   }, [queue, getStats])
 
   const onDrained = useCallback((cb: () => void) => {
@@ -127,9 +140,7 @@ export function useQueue<T = unknown>() {
     eventListeners.add(cb)
     return () => { eventListeners.delete(cb) }
   }, [])
-
-  // Ajustes de delay en caliente, por si necesitas exponer un panel
-  // de configuración (ritmo por plataforma/acción).
+  
   const setPlatformDelay = useCallback((platform: string, action: JobAction, ms: number | undefined) => {
     queue.setPlatformActionDelay(platform, action, ms)
   }, [queue])
@@ -149,16 +160,19 @@ export function useQueue<T = unknown>() {
   const retryJobWithPatch = useCallback((jobId: string, updater: (entity: T) => T) => {
     queue.retryJobWithPatch(jobId, updater)
     setStats(getStats())
+    setJobs([...queue.getAllJobs()])
   }, [queue, getStats])
 
   return useMemo(() => ({
     enqueue,
     stats,
+    jobs,
     isPaused,
     pause,
     clear,
     resume,
     retryFailed,
+    retryJob,
     onDrained,
     onEvent,
     retryJobWithPatch,
@@ -167,7 +181,7 @@ export function useQueue<T = unknown>() {
     setNoRateLimit,
     setConcurrency,
   }), [
-    enqueue, stats, isPaused, pause, clear, resume, retryFailed,
+    enqueue, stats, jobs, isPaused, pause, clear, resume, retryFailed, retryJob,
     onDrained, onEvent, setPlatformDelay, setActionDelay, setNoRateLimit, setConcurrency,
   ])
 }

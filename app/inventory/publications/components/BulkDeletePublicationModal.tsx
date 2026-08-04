@@ -1,8 +1,9 @@
+// BulkDeletePublicationModal.tsx
 "use client";
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
@@ -23,7 +24,6 @@ const PLATFORM_NAMES: Record<string, string> = {
     depop: "Depop"
 };
 
-// Plataformas que requieren la extension
 const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
 
 interface AccountGroup {
@@ -49,14 +49,13 @@ export function BulkDeletePublicationModal({
 
     const [accountGroups, setAccountGroups] = useState<AccountGroup[]>([]);
     const [loadingAccounts, setLoadingAccounts] = useState(false);
+    const [syncingAll, setSyncingAll] = useState(false);
 
-    // Publicaciones que no requieren cuenta sincronizada (otras plataformas)
     const freePublicationsCount = useMemo(
         () => publications.filter(p => !SYNC_REQUIRED_PLATFORMS.has(p.platform) || !p.account_id).length,
         [publications]
     );
 
-    // Agrupacion inicial: cuentas unicas a partir de las publicaciones seleccionadas
     const requiredAccountKeys = useMemo(() => {
         const map = new Map<string, { accountId: string; platform: string; count: number }>();
         for (const p of publications) {
@@ -122,9 +121,10 @@ export function BulkDeletePublicationModal({
         if (group.platform === "wallapop") return syncWallapopAccount(group.external_id ?? group.accountId);
         if (group.platform === "vestiaire") return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
         if (group.platform === "depop") return syncDepopAccount(group.external_id ?? group.accountId);
+        return Promise.resolve({ ok: false, message: "Plataforma no soportada" });
     };
 
-    const syncOne = async (group: AccountGroup) => {
+    const syncOne = useCallback(async (group: AccountGroup) => {
         setAccountGroups(prev => prev.map(g => g.key === group.key ? { ...g, isSyncing: true } : g));
 
         const resSync = await runSync(group);
@@ -139,7 +139,6 @@ export function BulkDeletePublicationModal({
             });
         }
 
-        // Releemos el estado real tras el intento de sync
         let isOK = false;
         try {
             const res = await fetch(`/api/accounts?platform=${group.platform}`);
@@ -156,24 +155,48 @@ export function BulkDeletePublicationModal({
         }
 
         return isOK;
-    };
+    }, [pushToast]);
 
-    const handleSyncAllPending = async () => {
+    const syncAllPending = useCallback(async () => {
         const pending = accountGroups.filter(g => !g.isSynced && !g.isSyncing);
+        if (pending.length === 0) return true;
+        setSyncingAll(true);
+        let allOk = true;
         for (const group of pending) {
-            await syncOne(group);
+            const ok = await syncOne(group);
+            if (!ok) allOk = false;
         }
-    };
+        setSyncingAll(false);
+        return allOk;
+    }, [accountGroups, syncOne]);
+
+    const handleConfirm = useCallback(async () => {
+        if (syncingAll || loadingAccounts) return;
+
+        const pending = accountGroups.filter(g => !g.isSynced && !g.isSyncing);
+        if (pending.length > 0) {
+            await syncAllPending();
+            const stillPending = accountGroups.filter(g => !g.isSynced);
+            if (stillPending.length > 0) {
+                pushToast({
+                    type: "error",
+                    message: "No se pudieron sincronizar todas las cuentas",
+                    description: "Reintenta o sincroniza manualmente cada cuenta."
+                });
+                return;
+            }
+        }
+
+        onConfirm();
+    }, [accountGroups, syncAllPending, loadingAccounts, syncingAll, onConfirm, pushToast]);
 
     const allSynced = accountGroups.length > 0 && accountGroups.every(g => g.isSynced);
-    const canDelete = (accountGroups.length === 0 || allSynced) && !isLoading;
     const pendingCount = accountGroups.filter(g => !g.isSynced).length;
     const anySyncing = accountGroups.some(g => g.isSyncing);
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="!max-w-[560px] w-full p-0 rounded-2xl overflow-hidden">
-                {/* Header */}
                 <div className="p-6 border-b border-gray-200">
                     <DialogHeader>
                         <div className="flex items-center gap-3">
@@ -187,9 +210,7 @@ export function BulkDeletePublicationModal({
                     </DialogHeader>
                 </div>
 
-                {/* Body */}
                 <div className="p-6 flex flex-col gap-4">
-                    {/* Lista de cuentas a sincronizar */}
                     {loadingAccounts && (
                         <div className="flex items-center justify-center py-4 text-gray-500 text-sm gap-2">
                             <Loader2 className="animate-spin h-4 w-4" />
@@ -207,8 +228,8 @@ export function BulkDeletePublicationModal({
                                 </p>
                                 {pendingCount > 0 && (
                                     <button
-                                        onClick={handleSyncAllPending}
-                                        disabled={anySyncing}
+                                        onClick={syncAllPending}
+                                        disabled={anySyncing || syncingAll}
                                         className="text-xs font-semibold text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                         Sincronizar todas
@@ -225,10 +246,10 @@ export function BulkDeletePublicationModal({
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${group.isSyncing
-                                                ? 'text-blue-500'
-                                                : group.isSynced
-                                                    ? 'text-green-500'
-                                                    : 'text-yellow-500'
+                                                    ? 'text-blue-500'
+                                                    : group.isSynced
+                                                        ? 'text-green-500'
+                                                        : 'text-yellow-500'
                                                 }`}>
                                                 {group.isSyncing ? (
                                                     <Loader2 size={16} className="animate-spin" />
@@ -253,10 +274,10 @@ export function BulkDeletePublicationModal({
 
                                         <button
                                             onClick={() => syncOne(group)}
-                                            disabled={group.isSyncing}
+                                            disabled={group.isSyncing || syncingAll}
                                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition disabled:opacity-50 disabled:cursor-not-allowed ${group.isSynced
-                                                ? 'bg-white text-green-700 border border-green-300 hover:bg-green-100'
-                                                : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                    ? 'bg-white text-green-700 border border-green-300 hover:bg-green-100'
+                                                    : 'bg-yellow-500 text-white hover:bg-yellow-600'
                                                 }`}
                                         >
                                             {group.isSyncing ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
@@ -294,19 +315,18 @@ export function BulkDeletePublicationModal({
                 <div className="px-6 pb-6 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        disabled={isLoading}
+                        disabled={isLoading || syncingAll}
                         className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         Cancelar
                     </button>
                     <button
-                        onClick={onConfirm}
-                        disabled={!canDelete || loadingAccounts}
-                        title={!canDelete ? "Sincroniza todas las cuentas antes de eliminar" : undefined}
+                        onClick={handleConfirm}
+                        disabled={isLoading || loadingAccounts || syncingAll || anySyncing}
                         className="flex items-center gap-2 bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isLoading && <Loader2 className="animate-spin h-4 w-4" />}
-                        {isLoading ? 'Eliminando...' : `Eliminar ${publications.length} publicación(es)`}
+                        {(isLoading || syncingAll) && <Loader2 className="animate-spin h-4 w-4" />}
+                        {isLoading ? 'Eliminando...' : syncingAll ? 'Sincronizando...' : `Eliminar ${publications.length} publicación(es)`}
                     </button>
                 </div>
             </DialogContent>
