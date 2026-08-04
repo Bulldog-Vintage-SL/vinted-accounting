@@ -55,17 +55,16 @@ export function PublicationsTable() {
 
     // Modal de progreso bloqueante para borrado masivo
     const [deletePhase, setDeletePhase] = useState<'idle' | 'deleting' | 'done'>('idle')
+    // Flag local: solo es "nuestro" borrado si lo hemos iniciado nosotros.
+    // Evita que estado residual en la cola global (singleton, sobrevive a
+    // montajes/desmontajes) reabra el modal al volver a esta pestaña.
+    const [bulkDeleteActive, setBulkDeleteActive] = useState(false)
     const deleteJobsRef = useRef<Job<'deletePublication', Publication>[]>([])
     const [, forceTick] = useState(0)
 
     useEffect(() => {
-        if (stats.total > 0) {
-            setShowQueue(true)
-            if (deletePhase === 'idle') setDeletePhase('deleting')
-        }
-    }, [stats.total, deletePhase])
+        if (!bulkDeleteActive) return
 
-    useEffect(() => {
         const allDone = stats.total > 0
             && stats.pending === 0
             && stats.processing === 0
@@ -74,7 +73,7 @@ export function PublicationsTable() {
         if (allDone && deletePhase !== 'idle') {
             setDeletePhase('done')
         }
-    }, [stats, deletePhase])
+    }, [stats, deletePhase, bulkDeleteActive])
 
     useEffect(() => {
         return onDrained(() => {
@@ -82,9 +81,13 @@ export function PublicationsTable() {
             setSelectedIds([])
             setShowQueue(false)
             setDeletePhase('idle')
+            setBulkDeleteActive(false)
             deleteJobsRef.current = []
+            clear() // limpia la cola real: si no, los jobs completados quedan
+                     // en el singleton y el modal reaparece "completado" al
+                     // volver a montar el componente
         })
-    }, [onDrained])
+    }, [onDrained, clear])
 
     // Suscripción a eventos para forzar re-render del modal
     useEffect(() => {
@@ -178,6 +181,7 @@ export function PublicationsTable() {
 
         const jobs = enqueue('deletePublication', publicationsToDelete, {}, (p: Publication) => p.listing?.title || 'Publicación')
         deleteJobsRef.current = jobs
+        setBulkDeleteActive(true)
         setDeletePhase('deleting')
         setShowQueue(true)
 
@@ -196,9 +200,12 @@ export function PublicationsTable() {
 
     const handleCloseDeleteProgress = useCallback(() => {
         setDeletePhase('idle')
+        setBulkDeleteActive(false)
         deleteJobsRef.current = []
         setShowQueue(false)
-    }, [])
+        clear() // igual que en onDrained: si el usuario cierra tras errores
+                 // parciales, no dejar jobs viejos colgados en la cola global
+    }, [clear])
 
     const columns = useMemo(
         () => createColumns(handleDeleteClick, handleEditClick),

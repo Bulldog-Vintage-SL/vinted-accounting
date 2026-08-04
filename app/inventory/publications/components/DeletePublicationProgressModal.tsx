@@ -17,7 +17,6 @@ interface Props<T> {
 function DeletePublicationProgressModal<T>({ open, jobs, isBusy, onClose, title, onRetryJob }: Props<T>) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
-  // Bloquear cierre si hay trabajos pendientes, en proceso o reintentando
   const hasPendingOrActiveJob = jobs.some(
     (job) => job.status === 'pending' || job.status === 'processing' || job.status === 'retrying'
   )
