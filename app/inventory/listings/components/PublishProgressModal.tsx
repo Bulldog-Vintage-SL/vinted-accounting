@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, X } from "lucide-react"
 import type { Job, JobStatus } from '@/lib/queue/types'
+import { uploadPhoto } from "@/utils/uploadPhoto"
 
 interface Props<T> {
   open: boolean
@@ -11,10 +12,9 @@ interface Props<T> {
   isBusy: boolean
   onClose: () => void
   title?: string
-  onRetryJob?: (job: Job<'upload', T>, patch: Record<string, string>) => void
+  onRetryJob?: (job: Job<'upload', T>, patch: Record<string, any>) => void
 }
 
-// Listas cerradas 
 const COLOR_OPTIONS = [
   "Negro", "Blanco", "Rojo", "Azul", "Verde",
   "Amarillo", "Gris", "Rosa", "Naranja", "Marrón",
@@ -26,11 +26,9 @@ const SIZE_OPTIONS = [
 ]
 
 const GENDER_OPTIONS = ["hombre", "mujer", "unisex"]
-
 const CONDITION_OPTIONS = ["Nuevo", "Como nuevo", "Bueno", "Aceptable"]
 
 const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
-  color: COLOR_OPTIONS,
   colors: COLOR_OPTIONS,
 }
 
@@ -61,7 +59,6 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="!max-w-[600px] w-full p-8 rounded-2xl max-h-[90vh] flex flex-col"
-
         onPointerDownOutside={(e) => { if (blockClose) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (blockClose) e.preventDefault() }}
         showCloseButton={!blockClose}
@@ -148,15 +145,14 @@ function RetryForm({
   onCancel,
 }: {
   missingFields: { key: string; label: string }[]
-  onSubmit: (patch: Record<string, string>) => void
+  onSubmit: (patch: Record<string, any>) => void
   onCancel: () => void
 }) {
-
   const [values, setValues] = useState<Record<string, string>>({})
-
   const [multiValues, setMultiValues] = useState<Record<string, string[]>>({})
-
   const [pendingMultiSelection, setPendingMultiSelection] = useState<Record<string, string>>({})
+  const [photoUrls, setPhotoUrls] = useState<string[]>([])
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -181,22 +177,90 @@ function RetryForm({
     }))
   }
 
+  const removePhoto = (index: number) => {
+    setPhotoUrls((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handlePhotoUpload = async (files: FileList) => {
+    if (!files.length) return
+    setIsUploadingPhoto(true)
+    try {
+      const urls = await Promise.all(Array.from(files).map(uploadPhoto))
+      setPhotoUrls((prev) => [...prev, ...urls])
+    } finally {
+      setIsUploadingPhoto(false)
+    }
+  }
+
+  const isPhotoFieldMissing = missingFields.some(f => f.key === 'photo_url')
   const allFilled = missingFields.every((f) => {
+    if (f.key === 'photo_url') return photoUrls.length > 0
     if (MULTI_FIELD_OPTIONS[f.key]) return (multiValues[f.key]?.length ?? 0) > 0
     return values[f.key]?.trim()
   })
 
-  const buildPatch = (): Record<string, string> => {
-    const patch: Record<string, string> = { ...values }
+  const buildPatch = (): Record<string, any> => {
+    const patch: Record<string, any> = { ...values }
+
     for (const key of Object.keys(multiValues)) {
-      patch[key] = multiValues[key].join(', ')
+      patch[key] = multiValues[key]
     }
+
+    if (isPhotoFieldMissing) {
+      patch.photo_url = photoUrls
+    }
+
     return patch
   }
 
   return (
     <div className="flex flex-col gap-3">
       {missingFields.map((field) => {
+        if (field.key === 'photo_url') {
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+
+              <div className="grid grid-cols-3 gap-2">
+                {photoUrls.map((url, idx) => (
+                  <div key={idx} className="relative group">
+                    <img src={url} className="rounded-md shadow-sm object-cover h-24 w-full" />
+                    <button
+                      onClick={() => removePhoto(idx)}
+                      className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+
+                <label className={`flex items-center justify-center h-24 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploadingPhoto ? 'opacity-50 pointer-events-none' : ''}`}>
+                  {isUploadingPhoto ? (
+                    <Loader2 size={20} className="animate-spin text-gray-400" />
+                  ) : (
+                    <span className="text-gray-400 text-2xl">+</span>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    disabled={isUploadingPhoto}
+                    onChange={(e) => {
+                      if (e.target.files) handlePhotoUpload(e.target.files)
+                      e.target.value = ''
+                    }}
+                  />
+                </label>
+              </div>
+
+              {photoUrls.length === 0 && (
+                <p className="text-xs text-red-500">Debes subir al menos una foto</p>
+              )}
+            </div>
+          )
+        }
+
         const multiOptions = MULTI_FIELD_OPTIONS[field.key]
         const singleOptions = SINGLE_FIELD_OPTIONS[field.key]
 
