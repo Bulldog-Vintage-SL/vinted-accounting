@@ -357,8 +357,8 @@ export function processStepResult(
 
     case 'GET_PACKAGE_SUGGESTION':
       next.request.body = {
-        item: { catalog_id: s.categoryId },
-        session_id: crypto.randomUUID()
+        catalog_id: s.categoryId,
+        upload_session_id: s.uploadSessionId
       }
       break
 
@@ -366,6 +366,7 @@ export function processStepResult(
       next.request.body = buildVintedUpdateItemBody(s)
       break
 
+    
     case 'GET_ITEM_ATTRIBUTES':
       next.request.method = 'POST'
       next.request.url = `https://www.vinted.es/api/v2/item_upload/attributes`
@@ -550,24 +551,40 @@ export function processStepResult(
 // la misma categoría; priorizamos el grupo "S/M/L" por ser el formato estándar
 // que normalmente usa el catálogo interno de la app.
 function findSizeId(attributes: any[], sizeTitle: string): number {
+  const sizeAttr = attributes?.find((a: any) => a.code === 'size');
+  const groups = sizeAttr?.configuration?.options ?? [];
+  
+  const normalize = (s: string) => s?.toString().trim().toLowerCase();
+  const target = normalize(sizeTitle);
+  
+  const matches: { id: number; title: string; score: number }[] = [];
 
-  const sizeAttr = attributes?.find((a: any) => a.code === 'size')
-  const groups = sizeAttr?.configuration?.options ?? []
-
-  const normalize = (s: string) => s?.toString().trim().toLowerCase()
-  const target = normalize(sizeTitle)
-
-  const letterGroup = groups.find((g: any) => g.title === 'S/M/L')
-  const orderedGroups = letterGroup
-    ? [letterGroup, ...groups.filter((g: any) => g !== letterGroup)]
-    : groups
-
-  for (const group of orderedGroups) {
-    const match = group.options?.find((o: any) => normalize(o.title) === target)
-    if (match) return match.id
+  for (const group of groups) {
+    if (!group.options) continue;
+    for (const option of group.options) {
+      const optionTitle = normalize(option.title);
+      let score = -1;
+      if (optionTitle === target) score = 0;
+      else if (optionTitle.includes(target)) score = 1;
+      else if (target.includes(optionTitle)) score = 2;
+      
+      if (score !== -1) {
+        matches.push({ id: option.id, title: option.title, score });
+      }
+    }
   }
 
-  return 123
+  if (matches.length === 0) {
+    console.warn(`No se encontró talla para "${sizeTitle}", usando fallback 123`);
+    return 123;
+  }
+
+  matches.sort((a, b) => {
+    if (a.score !== b.score) return a.score - b.score;
+    return a.title.length - b.title.length;
+  });
+
+  return matches[0].id;
 }
 
 // Busca el id de la condición dentro de la misma respuesta de /api/v2/item_upload/attributes.

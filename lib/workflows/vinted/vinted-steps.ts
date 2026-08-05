@@ -61,13 +61,12 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
     platform: 'vinted',
     type: 'GET_PACKAGE_SUGGESTION',
     request: {
-      url: 'https://www.vinted.es/api/v2/package_sizes/suggestion',
+      url: 'https://api.vinted.es/shipping-estimation/external/package_sizes/suggestion',
       method: 'POST',
       body: {}
     }
   })
 
-  // Sustituye a los antiguos GET_SIZE_OPTIONS y GET_CONDITION_OPTIONS<s
   steps.push({
     id: crypto.randomUUID(),
     platform: 'vinted',
