@@ -165,7 +165,6 @@ export async function importDepopWardrobe(userId: string) {
 
     try {
 
-        // Primero obtenemos el id de la cuenta de depop correspondiente a userId
         const res = await fetch(`/api/accounts/${userId}`);
         const account = await res.json();
         const externalId = (account.external_id ?? account.externalId)?.toString();
@@ -176,7 +175,6 @@ export async function importDepopWardrobe(userId: string) {
 
             const items = result.result.state.items;
 
-            // Importamos los articulos que se nos han devuelto
             const resApi = await fetch('/api/listings/import/depop', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

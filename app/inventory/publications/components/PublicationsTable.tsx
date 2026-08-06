@@ -20,7 +20,50 @@ import type { Job } from '@/lib/queue/types'
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
 
 async function deletePublication(publication: Publication): Promise<void> {
-    // ... igual que antes
+    if (publication.platform === 'vinted') {
+        const result = await deleteVintedItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+    } else if (publication.platform === 'wallapop') {
+        const result = await deleteWallapopItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+    } else if (publication.platform === 'vestiaire') {
+        const result = await deleteVestiaireItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+
+    } else if (publication.platform === 'shopify') {
+        const res = await fetch('/api/shopify/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicationId: publication.id }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+            throw new Error(`Shopify: ${data?.error || 'Error desconocido'}`)
+        }
+
+    } else if (publication.platform === 'depop') {
+        const result = await deleteDepopItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+
+    } else if (publication.platform === 'ebay') {
+        const res = await fetch('/api/ebay/delete-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publicationId: publication.id }),
+        })
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+            throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
+        }
+    }
+    // Si no existe tal plataforma eliminamos de la base de datos
+    else {
+        const response = await fetch(`/api/publications?id=${publication.id}`, { method: 'DELETE' });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al eliminar');
+        }
+    }
 }
 
 export function PublicationsTable() {
@@ -84,8 +127,8 @@ export function PublicationsTable() {
             setBulkDeleteActive(false)
             deleteJobsRef.current = []
             clear() // limpia la cola real: si no, los jobs completados quedan
-                     // en el singleton y el modal reaparece "completado" al
-                     // volver a montar el componente
+            // en el singleton y el modal reaparece "completado" al
+            // volver a montar el componente
         })
     }, [onDrained, clear])
 
@@ -204,7 +247,7 @@ export function PublicationsTable() {
         deleteJobsRef.current = []
         setShowQueue(false)
         clear() // igual que en onDrained: si el usuario cierra tras errores
-                 // parciales, no dejar jobs viejos colgados en la cola global
+        // parciales, no dejar jobs viejos colgados en la cola global
     }, [clear])
 
     const columns = useMemo(

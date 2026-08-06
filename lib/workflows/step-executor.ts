@@ -254,6 +254,7 @@ export function processStepResult(
       break
     }
 
+
     case 'GET_DEPOP_BANNED_HASHTAGS':
       s.depopBannedHashtags = result.banned_hashtags
       break

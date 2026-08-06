@@ -4,6 +4,8 @@
 
 import type { WorkflowStep } from '../types'
 
+const BASE = 'https://webapi.depop.com'
+
 export function buildImportDepopWardrobeSteps(userId: string): WorkflowStep[] {
   return [
     {
@@ -16,4 +18,4 @@ export function buildImportDepopWardrobeSteps(userId: string): WorkflowStep[] {
       }
     }
   ]
-}
+} 

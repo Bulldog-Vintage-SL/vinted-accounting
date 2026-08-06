@@ -5,6 +5,7 @@ import Listing from "@/models/Listing";
 import Publication from "@/models/Publication";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import { revalidatePath } from "next/cache";
+import { deleteImagesByUrls } from "@/utils/r2/deleteImage";
 
 export async function deleteListing(id: string) {
   const userId = await getAuthenticatedUserId();
@@ -17,6 +18,14 @@ export async function deleteListing(id: string) {
 
   await Publication.deleteMany({ listingId: listing._id });
   await Listing.deleteOne({ _id: listing._id });
+
+  if (listing.photoUrl?.length > 0) {
+    try {
+      await deleteImagesByUrls(listing.photoUrl);
+    } catch (imgErr) {
+      console.error(`Error borrando imágenes de R2 para listing ${id}:`, imgErr);
+    }
+  }
 
   revalidatePath("/inventory/listings");
 }

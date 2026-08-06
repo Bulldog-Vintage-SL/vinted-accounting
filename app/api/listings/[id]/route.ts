@@ -6,6 +6,7 @@ import {
   listingFormToMongo,
   serializeListing,
 } from "@/libs/listings/serialize";
+import { deleteImagesByUrls } from "@/utils/r2/deleteImage";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,7 @@ export async function PATCH(
   }
 }
 
+
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -83,9 +85,23 @@ export async function DELETE(
     }
 
     await connectMongo();
+
+    const listing = await Listing.findOne({ _id: id, userId });
+    if (!listing) {
+      return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
+    }
+
     const result = await Listing.deleteOne({ _id: id, userId });
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
+    }
+
+    if (listing.photoUrl?.length > 0) {
+      try {
+        await deleteImagesByUrls(listing.photoUrl);
+      } catch (imgErr) {
+        console.error(`Error borrando imágenes de R2 para listing ${id}:`, imgErr);
+      }
     }
 
     return NextResponse.json({ success: true });

@@ -72,6 +72,7 @@ export type StepType =
   | 'DELETE_DEPOP_PRODUCT'
   | 'GET_DEPOP_ITEM'
   | 'UPDATE_DEPOP_ITEM'
+  | 'GET_DEPOP_BRANDS'
 
 
 
@@ -184,5 +185,6 @@ export interface WorkflowState {
   depopPublicationUrl?: string
   depopItemRaw?: any        
   depopUpdateDone?: boolean 
+  depopBrandsMap?: any
 
 }
