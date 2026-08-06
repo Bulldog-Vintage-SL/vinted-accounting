@@ -121,7 +121,7 @@ function buildVintedSlug(title: string): string {
     .replace(/-+/g, "-"); 
 }
 
-export function mapSizeToStandard(sizeInput: string): string | null {
+function mapSizeToStandard(sizeInput: string): string | null {
   const allowed = new Set([
     "XS", "S", "M", "L", "XL", "XXL", "XXXL",
     "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"
