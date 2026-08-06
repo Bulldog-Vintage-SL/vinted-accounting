@@ -71,6 +71,10 @@ export function ListingsTable() {
   const publishJobsRef = useRef<Job<'upload', Listing>[]>([])
   const [, forceTick] = useState(0)
 
+  // Jobs del borrado masivo en curso. Se usan para saber cuándo ha
+  // terminado realmente la cola (no basta con haber hecho el enqueue).
+  const deleteJobsRef = useRef<Job<'delete', Listing>[]>([])
+
   useEffect(() => {
     if (!selectorOpen) {
       setPublishingListingId(null)
@@ -119,6 +123,73 @@ export function ListingsTable() {
 
     return unsubscribe
   }, [publishPhase, onEvent])
+
+  // Mientras el borrado masivo esta en curso: escucha la cola y no
+  // desbloquea el modal hasta que TODOS los jobs de delete han terminado
+  // (completed o failed). Si alguno falla, se restaura ese producto en
+  // la tabla (el borrado optimista se deshace solo para los que fallaron)
+  // y se resincroniza con el servidor por seguridad.
+  useEffect(() => {
+    if (!isBulkDeleting) return
+
+    const unsubscribe = onEvent(() => {
+      const jobs = deleteJobsRef.current
+      if (jobs.length === 0) return
+
+      const allDone = jobs.every((j) => j.status === 'completed' || j.status === 'failed')
+      if (!allDone) return
+
+      const failedJobs = jobs.filter((j) => j.status === 'failed')
+      const failedCount = failedJobs.length
+
+      if (failedCount > 0) {
+        const failedListings = failedJobs.map((j) => j.entity as Listing)
+
+        // Revierte el borrado optimista solo para los productos que
+        // realmente no se llegaron a borrar.
+        mutate(
+          (current: Listing[] | undefined) => {
+            const currentList = current ?? []
+            const missing = failedListings.filter(
+              (l) => !currentList.some((c) => c.id === l.id)
+            )
+            return [...currentList, ...missing]
+          },
+          false
+        )
+
+        if (failedCount === jobs.length) {
+          pushToast({
+            message: 'No se pudo eliminar ningún producto',
+            description: `Los ${failedCount} productos seleccionados no se pudieron eliminar. Se han restaurado en la tabla.`,
+            type: 'error',
+          })
+        } else {
+          pushToast({
+            message: 'Algunos productos no se pudieron eliminar',
+            description: `${failedCount} de ${jobs.length} fallaron y se han restaurado en la tabla.`,
+            type: 'error',
+          })
+        }
+
+        // Resincroniza con el servidor para asegurar consistencia final.
+        mutate()
+      } else {
+        pushToast({
+          message: 'Productos eliminados',
+          description: `${jobs.length} productos eliminados correctamente.`,
+          type: 'success',
+        })
+      }
+
+      setBulkDeleteModalOpen(false)
+      setListingsToDelete([])
+      setIsBulkDeleting(false)
+      deleteJobsRef.current = []
+    })
+
+    return unsubscribe
+  }, [isBulkDeleting, onEvent, mutate, pushToast])
 
   const handlePublish = useCallback((listing: Listing) => {
     setPublishingListingId(listing.id)
@@ -207,11 +278,12 @@ export function ListingsTable() {
 
     clear()
 
-    enqueue('delete', listingsToDelete, {}, (l: Listing) => l.title)
+    const jobs = enqueue('delete', listingsToDelete, {}, (l: Listing) => l.title)
+    deleteJobsRef.current = jobs
 
-    setBulkDeleteModalOpen(false)
-    setListingsToDelete([])
-    setIsBulkDeleting(false)
+    // OJO: el modal NO se cierra aquí. Se queda abierto y bloqueado
+    // (isLoading=true) hasta que el useEffect de arriba detecte que
+    // todos los jobs de la cola han terminado (completed o failed).
   }, [listingsToDelete, mutate, clear, enqueue])
 
   const handleDeleteClick = useCallback((id: string) => {
