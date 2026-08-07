@@ -9,6 +9,7 @@ import { useState, useTransition, type ChangeEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
+import BrandSelect from "./BrandSelector";
 import { validateListingCreationFields } from "@/libs/listings/validation";
 
 type ItemFormProps = {
@@ -83,24 +84,20 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     }));
   };
 
-  // Formatea el precio para mostrarlo con coma
   const formatPriceForDisplay = (value: number): string => {
     if (value === 0) return "";
     return value.toString().replace(".", ",");
   };
 
-  // Convierte el input del usuario a num valido
   const parsePriceFromInput = (value: string): number => {
-    // Si está vacio, devolver 0
+
     if (value === "") return 0;
 
-    // Reemplazar coma por punto para convertir a número
     const normalized = value.replace(",", ".");
 
-    // Si hay más de un punto, limpiar (caso 15.78.00)
     const parts = normalized.split(".");
     if (parts.length > 2) {
-      // Quedarse solo con el primer punto
+
       const firstPart = parts[0];
       const rest = parts.slice(1).join("");
       const cleaned = `${firstPart}.${rest}`;
@@ -117,7 +114,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const handlePriceChange = (e: ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
 
-    // Permitir solo digitos, coma y punto
     const filtered = rawValue.replace(/[^0-9,.]/g, "");
 
     const commaCount = (filtered.match(/,/g) || []).length;
@@ -127,14 +123,12 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
       return;
     }
 
-    // Si hay coma y punto a la vez, no permitir
     if (commaCount > 0 && dotCount > 0) {
       return;
     }
 
     setPriceInput(filtered);
 
-    // Convertir a numero y guardar en el estado
     const numericValue = parsePriceFromInput(filtered);
     update("price", numericValue);
   };
@@ -231,11 +225,9 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         {/* Marca */}
         <div>
           <label className="block text-sm font-medium">Marca</label>
-          <input
-            type="text"
+          <BrandSelect
             value={form.attributes.brand}
-            onChange={e => updateAttribute("brand", e.target.value)}
-            className="mt-1 w-full rounded-md border border-gray-300 p-2"
+            onChange={brand => updateAttribute("brand", brand)}
           />
         </div>
 
