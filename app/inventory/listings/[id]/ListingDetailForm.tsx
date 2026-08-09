@@ -22,7 +22,7 @@ const emptyForm: ListingForm = {
   price: '',
   photo_url: [],
   colors: [],
-  attributes: { brand: '', size: '', categoryPath: '', vintedCategoryId: ''},
+  attributes: { brand: '', size: '', categoryPath: '', vintedCategoryId: 0},
   gender: null,
   item_type: null,
   stock: 1
