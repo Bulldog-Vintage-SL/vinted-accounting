@@ -28,7 +28,7 @@ export function processStepResult(
       break
 
     case 'GET_CATEGORY_SUGGESTIONS':
-      s.categoryId = result.categories?.[0]
+      s.categoryId = s.originalPayload.listing?.attributes?.vintedCategoryId ?? result.categories?.[0]?.id
       break
 
     case 'GET_PACKAGE_SUGGESTION':
@@ -367,7 +367,7 @@ export function processStepResult(
       next.request.body = buildVintedUpdateItemBody(s)
       break
 
-    
+
     case 'GET_ITEM_ATTRIBUTES':
       next.request.method = 'POST'
       next.request.url = `https://www.vinted.es/api/v2/item_upload/attributes`
@@ -554,10 +554,10 @@ export function processStepResult(
 function findSizeId(attributes: any[], sizeTitle: string): number {
   const sizeAttr = attributes?.find((a: any) => a.code === 'size');
   const groups = sizeAttr?.configuration?.options ?? [];
-  
+
   const normalize = (s: string) => s?.toString().trim().toLowerCase();
   const target = normalize(sizeTitle);
-  
+
   const matches: { id: number; title: string; score: number }[] = [];
 
   for (const group of groups) {
@@ -568,7 +568,7 @@ function findSizeId(attributes: any[], sizeTitle: string): number {
       if (optionTitle === target) score = 0;
       else if (optionTitle.includes(target)) score = 1;
       else if (target.includes(optionTitle)) score = 2;
-      
+
       if (score !== -1) {
         matches.push({ id: option.id, title: option.title, score });
       }
@@ -668,17 +668,17 @@ const GENDER_FALLBACKS: Record<string, { category_leaf_id: string; subcategoryId
 const ROOT_ID = '12465'
 
 const itemTypeMap: Record<string, string[]> = {
-  'camiseta': ['camisetas', 'tops y camisetas'],
+  'camiseta': ['camisetas', 'tops'],
   'camisa': ['camisas'],
-  'pantalon': ['pantalones', 'vaqueros y pantalones'],
-  'vaquero': ['vaqueros y pantalones'],
+  'pantalon': ['pantalones'],
+  'vaquero': ['vaqueros'],
   'sudadera': ['sudaderas'],
-  'chaqueta': ['chaquetas', 'chaquetas y abrigos'],
-  'abrigo': ['abrigos', 'chaquetas y abrigos'],
+  'chaqueta': ['chaquetas'],
+  'abrigo': ['abrigos'],
   'vestido': ['vestidos'],
   'falda': ['faldas'],
   'shorts': ['shorts', 'bermudas'],
-  'bermuda': ['shorts', 'bermudas'],
+  'bermuda': ['bermudas'],
   'zapatillas': ['zapatillas'],
   'zapatos': ['zapatos'],
   'bolso': ['bolsos'],
@@ -689,6 +689,8 @@ const genderKeywords: Record<string, string[]> = {
   hombre: ['hombre', 'chico', 'masculino'],
   mujer: ['mujer', 'chica', 'femenino'],
 }
+
+const SPORT_EXCLUDE_KEYWORDS = ['deporte', 'deportiva', 'deportivo', 'fitness', 'gimnasio']
 
 function getWallapopCategoryIds(
   categories: any[],
@@ -726,6 +728,13 @@ function getWallapopCategoryIds(
     return oppositeKeywords.some(kw => nodeName.includes(kw))
   }
 
+  // Poda la rama de deporte: "pantalones", "camisetas", "sudaderas"... existen
+  // tanto en Ropa como en Ropa deportiva, y no queremos que un match genérico
+  // por palabra suelta nos mande ahí salvo que el itemType lo pida explícitamente.
+  function isSportBranch(nodeName: string): boolean {
+    return SPORT_EXCLUDE_KEYWORDS.some(kw => nodeName.includes(kw))
+  }
+
   // Busqueda recursiva del nodo hoja que matchea
   function findLeaf(
     nodes: any[],
@@ -736,6 +745,7 @@ function getWallapopCategoryIds(
       const nodeName = normalize(node.name ?? '')
 
       if (isOppositeGender(nodeName)) continue
+      if (isSportBranch(nodeName)) continue
 
       if (!node.subcategories?.length) {
         const targetNames = resolveTargetNames()

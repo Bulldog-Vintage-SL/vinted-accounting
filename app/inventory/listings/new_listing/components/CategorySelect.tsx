@@ -1,20 +1,3 @@
-/*
-  Selector de categoría en modal. Navega el árbol de data/categories.json
-  (mismo formato que la respuesta de catálogos de Vinted: catalogs -> catalogs -> ...)
-  en lugar de dejar que el usuario escriba texto libre.
-
-  - El "campo" visible es un botón con el mismo tamaño/estilo que el resto de
-    inputs del formulario, y muestra la ruta elegida ("Mujer > Ropa > Abrigos").
-  - Al pulsarlo se abre un modal con las selects en cascada + breadcrumb.
-  - `value` es la ruta completa como string, solo para que el picker sepa
-    restaurar la selección (normalmente vendrá de attributes.categoryPath).
-  - `onChange` te da fullPath, el nodo hoja (con su id de Vinted) y el nodo
-    raíz (para inferir género u otras cosas), para que el consumidor decida
-    qué guardar en cada sitio.
-
-  Ajusta el import de categories.json si tu alias "@/" no apunta a la raíz del proyecto.
-*/
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -35,11 +18,8 @@ type CategoriesFile = {
 const data = categoriesData as unknown as CategoriesFile;
 
 type CategorySelectInfo = {
-  /** Ruta completa como texto, útil solo para mostrarla/depurar/restaurar. */
   fullPath: string;
-  /** Última categoría elegida (la más específica). Trae su id de Vinted. */
   leaf: Category | null;
-  /** Primera categoría elegida (la raíz, p.ej. "Mujer"/"Hombre"). */
   root: Category | null;
 };
 
@@ -69,6 +49,9 @@ export default function CategorySelect({ value, onChange }: CategorySelectProps)
   const [path, setPath] = useState<Category[]>(() => resolvePathFromString(value));
   const [isOpen, setIsOpen] = useState(false);
 
+  const isLeafSelected = path.length > 0 && path[path.length - 1].catalogs.length === 0;
+  const canDismiss = path.length === 0 || isLeafSelected;
+
   useEffect(() => {
     const currentTitlePath = path.map(c => c.title).join(" > ");
 
@@ -86,12 +69,12 @@ export default function CategorySelect({ value, onChange }: CategorySelectProps)
     if (!isOpen) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
+      if (e.key === "Escape" && canDismiss) setIsOpen(false);
     };
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isOpen]);
+  }, [isOpen, canDismiss]);
 
   const emit = (newPath: Category[]) => {
     setPath(newPath);
@@ -100,6 +83,9 @@ export default function CategorySelect({ value, onChange }: CategorySelectProps)
       leaf: newPath.length ? newPath[newPath.length - 1] : null,
       root: newPath.length ? newPath[0] : null,
     });
+
+    const reachedLeaf = newPath.length > 0 && newPath[newPath.length - 1].catalogs.length === 0;
+    if (reachedLeaf) setIsOpen(false);
   };
 
   const selectAt = (depth: number, rawId: string) => {
@@ -152,7 +138,7 @@ export default function CategorySelect({ value, onChange }: CategorySelectProps)
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4"
           onClick={e => {
-            if (e.target === e.currentTarget) setIsOpen(false);
+            if (e.target === e.currentTarget && canDismiss) setIsOpen(false);
           }}
         >
           <div className="w-full max-w-md rounded-xl bg-white shadow-2xl max-h-[80vh] flex flex-col overflow-hidden">
@@ -214,13 +200,19 @@ export default function CategorySelect({ value, onChange }: CategorySelectProps)
                   />
                 </div>
               ))}
+
+              {path.length > 0 && !isLeafSelected && (
+                <p className="text-xs text-amber-600">
+                  Sigue eligiendo hasta llegar a una categoría final.
+                </p>
+              )}
             </div>
 
             <div className="bg-gray-50 px-5 py-3 flex justify-end">
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                disabled={path.length === 0}
+                disabled={!isLeafSelected}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Hecho
