@@ -42,6 +42,8 @@ export default function NewListingPage() {
         attributes: {
           brand: "",
           size: "",
+          categoryPath: "",
+          vintedCategoryId: 0,
         },
         gender: null,
         item_type: "",

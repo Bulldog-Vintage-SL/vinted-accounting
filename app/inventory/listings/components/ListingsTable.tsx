@@ -507,6 +507,8 @@ function listingToForm(listing: Listing): ListingForm {
     attributes: {
       brand: listing.attributes?.brand ?? '',
       size: listing.attributes?.size ?? '',
+      categoryPath: listing.attributes?.categoryPath ?? '',
+      vintedCategoryId: listing.attributes?.vintedCategoryId ?? 0,
     },
     gender: listing.gender,
     item_type: listing.item_type,
