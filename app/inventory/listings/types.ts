@@ -33,6 +33,8 @@ export type ListingForm = {
   attributes: {
     brand: string
     size: string
+    categoryPath: string
+    vintedCategoryId: number | null
   }
   gender: 'hombre' | 'mujer' | 'unisex' | null
   item_type: string | null

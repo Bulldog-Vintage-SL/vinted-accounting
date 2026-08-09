@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import BrandSelect from "./BrandSelector";
+import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
 
 type ItemFormProps = {
@@ -231,31 +232,30 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           />
         </div>
 
-        {/* Genero */}
-        <div>
-          <label className="block text-sm font-medium">Género</label>
-          <select
-            value={form.gender ?? ""}
-            onChange={e => update("gender", e.target.value as 'hombre' | 'mujer' | 'unisex')}
-            className="mt-1 w-full rounded-md border border-gray-300 p-2"
-          >
-            <option value="">Selecciona género</option>
-            <option value="hombre">Hombre</option>
-            <option value="mujer">Mujer</option>
-            <option value="unisex">Unisex</option>
-          </select>
-        </div>
-
         {/* Tipo de prenda */}
         <div>
           <label className="block text-sm font-medium">Tipo de prenda</label>
-          <input
-            type="text"
-            value={form.item_type ?? ""}
-            onChange={e => update("item_type", e.target.value)}
-            placeholder="camiseta, pantalón, sudadera..."
-            className="mt-1 w-full rounded-md border border-gray-300 p-2"
+          <CategorySelect
+            value={form.attributes.categoryPath ?? ""}
+            onChange={({ fullPath, leaf, root }) => {
+              update("item_type", leaf?.title ?? "");
+              updateAttribute("categoryPath", fullPath);
+              updateAttribute("vintedCategoryId", leaf?.id ?? null);
+
+              if (root) {
+                const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
+                  Mujer: 'mujer',
+                  Hombre: 'hombre',
+                };
+                update("gender", genderByRoot[root.title] ?? 'unisex');
+              }
+            }}
           />
+          {form.gender && (
+            <p className="text-xs text-gray-500 mt-1">
+              Género: <span className="capitalize">{form.gender}</span> (según la categoría elegida)
+            </p>
+          )}
         </div>
 
         {/* Colores */}
