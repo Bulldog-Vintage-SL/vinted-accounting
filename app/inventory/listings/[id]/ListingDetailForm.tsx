@@ -397,23 +397,17 @@ export function ListingDetailForm({ listingId }: Props) {
               <label className="text-sm font-semibold text-gray-700">Tipo de prenda</label>
               <CategorySelect
                 value={form.attributes.categoryPath ?? ''}
-                onChange={({ fullPath, leaf, root }) => {
+                unisex={form.gender === 'unisex'}
+                onChange={({ fullPath, leaf, gender }) => {
                   handleChange('item_type', leaf?.title ?? null)
                   handleAttributeChange('categoryPath', fullPath)
                   handleAttributeChange('vintedCategoryId', leaf?.id ?? 0)
-
-                  if (root) {
-                    const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
-                      Mujer: 'mujer',
-                      Hombre: 'hombre',
-                    }
-                    handleChange('gender', genderByRoot[root.title] ?? 'unisex')
-                  }
+                  handleChange('gender', gender)
                 }}
               />
               {form.gender && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Género: <span className="capitalize">{form.gender}</span> (según la categoría elegida)
+                  Género: <span className="capitalize">{form.gender}</span>
                 </p>
               )}
             </div>

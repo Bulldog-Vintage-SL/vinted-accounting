@@ -300,16 +300,13 @@ function RetryForm({
               <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
               <CategorySelect
                 value={categorySelection?.categoryPath ?? ''}
-                onChange={({ fullPath, leaf, root }) => {
-                  const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
-                    Mujer: 'mujer',
-                    Hombre: 'hombre',
-                  }
+                unisex={categorySelection?.gender === 'unisex'}
+                onChange={({ fullPath, leaf, gender }) => {
                   setCategorySelection({
                     item_type: leaf?.title ?? null,
                     categoryPath: fullPath,
                     vintedCategoryId: leaf?.id ?? 0,
-                    gender: root ? (genderByRoot[root.title] ?? 'unisex') : null,
+                    gender,
                   })
                 }}
               />
