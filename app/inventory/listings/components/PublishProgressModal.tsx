@@ -5,6 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, X } from "lucide-react"
 import type { Job, JobStatus } from '@/lib/queue/types'
 import { uploadPhoto } from "@/utils/uploadPhoto"
+import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
+import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
 
 interface Props<T> {
   open: boolean
@@ -25,7 +27,6 @@ const SIZE_OPTIONS = [
   "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única",
 ]
 
-const GENDER_OPTIONS = ["hombre", "mujer", "unisex"]
 const CONDITION_OPTIONS = ["Nuevo", "Como nuevo", "Bueno", "Aceptable"]
 
 const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
@@ -35,7 +36,6 @@ const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
 const SINGLE_FIELD_OPTIONS: Record<string, string[]> = {
   size: SIZE_OPTIONS,
   'attributes.size': SIZE_OPTIONS,
-  gender: GENDER_OPTIONS,
   condition: CONDITION_OPTIONS,
 }
 
@@ -153,6 +153,17 @@ function RetryForm({
   const [pendingMultiSelection, setPendingMultiSelection] = useState<Record<string, string>>({})
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [brandValue, setBrandValue] = useState('')
+  const [categorySelection, setCategorySelection] = useState<{
+    item_type: string | null
+    categoryPath: string
+    vintedCategoryId: number
+    gender: 'hombre' | 'mujer' | 'unisex' | null
+  } | null>(null)
+
+  const isBrandField = (key: string) => key === 'brand' || key === 'attributes.brand'
+  const isCategoryField = (key: string) =>
+    key === 'item_type' || key === 'categoryPath' || key === 'attributes.categoryPath'
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -195,6 +206,8 @@ function RetryForm({
   const isPhotoFieldMissing = missingFields.some(f => f.key === 'photo_url')
   const allFilled = missingFields.every((f) => {
     if (f.key === 'photo_url') return photoUrls.length > 0
+    if (isBrandField(f.key)) return brandValue.trim().length > 0
+    if (isCategoryField(f.key)) return !!categorySelection?.categoryPath
     if (MULTI_FIELD_OPTIONS[f.key]) return (multiValues[f.key]?.length ?? 0) > 0
     return values[f.key]?.trim()
   })
@@ -208,6 +221,17 @@ function RetryForm({
 
     if (isPhotoFieldMissing) {
       patch.photo_url = photoUrls
+    }
+
+    if (missingFields.some(f => isBrandField(f.key))) {
+      patch['attributes.brand'] = brandValue
+    }
+
+    if (missingFields.some(f => isCategoryField(f.key)) && categorySelection) {
+      patch.item_type = categorySelection.item_type
+      patch['attributes.categoryPath'] = categorySelection.categoryPath
+      patch['attributes.vintedCategoryId'] = categorySelection.vintedCategoryId
+      if (categorySelection.gender) patch.gender = categorySelection.gender
     }
 
     return patch
@@ -256,6 +280,43 @@ function RetryForm({
 
               {photoUrls.length === 0 && (
                 <p className="text-xs text-red-500">Debes subir al menos una foto</p>
+              )}
+            </div>
+          )
+        }
+
+        if (isBrandField(field.key)) {
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+              <BrandSelect value={brandValue} onChange={setBrandValue} />
+            </div>
+          )
+        }
+
+        if (isCategoryField(field.key)) {
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+              <CategorySelect
+                value={categorySelection?.categoryPath ?? ''}
+                onChange={({ fullPath, leaf, root }) => {
+                  const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
+                    Mujer: 'mujer',
+                    Hombre: 'hombre',
+                  }
+                  setCategorySelection({
+                    item_type: leaf?.title ?? null,
+                    categoryPath: fullPath,
+                    vintedCategoryId: leaf?.id ?? 0,
+                    gender: root ? (genderByRoot[root.title] ?? 'unisex') : null,
+                  })
+                }}
+              />
+              {categorySelection?.gender && (
+                <p className="text-xs text-gray-400">
+                  Género: <span className="capitalize">{categorySelection.gender}</span>
+                </p>
               )}
             </div>
           )

@@ -8,6 +8,8 @@ import { Listing, ListingForm } from '../types'
 import { useToast } from '@/components/toast'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { PageLoader } from '@/components/ui/page-loader'
+import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
+import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -90,6 +92,8 @@ export function ListingDetailForm({ listingId }: Props) {
       attributes: {
         brand: data.attributes?.brand ?? '',
         size: data.attributes?.size ?? '',
+        categoryPath: data.attributes?.categoryPath ?? '',
+        vintedCategoryId: data.attributes?.vintedCategoryId ?? 0,
       },
       gender: data.gender ?? null,
       item_type: data.item_type ?? null,
@@ -103,7 +107,10 @@ export function ListingDetailForm({ listingId }: Props) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleAttributeChange = (field: keyof ListingForm['attributes'], value: string) => {
+  const handleAttributeChange = <K extends keyof ListingForm['attributes']>(
+    field: K,
+    value: ListingForm['attributes'][K]
+  ) => {
     setForm(prev => ({ ...prev, attributes: { ...prev.attributes, [field]: value } }))
   }
 
@@ -364,10 +371,9 @@ export function ListingDetailForm({ listingId }: Props) {
             {/* Marca */}
             <div>
               <label className="text-sm font-semibold text-gray-700">Marca</label>
-              <input
+              <BrandSelect
                 value={form.attributes.brand}
-                onChange={(e) => handleAttributeChange('brand', e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+                onChange={brand => handleAttributeChange('brand', brand)}
               />
             </div>
 
@@ -386,30 +392,30 @@ export function ListingDetailForm({ listingId }: Props) {
               </select>
             </div>
 
-            {/* Genero */}
-            <div>
-              <label className="text-sm font-semibold text-gray-700">Género</label>
-              <select
-                value={form.gender ?? ''}
-                onChange={(e) => handleChange('gender', (e.target.value || null) as ListingForm['gender'])}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
-              >
-                <option value="">Selecciona género</option>
-                <option value="hombre">Hombre</option>
-                <option value="mujer">Mujer</option>
-                <option value="unisex">Unisex</option>
-              </select>
-            </div>
-
-            {/* Tipo de articulo */}
+            {/* Tipo de prenda (categoria) */}
             <div>
               <label className="text-sm font-semibold text-gray-700">Tipo de prenda</label>
-              <input
-                value={form.item_type ?? ''}
-                onChange={(e) => handleChange('item_type', e.target.value || null)}
-                placeholder="camiseta, pantalón, sudadera..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+              <CategorySelect
+                value={form.attributes.categoryPath ?? ''}
+                onChange={({ fullPath, leaf, root }) => {
+                  handleChange('item_type', leaf?.title ?? null)
+                  handleAttributeChange('categoryPath', fullPath)
+                  handleAttributeChange('vintedCategoryId', leaf?.id ?? 0)
+
+                  if (root) {
+                    const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
+                      Mujer: 'mujer',
+                      Hombre: 'hombre',
+                    }
+                    handleChange('gender', genderByRoot[root.title] ?? 'unisex')
+                  }
+                }}
               />
+              {form.gender && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Género: <span className="capitalize">{form.gender}</span> (según la categoría elegida)
+                </p>
+              )}
             </div>
           </div>
 
