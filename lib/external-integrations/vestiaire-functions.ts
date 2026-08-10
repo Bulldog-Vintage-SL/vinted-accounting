@@ -312,7 +312,7 @@ export function isRejectedByVestiaire(brand: string | null | undefined): boolean
 
   // Parcial
   for (const rejected of REJECTED_BRANDS) {
-    if (normalized.startsWith(rejected) || normalized === rejected) return true
+    if (normalized.startsWith(rejected) || normalized === rejected || rejected.startsWith(normalized)) return true
   }
 
   return false
