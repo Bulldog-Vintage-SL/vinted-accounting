@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ChevronDown, X } from "lucide-react";
 import categoriesData from "@/data/categories.json";
 
@@ -250,14 +250,12 @@ export default function CategorySelect({ value, unisex, onChange }: CategorySele
                 role="switch"
                 aria-checked={isUnisex}
                 onClick={toggleUnisex}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                  isUnisex ? "bg-blue-600" : "bg-gray-200"
-                }`}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${isUnisex ? "bg-blue-600" : "bg-gray-200"
+                  }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    isUnisex ? "translate-x-6" : "translate-x-1"
-                  }`}
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isUnisex ? "translate-x-6" : "translate-x-1"
+                    }`}
                 />
               </button>
             </div>
@@ -292,7 +290,27 @@ export default function CategorySelect({ value, unisex, onChange }: CategorySele
         <ChevronDown size={16} className="text-gray-400 shrink-0" />
       </button>
 
-      {mounted && overlay ? createPortal(overlay, document.body) : null}
+      <DialogPrimitive.Root
+        open={isOpen}
+        onOpenChange={(next) => {
+          if (!next && !canDismiss) return;
+          setIsOpen(next);
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Content
+            onPointerDownOutside={(e) => {
+              if (!canDismiss) e.preventDefault();
+            }}
+            onEscapeKeyDown={(e) => {
+              if (!canDismiss) e.preventDefault();
+            }}
+            className="contents"
+          >
+            {overlay}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   );
 }

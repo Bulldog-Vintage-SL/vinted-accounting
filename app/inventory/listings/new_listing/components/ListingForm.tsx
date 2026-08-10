@@ -20,6 +20,12 @@ type ItemFormProps = {
 
 type Attributes = ListingForm["attributes"];
 
+const GENDER_OPTIONS: { label: string; value: "hombre" | "mujer" | "unisex" }[] = [
+  { label: "Hombre", value: "hombre" },
+  { label: "Mujer", value: "mujer" },
+  { label: "Unisex", value: "unisex" },
+];
+
 export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [form, setForm] = useState<ListingForm>({
     ...initialData,
@@ -237,25 +243,37 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           <label className="block text-sm font-medium">Tipo de prenda</label>
           <CategorySelect
             value={form.attributes.categoryPath ?? ""}
-            onChange={({ fullPath, leaf, root }) => {
+            unisex={form.gender === "unisex"}
+            onChange={({ fullPath, leaf, gender }) => {
               update("item_type", leaf?.title ?? "");
               updateAttribute("categoryPath", fullPath);
               updateAttribute("vintedCategoryId", leaf?.id ?? null);
-
-              if (root) {
-                const genderByRoot: Record<string, 'hombre' | 'mujer' | 'unisex'> = {
-                  Mujer: 'mujer',
-                  Hombre: 'hombre',
-                };
-                update("gender", genderByRoot[root.title] ?? 'unisex');
-              }
+              if (gender) update("gender", gender);
             }}
           />
           {form.gender && (
             <p className="text-xs text-gray-500 mt-1">
-              Género: <span className="capitalize">{form.gender}</span> (según la categoría elegida)
+              Género: <span className="capitalize">{form.gender}</span>
             </p>
           )}
+        </div>
+
+        {/* Genero */}
+        <div>
+          <label className="block text-sm font-medium">Género</label>
+          <select
+            value={form.gender ?? ""}
+            onChange={e => update("gender", e.target.value as ListingForm["gender"])}
+            className="mt-1 w-full rounded-md border border-gray-300 p-2"
+          >
+            <option value="">Selecciona género</option>
+            {GENDER_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Se rellena solo al elegir la categoría, pero puedes cambiarlo aquí.
+          </p>
         </div>
 
         {/* Colores */}

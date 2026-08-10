@@ -29,6 +29,12 @@ const SIZE_OPTIONS = [
 
 const CONDITION_OPTIONS = ["Nuevo", "Como nuevo", "Bueno", "Aceptable"]
 
+const GENDER_OPTIONS: { label: string; value: 'hombre' | 'mujer' | 'unisex' }[] = [
+  { label: 'Hombre', value: 'hombre' },
+  { label: 'Mujer', value: 'mujer' },
+  { label: 'Unisex', value: 'unisex' },
+]
+
 const MULTI_FIELD_OPTIONS: Record<string, string[]> = {
   colors: COLOR_OPTIONS,
 }
@@ -154,6 +160,7 @@ function RetryForm({
   const [photoUrls, setPhotoUrls] = useState<string[]>([])
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [brandValue, setBrandValue] = useState('')
+  const [genderValue, setGenderValue] = useState<'hombre' | 'mujer' | 'unisex' | ''>('')
   const [categorySelection, setCategorySelection] = useState<{
     item_type: string | null
     categoryPath: string
@@ -164,6 +171,7 @@ function RetryForm({
   const isBrandField = (key: string) => key === 'brand' || key === 'attributes.brand'
   const isCategoryField = (key: string) =>
     key === 'item_type' || key === 'categoryPath' || key === 'attributes.categoryPath'
+  const isGenderField = (key: string) => key === 'gender'
 
   const handleChange = (key: string, value: string) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -208,6 +216,7 @@ function RetryForm({
     if (f.key === 'photo_url') return photoUrls.length > 0
     if (isBrandField(f.key)) return brandValue.trim().length > 0
     if (isCategoryField(f.key)) return !!categorySelection?.categoryPath
+    if (isGenderField(f.key)) return genderValue !== ''
     if (MULTI_FIELD_OPTIONS[f.key]) return (multiValues[f.key]?.length ?? 0) > 0
     return values[f.key]?.trim()
   })
@@ -231,7 +240,12 @@ function RetryForm({
       patch.item_type = categorySelection.item_type
       patch['attributes.categoryPath'] = categorySelection.categoryPath
       patch['attributes.vintedCategoryId'] = categorySelection.vintedCategoryId
-      if (categorySelection.gender) patch.gender = categorySelection.gender
+    }
+
+    if (missingFields.some(f => isGenderField(f.key))) {
+      patch.gender = genderValue
+    } else if (categorySelection?.gender) {
+      patch.gender = categorySelection.gender
     }
 
     return patch
@@ -308,12 +322,34 @@ function RetryForm({
                     vintedCategoryId: leaf?.id ?? 0,
                     gender,
                   })
+                  if (gender) setGenderValue(gender)
                 }}
               />
               {categorySelection?.gender && (
                 <p className="text-xs text-gray-400">
                   Género: <span className="capitalize">{categorySelection.gender}</span>
                 </p>
+              )}
+            </div>
+          )
+        }
+
+        if (isGenderField(field.key)) {
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+              <select
+                value={genderValue}
+                onChange={(e) => setGenderValue(e.target.value as typeof genderValue)}
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Selecciona género</option>
+                {GENDER_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              {categorySelection?.gender && genderValue === categorySelection.gender && (
+                <p className="text-xs text-gray-400">Inferido de la categoría seleccionada</p>
               )}
             </div>
           )

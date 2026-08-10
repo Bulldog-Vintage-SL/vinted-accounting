@@ -49,6 +49,12 @@ const SIZE_OPTIONS = [
 
 const CONDITION_OPTIONS = ['Nuevo', 'Como nuevo', 'Bueno', 'Aceptable']
 
+const GENDER_OPTIONS: { label: string; value: 'hombre' | 'mujer' | 'unisex' }[] = [
+  { label: 'Hombre', value: 'hombre' },
+  { label: 'Mujer', value: 'mujer' },
+  { label: 'Unisex', value: 'unisex' },
+]
+
 // Formatea el precio para mostrarlo con coma
 const formatPriceForDisplay = (value: number | ''): string => {
   if (value === '' || value === 0) return ''
@@ -402,7 +408,7 @@ export function ListingDetailForm({ listingId }: Props) {
                   handleChange('item_type', leaf?.title ?? null)
                   handleAttributeChange('categoryPath', fullPath)
                   handleAttributeChange('vintedCategoryId', leaf?.id ?? 0)
-                  handleChange('gender', gender)
+                  if (gender) handleChange('gender', gender)
                 }}
               />
               {form.gender && (
@@ -410,6 +416,24 @@ export function ListingDetailForm({ listingId }: Props) {
                   Género: <span className="capitalize">{form.gender}</span>
                 </p>
               )}
+            </div>
+
+            {/* Genero */}
+            <div>
+              <label className="text-sm font-semibold text-gray-700">Género</label>
+              <select
+                value={form.gender ?? ''}
+                onChange={(e) => handleChange('gender', e.target.value as ListingForm['gender'])}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mt-1"
+              >
+                <option value="">Selecciona género</option>
+                {GENDER_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Se rellena solo al elegir la categoría, pero puedes cambiarlo aquí.
+              </p>
             </div>
           </div>
 
