@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import connectMongo from "@/libs/mongoose";
 import Listing from "@/models/Listing";
 import Publication from "@/models/Publication";
+import brandsList from "@/data/brands.json";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import { uploadImageFromUrl } from "@/utils/r2/uploadImage";
 import mongoose from "mongoose";
@@ -81,7 +82,10 @@ async function importPublication(
     condition: item.status,
     price: item.price.amount,
     photoUrl: photoUrls,
-    attributes: { brand: item.brand, size: mapSizeToStandard(item.size) },
+    attributes: {
+      brand: existingBrand(item.brand),
+      size: mapSizeToStandard(item.size),
+    },
     stock: 1,
   });
 
@@ -113,12 +117,12 @@ function getVintedStatus(item: any): string {
 function buildVintedSlug(title: string): string {
   return title
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") 
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "") 
+    .replace(/[^a-z0-9\s-]/g, "")
     .trim()
-    .replace(/\s+/g, "-") 
-    .replace(/-+/g, "-"); 
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
 }
 
 function mapSizeToStandard(sizeInput: string): string | null {
@@ -209,4 +213,30 @@ function mapSizeToStandard(sizeInput: string): string | null {
   }
 
   return null;
+}
+
+function normalizeBrand(brand: string): string {
+  return brand
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9& ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+
+function existingBrand(brand: string): string {
+  const normalized = normalizeBrand(brand);
+
+  const match = brandsList.find(existing => {
+    const normalizedExisting = normalizeBrand(existing);
+
+    return (
+      normalizedExisting === normalized ||
+      normalizedExisting.startsWith(normalized) || normalized.startsWith(normalizedExisting)
+    );
+  });
+
+  return match ?? "";
 }
