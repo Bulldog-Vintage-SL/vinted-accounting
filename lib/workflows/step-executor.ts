@@ -62,9 +62,23 @@ export function processStepResult(
       s.syncStatus = result.matches ? 'OK' : 'ACCOUNT_NOT_FOUND'
       break
 
-    case 'GET_WARDROBE':
-      s.items = result.items
+    case 'GET_WARDROBE': {
+      s.items = [...(s.items ?? []), ...(result.items ?? [])]
+
+      // La API de armario de Vinted pagina la respuesta: mientras queden
+      // páginas encolamos otro GET_WARDROBE (la URL se rellena más abajo).
+      const pagination = result.pagination
+      if (pagination && pagination.current_page < pagination.total_pages) {
+        s.vintedNextPage = pagination.current_page + 1
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_WARDROBE',
+          platform: 'vinted',
+          request: { url: '', method: 'GET' }
+        })
+      }
       break
+    }
 
     case 'GET_VINT_ITEM':
       s.vintedItem = result.item
@@ -346,6 +360,14 @@ export function processStepResult(
 
   switch (next.type) {
     // Vinted
+    case 'GET_WARDROBE':
+      if (!next.request.url) {
+        next.request.url =
+          `https://www.vinted.es/api/v2/wardrobe/${s.originalPayload.externalId}/items` +
+          `?page=${s.vintedNextPage ?? 1}&per_page=20`
+      }
+      break
+
     case 'GET_PROFILE':
       next.request.url = `https://www.vinted.es/member/${s.userId}`
       break

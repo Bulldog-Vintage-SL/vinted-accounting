@@ -129,6 +129,7 @@ export interface WorkflowState {
   colorIds?: number[]
   vintedItem?: any
   itemAttributesRaw?: any
+  vintedNextPage?: number
 
   // Wallapop
   uploadId?: string
