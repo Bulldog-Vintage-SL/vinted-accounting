@@ -27,12 +27,30 @@ export async function POST(req: Request) {
       );
     }
 
+    let created = 0;
+    let alreadyImported = 0;
+    let blockedByOtherUser = 0;
+
     for (const item of body.wardrobe) {
-      await importPublication(item, userId, body.accountId);
+      const result = await importPublication(item, userId, body.accountId);
+      if (result === "created") created++;
+      else if (result === "already-imported") alreadyImported++;
+      else blockedByOtherUser++;
     }
 
+    const parts = [`${created} importados`];
+    if (alreadyImported > 0) parts.push(`${alreadyImported} ya existentes`);
+    if (blockedByOtherUser > 0)
+      parts.push(`${blockedByOtherUser} vinculados a otro usuario`);
+
     return NextResponse.json(
-      { status: "success", message: "Armario importado correctamente" },
+      {
+        status: "success",
+        message: `Armario procesado: ${parts.join(", ")}`,
+        created,
+        alreadyImported,
+        blockedByOtherUser,
+      },
       { status: 200 }
     );
   } catch (err) {
@@ -47,22 +65,46 @@ export async function POST(req: Request) {
   }
 }
 
+type ImportResult = "created" | "already-imported" | "blocked-by-other-user";
+
 async function importPublication(
   item: any,
   userId: string,
   accountId: string
-) {
+): Promise<ImportResult> {
   const externalId = item.id;
   const platform = "vinted";
   const platformId = "1";
 
   await connectMongo();
+
+  // El índice único de Publication es (platform, externalId), por lo que solo
+  // puede existir una publicación por item de Vinted en toda la BD. Si ya
+  // existe, hay que distinguir de quién es antes de decidir si se reimporta.
   const existingPublication = await Publication.findOne({
-    platformId,
+    platform,
     externalId: String(externalId),
   });
 
-  if (existingPublication) return;
+  if (existingPublication) {
+    const linkedListing = existingPublication.listingId
+      ? await Listing.findById(existingPublication.listingId)
+      : null;
+
+    if (linkedListing && linkedListing.userId?.toString() === userId) {
+      return "already-imported";
+    }
+
+    if (linkedListing) {
+      // El item ya está vinculado a un listing de otro usuario: no podemos
+      // crear otra publicación (índice único) ni tocar datos ajenos.
+      return "blocked-by-other-user";
+    }
+
+    // Publicación huérfana (su listing ya no existe): la limpiamos para
+    // que este usuario pueda reimportar el item.
+    await Publication.deleteOne({ _id: existingPublication._id });
+  }
 
   let photoUrls: string[] = [];
   if (item.photos?.length > 0) {
@@ -104,6 +146,8 @@ async function importPublication(
     publicationUrl,
     accountId: new mongoose.Types.ObjectId(accountId),
   });
+
+  return "created";
 }
 
 function getVintedStatus(item: any): string {
