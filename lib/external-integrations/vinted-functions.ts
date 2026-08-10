@@ -177,30 +177,67 @@ export async function importWardrobe(userId: string) {
 
       const items = result.result.state.items;
 
-      // Importamos los articulos que se nos han devuelto
-      const resApi = await fetch('/api/listings/import/vinted', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: userId,
-          wardrobe: items,
-          timestamp: Date.now()
-        })
-      });
+      // Nos quedamos solo con los campos que usa el endpoint de import:
+      // el JSON completo de Vinted (thumbnails, perfil de usuario, etc.)
+      // supera el límite de 4.5MB de body de Vercel (413) con armarios grandes.
+      const slimItems = items.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        status: item.status,
+        brand: item.brand,
+        size: item.size,
+        price: { amount: item.price?.amount },
+        is_draft: item.is_draft,
+        is_closed: item.is_closed,
+        is_reserved: item.is_reserved,
+        is_hidden: item.is_hidden,
+        photos: (item.photos ?? []).map((p: any) => ({ url: p.url })),
+      }));
 
-      const data = await resApi.json();
+      // Importamos por lotes: evita el límite de 4.5MB de body y mantiene
+      // cada invocación del endpoint (que descarga y resube fotos) corta.
+      const BATCH_SIZE = 25;
+      let created = 0;
+      let alreadyImported = 0;
+      let blockedByOtherUser = 0;
+      let lastData: any = null;
 
-      if (!resApi.ok || data.status !== "success") {
-        return {
-          ok: false,
-          message: data.message || "Error guardando la cuenta",
-        };
+      for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
+        const batch = slimItems.slice(i, i + BATCH_SIZE);
+
+        const resApi = await fetch('/api/listings/import/vinted', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accountId: userId,
+            wardrobe: batch,
+            timestamp: Date.now()
+          })
+        });
+
+        const data = await resApi.json();
+
+        if (!resApi.ok || data.status !== "success") {
+          return {
+            ok: false,
+            message: data.message || "Error guardando la cuenta",
+          };
+        }
+
+        created += data.created ?? 0;
+        alreadyImported += data.alreadyImported ?? 0;
+        blockedByOtherUser += data.blockedByOtherUser ?? 0;
+        lastData = data;
       }
+
+      const parts = [`${created} importados`];
+      if (alreadyImported > 0) parts.push(`${alreadyImported} ya existentes`);
+      if (blockedByOtherUser > 0) parts.push(`${blockedByOtherUser} vinculados a otro usuario`);
 
       return {
         ok: true,
-        message: data.message,
-        data,
+        message: `Armario procesado: ${parts.join(", ")}`,
+        data: { ...lastData, created, alreadyImported, blockedByOtherUser },
       };
 
     }
