@@ -122,7 +122,7 @@ async function ensureMerchantLocation(
     const locations = await ebayApiRequest<LocationListResponse>(
       accessToken,
       "GET",
-      "/sell/inventory/v1/location?limit=1"
+      "/sell/inventory/v1/location?limit=20"
     );
     const found = firstId(
       locations.locations as { merchantLocationKey: string }[] | undefined,
@@ -133,23 +133,39 @@ async function ensureMerchantLocation(
     if (err instanceof EbayApiError && err.status === 403) {
       throw new EbayPoliciesPermissionError();
     }
-    throw err;
+    // eBay responde 500 (25001 "System error") al listar ubicaciones en
+    // cuentas que aún no tienen ninguna: seguimos adelante y creamos una.
+    if (!(err instanceof EbayApiError && err.status === 500)) {
+      throw err;
+    }
   }
 
+  // La clave va en la URL (createInventoryLocation), no en el body.
   const merchantLocationKey = `RL-${account._id?.toString().slice(-8)}`;
-  await ebayApiRequest(accessToken, "POST", "/sell/inventory/v1/location", {
-    location: {
-      address: {
-        addressLine1: "Calle Principal 1",
-        city: "Madrid",
-        postalCode: "28001",
-        country: "ES",
-      },
-    },
-    locationTypes: ["WAREHOUSE"],
-    merchantLocationKey,
-    name: "Reventa Libertad",
-  });
+  try {
+    await ebayApiRequest(
+      accessToken,
+      "POST",
+      `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
+      {
+        location: {
+          address: {
+            addressLine1: "Calle Principal 1",
+            city: "Madrid",
+            postalCode: "28001",
+            country: "ES",
+          },
+        },
+        locationTypes: ["WAREHOUSE"],
+        name: "Reventa Libertad",
+      }
+    );
+  } catch (err) {
+    // 409: la ubicación ya existe con esta clave; podemos reutilizarla.
+    if (!(err instanceof EbayApiError && err.status === 409)) {
+      throw err;
+    }
+  }
 
   return merchantLocationKey;
 }
