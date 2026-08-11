@@ -383,6 +383,187 @@ export async function resolveEbayConditionForCategory(
   }
 }
 
+const COLOR_ES_TO_EN: Record<string, string> = {
+  negro: "Black",
+  blanco: "White",
+  rojo: "Red",
+  azul: "Blue",
+  verde: "Green",
+  amarillo: "Yellow",
+  gris: "Gray",
+  rosa: "Pink",
+  naranja: "Orange",
+  marron: "Brown",
+  marrón: "Brown",
+  beige: "Beige",
+  dorado: "Gold",
+  plateado: "Silver",
+  multicolor: "Multicolor",
+};
+
+const DEPARTMENT_MAP: Record<string, string> = {
+  mujer: "Women",
+  hombre: "Men",
+  unisex: "Unisex Adults",
+  female: "Women",
+  male: "Men",
+};
+
+function normalizeKey(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function mapListingColorToEbay(color: string): string {
+  const key = normalizeKey(color);
+  return COLOR_ES_TO_EN[key] ?? color;
+}
+
+interface CategoryAspect {
+  localizedAspectName?: string;
+  aspectConstraint?: {
+    aspectRequired?: boolean;
+    aspectMode?: string;
+    itemToAspectCardinality?: string;
+  };
+  aspectValues?: Array<{ localizedValue?: string }>;
+}
+
+async function fetchCategoryAspects(
+  accessToken: string,
+  marketplaceId: string,
+  categoryId: string
+): Promise<CategoryAspect[]> {
+  const treeId = await getEbayCategoryTreeId(accessToken, marketplaceId);
+  if (!treeId) return [];
+
+  try {
+    const data = await ebayApiRequest<{ aspects?: CategoryAspect[] }>(
+      accessToken,
+      "GET",
+      `/commerce/taxonomy/v1/category_tree/${treeId}/get_item_aspects_for_category` +
+        `?category_id=${encodeURIComponent(categoryId)}`
+    );
+    return data.aspects ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function pickAspectValue(
+  aspect: CategoryAspect,
+  preferred: string[]
+): string | null {
+  const allowed = (aspect.aspectValues ?? [])
+    .map((v) => v.localizedValue)
+    .filter((v): v is string => Boolean(v));
+
+  for (const pref of preferred) {
+    if (!pref) continue;
+    const exact = allowed.find((a) => a.toLowerCase() === pref.toLowerCase());
+    if (exact) return exact;
+    const partial = allowed.find(
+      (a) =>
+        a.toLowerCase().includes(pref.toLowerCase()) ||
+        pref.toLowerCase().includes(a.toLowerCase())
+    );
+    if (partial) return partial;
+    // FREE_TEXT: aceptar el valor preferido aunque no esté en la lista
+    if (
+      allowed.length === 0 ||
+      aspect.aspectConstraint?.aspectMode === "FREE_TEXT"
+    ) {
+      return pref;
+    }
+  }
+
+  // Aspecto obligatorio sin valor del listing: primer valor permitido
+  if (aspect.aspectConstraint?.aspectRequired && allowed[0]) {
+    return allowed[0];
+  }
+
+  return null;
+}
+
+/**
+ * Construye product.aspects con los item specifics requeridos por la
+ * categoría (Color, Brand, Size…). Evita el error 25002.
+ */
+export async function resolveEbayProductAspects(
+  accessToken: string,
+  marketplaceId: string,
+  categoryId: string,
+  listing: IListing
+): Promise<Record<string, string[]>> {
+  const attrs = (listing.attributes ?? {}) as Record<string, unknown>;
+  const brand = typeof attrs.brand === "string" ? attrs.brand.trim() : "";
+  const size = typeof attrs.size === "string" ? attrs.size.trim() : "";
+  const colors = (listing.colors ?? []).map(mapListingColorToEbay);
+  const department =
+    DEPARTMENT_MAP[normalizeKey(listing.gender ?? "")] ?? listing.gender ?? "";
+
+  const sourceByAspect: Record<string, string[]> = {
+    color: colors.length ? colors : ["Black"],
+    colour: colors.length ? colors : ["Black"],
+    brand: brand ? [brand] : ["Unbranded"],
+    size: size ? [size] : ["One Size"],
+    department: department ? [department] : ["Women"],
+    style: ["Casual"],
+    material: ["Unknown"],
+    pattern: ["Solid"],
+    "outer shell material": ["Unknown"],
+    "bag height": ["N/A"],
+    "bag depth": ["N/A"],
+    "bag width": ["N/A"],
+  };
+
+  const categoryAspects = await fetchCategoryAspects(
+    accessToken,
+    marketplaceId,
+    categoryId
+  );
+
+  const aspects: Record<string, string[]> = {};
+
+  if (categoryAspects.length === 0) {
+    // Sin metadata: enviar al menos Color/Brand (los más comunes en moda)
+    aspects.Color = sourceByAspect.color;
+    if (brand) aspects.Brand = [brand];
+    if (size) aspects.Size = [size];
+    return aspects;
+  }
+
+  for (const aspect of categoryAspects) {
+    const name = aspect.localizedAspectName;
+    if (!name) continue;
+
+    const key = normalizeKey(name);
+    const preferred = sourceByAspect[key] ?? [];
+    const required = Boolean(aspect.aspectConstraint?.aspectRequired);
+
+    // Solo rellenamos aspectos requeridos o los que tenemos valor claro
+    if (!required && preferred.length === 0) continue;
+
+    const value = pickAspectValue(
+      aspect,
+      preferred.length ? preferred : required ? ["Black", "Other", "N/A"] : []
+    );
+    if (value) {
+      aspects[name] = [value];
+    }
+  }
+
+  // Garantía mínima: Color siempre (error 25002 más frecuente)
+  if (!Object.keys(aspects).some((k) => normalizeKey(k) === "color")) {
+    aspects.Color = sourceByAspect.color;
+  }
+
+  return aspects;
+}
+
 export async function buildInventoryItemPayload(
   listing: IListing,
   sku: string,
@@ -392,16 +573,25 @@ export async function buildInventoryItemPayload(
     categoryId?: string;
   }
 ) {
-  const brand = (listing.attributes as Record<string, unknown> | undefined)?.brand;
-  const aspects: Record<string, string[]> = {};
-  if (typeof brand === "string" && brand.trim()) {
-    aspects.Brand = [brand.trim()];
-  }
-  if (listing.colors?.length) {
-    aspects.Color = listing.colors.map(String);
-  }
-  if (listing.gender) {
-    aspects.Department = [listing.gender];
+  let aspects: Record<string, string[]> = {};
+
+  if (options?.accessToken && options.categoryId) {
+    aspects = await resolveEbayProductAspects(
+      options.accessToken,
+      options.marketplaceId || getEbayMarketplaceId(),
+      options.categoryId,
+      listing
+    );
+  } else {
+    const brand = (listing.attributes as Record<string, unknown> | undefined)
+      ?.brand;
+    if (typeof brand === "string" && brand.trim()) {
+      aspects.Brand = [brand.trim()];
+    }
+    aspects.Color = (listing.colors?.length
+      ? listing.colors
+      : ["Black"]
+    ).map(mapListingColorToEbay);
   }
 
   let condition = mapConditionToEbay(listing.condition);
