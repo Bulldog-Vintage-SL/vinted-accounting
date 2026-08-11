@@ -205,6 +205,56 @@ async function fetchAccountPolicies(
   }
 }
 
+interface MetadataShippingService {
+  shippingService?: string;
+  internationalService?: boolean;
+  shippingCategory?: string;
+  shippingCostTypes?: string[];
+  validForSellingFlow?: boolean;
+}
+
+/**
+ * Los códigos de servicio de envío varían por marketplace y eBay rechaza
+ * valores inventados ("Please select a valid shipping service"). Se consultan
+ * los servicios válidos vía Metadata API y se elige uno nacional de tarifa plana.
+ */
+async function resolveDomesticShippingServiceCode(
+  accessToken: string,
+  marketplaceId: string
+): Promise<string> {
+  const { ebayApiRequest } = await import("@/libs/ebay/api");
+
+  const data = await ebayApiRequest<{
+    shippingServices?: MetadataShippingService[];
+  }>(
+    accessToken,
+    "GET",
+    `/sell/metadata/v1/shipping/marketplace/${marketplaceId}/get_shipping_services`
+  );
+
+  const candidates = (data.shippingServices ?? []).filter(
+    (s) =>
+      s.validForSellingFlow &&
+      !s.internationalService &&
+      s.shippingService &&
+      s.shippingCategory !== "PICKUP" &&
+      (s.shippingCostTypes ?? []).includes("FLAT_RATE")
+  );
+
+  const preferred =
+    candidates.find((s) => s.shippingCategory === "STANDARD") ??
+    candidates.find((s) => s.shippingCategory === "ECONOMY") ??
+    candidates[0];
+
+  if (!preferred?.shippingService) {
+    throw new Error(
+      `eBay no devolvió ningún servicio de envío nacional válido para ${marketplaceId}`
+    );
+  }
+
+  return preferred.shippingService;
+}
+
 /** eBay 20403: la cuenta no está adherida al programa de Business Policies. */
 function isBusinessPolicyEligibilityError(err: unknown): boolean {
   return (
@@ -238,6 +288,11 @@ async function createMissingPolicies(
 
   try {
     if (!fulfillmentPolicyId) {
+      const shippingServiceCode = await resolveDomesticShippingServiceCode(
+        accessToken,
+        marketplaceId
+      );
+
       const created = await ebayApiRequest<{ fulfillmentPolicyId: string }>(
         accessToken,
         "POST",
@@ -254,8 +309,7 @@ async function createMissingPolicies(
               shippingServices: [
                 {
                   sortOrder: 1,
-                  shippingCarrierCode: "OTHER",
-                  shippingServiceCode: "ES_StandardShipping",
+                  shippingServiceCode,
                   shippingCost: { value: "4.99", currency: "EUR" },
                 },
               ],
