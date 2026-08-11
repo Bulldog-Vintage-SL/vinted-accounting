@@ -205,18 +205,12 @@ async function fetchAccountPolicies(
   }
 }
 
-interface MetadataShippingService {
-  shippingService?: string;
-  internationalService?: boolean;
-  shippingCategory?: string;
-  shippingCostTypes?: string[];
-  validForSellingFlow?: boolean;
-}
-
 /**
  * Los códigos de servicio de envío varían por marketplace y eBay rechaza
  * valores inventados ("Please select a valid shipping service"). Se consultan
  * los servicios válidos vía Metadata API y se elige uno nacional de tarifa plana.
+ * El parseo es tolerante porque los nombres de campo de la respuesta no están
+ * documentados de forma consistente.
  */
 async function resolveDomesticShippingServiceCode(
   accessToken: string,
@@ -224,35 +218,58 @@ async function resolveDomesticShippingServiceCode(
 ): Promise<string> {
   const { ebayApiRequest } = await import("@/libs/ebay/api");
 
-  const data = await ebayApiRequest<{
-    shippingServices?: MetadataShippingService[];
-  }>(
+  const data = await ebayApiRequest<Record<string, unknown>>(
     accessToken,
     "GET",
     `/sell/metadata/v1/shipping/marketplace/${marketplaceId}/get_shipping_services`
   );
 
-  const candidates = (data.shippingServices ?? []).filter(
-    (s) =>
-      s.validForSellingFlow &&
-      !s.internationalService &&
-      s.shippingService &&
-      s.shippingCategory !== "PICKUP" &&
-      (s.shippingCostTypes ?? []).includes("FLAT_RATE")
-  );
+  const rawList = (data.shippingServices ??
+    data.shipping_services ??
+    []) as Record<string, unknown>[];
+
+  const services = rawList
+    .map((raw) => ({
+      code: (raw.shippingService ??
+        raw.shippingServiceCode ??
+        raw.shipping_service ??
+        null) as string | null,
+      international: Boolean(
+        raw.internationalService ?? raw.international_service ?? false
+      ),
+      category: (raw.shippingCategory ??
+        raw.shipping_category ??
+        "") as string,
+      costTypes: (raw.shippingCostTypes ??
+        raw.shipping_cost_types ??
+        []) as string[],
+      valid: (raw.validForSellingFlow ??
+        raw.valid_for_selling_flow ??
+        true) as boolean,
+    }))
+    .filter(
+      (s) => s.code && s.valid && !s.international && s.category !== "PICKUP"
+    );
+
+  const flatRate = (s: (typeof services)[number]) =>
+    s.costTypes.includes("FLAT_RATE");
 
   const preferred =
-    candidates.find((s) => s.shippingCategory === "STANDARD") ??
-    candidates.find((s) => s.shippingCategory === "ECONOMY") ??
-    candidates[0];
+    services.find((s) => s.category === "STANDARD" && flatRate(s)) ??
+    services.find(flatRate) ??
+    services.find((s) => s.category === "STANDARD") ??
+    services[0];
 
-  if (!preferred?.shippingService) {
+  if (!preferred?.code) {
+    // Incluimos un extracto de la respuesta real para poder diagnosticar
+    // qué forma tienen los datos si eBay cambia el formato.
+    const sample = JSON.stringify(data).slice(0, 600);
     throw new Error(
-      `eBay no devolvió ningún servicio de envío nacional válido para ${marketplaceId}`
+      `eBay no devolvió ningún servicio de envío nacional válido para ${marketplaceId}. Respuesta: ${sample}`
     );
   }
 
-  return preferred.shippingService;
+  return preferred.code;
 }
 
 /** eBay 20403: la cuenta no está adherida al programa de Business Policies. */
