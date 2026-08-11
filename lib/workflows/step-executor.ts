@@ -43,11 +43,17 @@ export function processStepResult(
     }
 
     case 'GET_BRAND': {
+      if (s.originalPayload?.listing?.attributes?.brand === 'Sin marca') {
+        s.brandId = 1
+        s.brandName = 'Publicar sin marca'
+        break
+      }
       const brand = result.brands?.[0]
       s.brandId = brand?.id ?? 1
       s.brandName = brand?.title ?? 'Publicar sin marca'
       break
     }
+
     case 'GET_COLORS':
       s.colorIds = getColorIds(result.colors, s.originalPayload?.listing?.colors)
       break
@@ -1094,6 +1100,7 @@ function findDepopColourIds(options: any[], colors: string[]): string[] {
 
 function findDepopBrandSlug(brands: any[], brandName: string): string {
   if (!brandName) return ''
+  if (brandName === 'Sin marca') return 'unbranded'
   const normalize = (s: string) => s?.toLowerCase().trim()
   const target = normalize(brandName)
 
