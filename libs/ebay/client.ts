@@ -78,8 +78,29 @@ export function getEbayApiBaseUrl(): string {
     : "https://api.sandbox.ebay.com";
 }
 
+export function isEbayProduction(): boolean {
+  return getEnvironment() === "production";
+}
+
 export function getEbayMarketplaceId(): string {
+  // El sandbox de eBay solo funciona de forma coherente con el marketplace
+  // de EEUU: los items se indexan por idioma (en-US) y una oferta para otro
+  // marketplace no los encuentra (error 25751).
+  if (!isEbayProduction()) return "EBAY_US";
   return process.env.EBAY_MARKETPLACE_ID || "EBAY_ES";
+}
+
+const CURRENCY_BY_MARKETPLACE: Record<string, string> = {
+  EBAY_US: "USD",
+  EBAY_GB: "GBP",
+  EBAY_ES: "EUR",
+  EBAY_DE: "EUR",
+  EBAY_FR: "EUR",
+  EBAY_IT: "EUR",
+};
+
+export function getEbayCurrency(marketplaceId: string): string {
+  return CURRENCY_BY_MARKETPLACE[marketplaceId] ?? "EUR";
 }
 
 const CONTENT_LANGUAGE_BY_MARKETPLACE: Record<string, string> = {

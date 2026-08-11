@@ -1,5 +1,6 @@
 import type { IListing } from "@/models/Listing";
 import { ebayApiRequest, EbayApiError } from "@/libs/ebay/api";
+import { getEbayCurrency } from "@/libs/ebay/client";
 import {
   buildInventoryItemPayload,
   buildListingSku,
@@ -127,7 +128,7 @@ export async function createEbayOffer(
       pricingSummary: {
         price: {
           value: String(listing.price ?? 0),
-          currency: "EUR",
+          currency: getEbayCurrency(policies.marketplaceId),
         },
       },
       quantity: listing.stock ?? 1,
@@ -164,7 +165,7 @@ export async function updateEbayOffer(
       pricingSummary: {
         price: {
           value: String(listing.price ?? 0),
-          currency: "EUR",
+          currency: getEbayCurrency(policies.marketplaceId),
         },
       },
       quantity: listing.stock ?? 1,

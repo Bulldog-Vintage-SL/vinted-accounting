@@ -2,7 +2,12 @@ import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import type { IAccount } from "@/models/Account";
 import { getValidEbayAccessToken } from "@/libs/ebay/account-token";
-import { getEbayMarketplaceId, hasEbaySellAccountScope } from "@/libs/ebay/client";
+import {
+  getEbayMarketplaceId,
+  getEbayCurrency,
+  isEbayProduction,
+  hasEbaySellAccountScope,
+} from "@/libs/ebay/client";
 import { EbayApiError } from "@/libs/ebay/api";
 
 export interface EbayAccountContext {
@@ -343,7 +348,10 @@ async function createMissingPolicies(
                 {
                   sortOrder: 1,
                   shippingServiceCode,
-                  shippingCost: { value: "4.99", currency: "EUR" },
+                  shippingCost: {
+                    value: "4.99",
+                    currency: getEbayCurrency(marketplaceId),
+                  },
                 },
               ],
             },
@@ -416,8 +424,11 @@ export async function ensureEbayListingPolicies(
   options: { skipCache?: boolean } = {}
 ): Promise<EbayListingPolicies> {
   const skipCache = options.skipCache ?? false;
-  const marketplaceId =
-    account.ebayMarketplaceId || getEbayMarketplaceId();
+  // En sandbox se ignora el marketplace guardado en la cuenta: solo EBAY_US
+  // funciona de forma coherente allí.
+  const marketplaceId = isEbayProduction()
+    ? account.ebayMarketplaceId || getEbayMarketplaceId()
+    : getEbayMarketplaceId();
 
   assertEbayPolicyAccess(account, marketplaceId);
 
