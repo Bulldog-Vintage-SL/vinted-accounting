@@ -290,16 +290,34 @@ async function createMissingPolicies(
   return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };
 }
 
+/**
+ * eBay responde 400 (25709) "Invalid value for xxxPolicyId" cuando la oferta
+ * referencia políticas que ya no existen o pertenecen a otro entorno
+ * (p. ej. IDs de sandbox cacheados y reutilizados en producción).
+ */
+export function isInvalidEbayPolicyError(err: unknown): boolean {
+  return (
+    err instanceof EbayApiError &&
+    err.status === 400 &&
+    /Invalid value for (fulfillment|payment|return)PolicyId|merchantLocationKey/i.test(
+      err.body
+    )
+  );
+}
+
 export async function ensureEbayListingPolicies(
   account: IAccount,
-  accessToken: string
+  accessToken: string,
+  options: { skipCache?: boolean } = {}
 ): Promise<EbayListingPolicies> {
+  const skipCache = options.skipCache ?? false;
   const marketplaceId =
     account.ebayMarketplaceId || getEbayMarketplaceId();
 
   assertEbayPolicyAccess(account, marketplaceId);
 
   if (
+    !skipCache &&
     account.ebayMerchantLocationKey &&
     account.ebayFulfillmentPolicyId &&
     account.ebayPaymentPolicyId &&
@@ -314,15 +332,27 @@ export async function ensureEbayListingPolicies(
     };
   }
 
-  const envPolicies = policiesFromEnv(marketplaceId);
+  // Con skipCache ignoramos tanto los IDs cacheados en la cuenta como los de
+  // las variables de entorno: se vuelven a resolver directamente contra eBay.
+  const envPolicies: Partial<EbayListingPolicies> = skipCache
+    ? {}
+    : policiesFromEnv(marketplaceId);
   let fulfillmentPolicyId =
-    account.ebayFulfillmentPolicyId || envPolicies.fulfillmentPolicyId || null;
+    (skipCache ? null : account.ebayFulfillmentPolicyId) ||
+    envPolicies.fulfillmentPolicyId ||
+    null;
   let paymentPolicyId =
-    account.ebayPaymentPolicyId || envPolicies.paymentPolicyId || null;
+    (skipCache ? null : account.ebayPaymentPolicyId) ||
+    envPolicies.paymentPolicyId ||
+    null;
   let returnPolicyId =
-    account.ebayReturnPolicyId || envPolicies.returnPolicyId || null;
+    (skipCache ? null : account.ebayReturnPolicyId) ||
+    envPolicies.returnPolicyId ||
+    null;
   let merchantLocationKey =
-    account.ebayMerchantLocationKey || envPolicies.merchantLocationKey || null;
+    (skipCache ? null : account.ebayMerchantLocationKey) ||
+    envPolicies.merchantLocationKey ||
+    null;
 
   if (!fulfillmentPolicyId || !paymentPolicyId || !returnPolicyId) {
     const fetched = await fetchAccountPolicies(accessToken, marketplaceId);

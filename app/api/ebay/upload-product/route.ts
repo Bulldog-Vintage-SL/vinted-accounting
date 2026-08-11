@@ -6,6 +6,7 @@ import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import {
   ensureEbayListingPolicies,
   getEbayAccountContext,
+  isInvalidEbayPolicyError,
   EbayPoliciesPermissionError,
 } from "@/libs/ebay/policies";
 import { publishListingToEbay } from "@/libs/ebay/inventory";
@@ -71,9 +72,22 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const policies = await ensureEbayListingPolicies(account, accessToken);
-    const { sku, offerId, listingId: ebayListingId } =
-      await publishListingToEbay(accessToken, listing, policies);
+    let policies = await ensureEbayListingPolicies(account, accessToken);
+
+    let publishResult;
+    try {
+      publishResult = await publishListingToEbay(accessToken, listing, policies);
+    } catch (err) {
+      // IDs de políticas cacheados que eBay ya no acepta (p. ej. creados en
+      // sandbox): se re-resuelven contra eBay y se reintenta una vez.
+      if (!isInvalidEbayPolicyError(err)) throw err;
+      policies = await ensureEbayListingPolicies(account, accessToken, {
+        skipCache: true,
+      });
+      publishResult = await publishListingToEbay(accessToken, listing, policies);
+    }
+
+    const { sku, offerId, listingId: ebayListingId } = publishResult;
 
     const marketplaceId = policies.marketplaceId || getEbayMarketplaceId();
     const publicationUrl = buildEbayListingUrl(ebayListingId, marketplaceId);
