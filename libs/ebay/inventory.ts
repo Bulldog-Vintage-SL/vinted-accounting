@@ -1,5 +1,5 @@
 import type { IListing } from "@/models/Listing";
-import { ebayApiRequest } from "@/libs/ebay/api";
+import { ebayApiRequest, EbayApiError } from "@/libs/ebay/api";
 import {
   buildInventoryItemPayload,
   buildListingSku,
@@ -70,12 +70,21 @@ export async function getEbayOffersBySku(
   accessToken: string,
   sku: string
 ): Promise<EbayOffer[]> {
-  const data = await ebayApiRequest<OfferListResponse>(
-    accessToken,
-    "GET",
-    `/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`
-  );
-  return data.offers ?? [];
+  try {
+    const data = await ebayApiRequest<OfferListResponse>(
+      accessToken,
+      "GET",
+      `/sell/inventory/v1/offer?sku=${encodeURIComponent(sku)}`
+    );
+    return data.offers ?? [];
+  } catch (err) {
+    // eBay responde 404 (25713 "This Offer is not available") cuando el SKU
+    // aún no tiene ofertas, en lugar de devolver una lista vacía.
+    if (err instanceof EbayApiError && err.status === 404) {
+      return [];
+    }
+    throw err;
+  }
 }
 
 export async function upsertEbayInventoryItem(
