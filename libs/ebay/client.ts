@@ -82,6 +82,23 @@ export function getEbayMarketplaceId(): string {
   return process.env.EBAY_MARKETPLACE_ID || "EBAY_ES";
 }
 
+const CONTENT_LANGUAGE_BY_MARKETPLACE: Record<string, string> = {
+  EBAY_ES: "es-ES",
+  EBAY_DE: "de-DE",
+  EBAY_FR: "fr-FR",
+  EBAY_IT: "it-IT",
+  EBAY_GB: "en-GB",
+  EBAY_US: "en-US",
+};
+
+export function getEbayContentLanguage(): string {
+  // El sandbox de eBay solo soporta bien el marketplace de EEUU: con un
+  // Content-Language distinto de en-US responde con el error 25709
+  // "Invalid value for header Accept-Language".
+  if (getEnvironment() !== "production") return "en-US";
+  return CONTENT_LANGUAGE_BY_MARKETPLACE[getEbayMarketplaceId()] ?? "en-US";
+}
+
 /** Normalize eBay scope URLs to short names for storage, e.g. sell.account */
 export function normalizeEbayScopesForStorage(scope?: string | null): string {
   if (!scope?.trim()) return "";

@@ -1,4 +1,4 @@
-import { getEbayApiBaseUrl } from "@/libs/ebay/client";
+import { getEbayApiBaseUrl, getEbayContentLanguage } from "@/libs/ebay/client";
 
 export class EbayApiError extends Error {
   constructor(
@@ -17,13 +17,15 @@ export async function ebayApiRequest<T = unknown>(
   path: string,
   body?: unknown
 ): Promise<T> {
+  const language = getEbayContentLanguage();
   const res = await fetch(`${getEbayApiBaseUrl()}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      "Content-Language": "es-ES",
+      "Content-Language": language,
+      "Accept-Language": language,
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

@@ -1,4 +1,5 @@
 import type { IListing } from "@/models/Listing";
+import { getEbayContentLanguage } from "@/libs/ebay/client";
 
 const CONDITION_MAP: Record<string, string> = {
   nuevo: "NEW",
@@ -81,7 +82,9 @@ export function buildInventoryItemPayload(
 
   return {
     sku,
-    locale: "es_ES",
+    // El campo locale usa guion bajo (es_ES), a diferencia del header
+    // Content-Language (es-ES). Debe coincidir con el idioma enviado.
+    locale: getEbayContentLanguage().replace("-", "_"),
     product: {
       title: listing.title?.slice(0, 80) ?? "Artículo",
       description: listing.description ?? "",
