@@ -205,6 +205,24 @@ async function fetchAccountPolicies(
   }
 }
 
+/** eBay 20403: la cuenta no está adherida al programa de Business Policies. */
+function isBusinessPolicyEligibilityError(err: unknown): boolean {
+  return (
+    err instanceof EbayApiError &&
+    err.status === 400 &&
+    /not eligible for Business Policy/i.test(err.body)
+  );
+}
+
+async function optInToSellingPolicyManagement(accessToken: string) {
+  const { ebayApiRequest } = await import("@/libs/ebay/api");
+  await ebayApiRequest(accessToken, "POST", "/sell/account/v1/program/opt_in", {
+    programType: "SELLING_POLICY_MANAGEMENT",
+  });
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 async function createMissingPolicies(
   accessToken: string,
   marketplaceId: string,
@@ -355,19 +373,51 @@ export async function ensureEbayListingPolicies(
     null;
 
   if (!fulfillmentPolicyId || !paymentPolicyId || !returnPolicyId) {
-    const fetched = await fetchAccountPolicies(accessToken, marketplaceId);
-    fulfillmentPolicyId = fulfillmentPolicyId || fetched.fulfillmentPolicyId;
-    paymentPolicyId = paymentPolicyId || fetched.paymentPolicyId;
-    returnPolicyId = returnPolicyId || fetched.returnPolicyId;
+    const resolveFromEbay = async () => {
+      const fetched = await fetchAccountPolicies(accessToken, marketplaceId);
+      return createMissingPolicies(accessToken, marketplaceId, {
+        fulfillmentPolicyId: fulfillmentPolicyId || fetched.fulfillmentPolicyId,
+        paymentPolicyId: paymentPolicyId || fetched.paymentPolicyId,
+        returnPolicyId: returnPolicyId || fetched.returnPolicyId,
+      });
+    };
 
-    const created = await createMissingPolicies(accessToken, marketplaceId, {
-      fulfillmentPolicyId,
-      paymentPolicyId,
-      returnPolicyId,
-    });
-    fulfillmentPolicyId = created.fulfillmentPolicyId;
-    paymentPolicyId = created.paymentPolicyId;
-    returnPolicyId = created.returnPolicyId;
+    let resolved: Awaited<ReturnType<typeof resolveFromEbay>> | null = null;
+    try {
+      resolved = await resolveFromEbay();
+    } catch (err) {
+      if (!isBusinessPolicyEligibilityError(err)) throw err;
+
+      // La cuenta de eBay no está adherida a Business Policies (error 20403):
+      // la adherimos vía API. El alta es asíncrona en eBay, así que
+      // reintentamos unas cuantas veces antes de rendirnos.
+      try {
+        await optInToSellingPolicyManagement(accessToken);
+      } catch {
+        // Si el propio opt-in falla, dejamos que el mensaje final lo explique
+      }
+
+      for (let attempt = 0; attempt < 3 && !resolved; attempt++) {
+        await sleep(3000);
+        try {
+          resolved = await resolveFromEbay();
+        } catch (retryErr) {
+          if (!isBusinessPolicyEligibilityError(retryErr)) throw retryErr;
+        }
+      }
+
+      if (!resolved) {
+        throw new Error(
+          "Tu cuenta de eBay no está adherida a las políticas de venta (Business Policies) " +
+            "y no se pudo activar automáticamente. Actívalas manualmente en " +
+            "https://www.bizpolicy.ebay.es/businesspolicy/manage y vuelve a intentarlo."
+        );
+      }
+    }
+
+    fulfillmentPolicyId = resolved.fulfillmentPolicyId;
+    paymentPolicyId = resolved.paymentPolicyId;
+    returnPolicyId = resolved.returnPolicyId;
   }
 
   merchantLocationKey = await ensureMerchantLocation(
