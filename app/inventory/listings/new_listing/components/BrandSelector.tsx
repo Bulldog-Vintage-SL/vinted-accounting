@@ -66,7 +66,6 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
 
       {isOpen && (
         <ul className="absolute z-10 mt-1 w-full max-h-56 overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
-          {/* Opción fija, siempre visible arriba, no se filtra */}
           <li
             onClick={() => handleSelect(NO_BRAND_OPTION)}
             className={`px-3 py-2 text-sm cursor-pointer italic border-b border-gray-200 ${

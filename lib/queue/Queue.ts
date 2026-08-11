@@ -49,7 +49,7 @@ export class Queue<T = unknown> {
   }>()
 
   constructor({
-    concurrency = 3,
+    concurrency = 1,
     delayBetweenJobs = 2000,
     actionDelays = {},
     platformDelays = {},
@@ -196,22 +196,22 @@ export class Queue<T = unknown> {
   private tick() {
     if (this._paused) return
 
+    // Ejecución estrictamente secuencial: si ya hay un job corriendo,
+    // no arrancamos otro. runJob() vuelve a llamar a tick() al terminar.
+    if (this.activeCount > 0) return
+
     let i = 0
     while (i < this.pending.length) {
       const job = this.pending[i]
       const platform = this.getPlatform(job)
 
       if (platform) {
-        if (this.activePlatforms.has(platform)) { i++; continue }
-
         const lastTime = this.lastJobTimeByPlatform[platform]
         if (lastTime) {
           const elapsed = Date.now() - lastTime
           const minDelay = this.getDelay(platform, job.action)
           if (elapsed < minDelay) { i++; continue }
         }
-      } else {
-        if (this.activeCountNoPlatform >= this.concurrency) { i++; continue }
       }
 
       this.pending.splice(i, 1)
@@ -224,6 +224,7 @@ export class Queue<T = unknown> {
       this.activeCount++
 
       this.runJob(job, platform)
+      break // solo arrancamos un job por tick; el resto espera a que este termine
     }
 
     if (this.pending.length === 0) {
