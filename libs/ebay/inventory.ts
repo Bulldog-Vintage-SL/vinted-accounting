@@ -91,9 +91,14 @@ export async function getEbayOffersBySku(
 export async function upsertEbayInventoryItem(
   accessToken: string,
   listing: IListing,
-  sku: string
+  sku: string,
+  options?: { marketplaceId?: string; categoryId?: string }
 ) {
-  const payload = buildInventoryItemPayload(listing, sku);
+  const payload = await buildInventoryItemPayload(listing, sku, {
+    accessToken,
+    marketplaceId: options?.marketplaceId,
+    categoryId: options?.categoryId ?? getDefaultCategoryId(listing),
+  });
   await ebayApiRequest(
     accessToken,
     "PUT",
@@ -217,7 +222,14 @@ export async function publishListingToEbay(
   policies: EbayListingPolicies
 ) {
   const sku = buildListingSku(listing);
-  await upsertEbayInventoryItem(accessToken, listing, sku);
+  const categoryId = getDefaultCategoryId(listing);
+
+  // La condición válida depende de la categoría: hay que resolverla ANTES
+  // de publicar el offer (error 25059 si USED_GOOD se usa en moda).
+  await upsertEbayInventoryItem(accessToken, listing, sku, {
+    marketplaceId: policies.marketplaceId,
+    categoryId,
+  });
 
   const existingOffers = await getEbayOffersBySku(accessToken, sku);
   let offer =

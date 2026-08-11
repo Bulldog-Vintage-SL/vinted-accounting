@@ -71,7 +71,9 @@ export async function POST(req: NextRequest) {
     listing.sku = fields.sku?.trim() || sku;
 
     const policies = await ensureEbayListingPolicies(account, accessToken);
-    await upsertEbayInventoryItem(accessToken, listing, sku);
+    await upsertEbayInventoryItem(accessToken, listing, sku, {
+      marketplaceId: policies.marketplaceId,
+    });
     await updateEbayOffer(accessToken, offerId, listing, sku, policies);
 
     await Listing.findByIdAndUpdate(listing._id, {
