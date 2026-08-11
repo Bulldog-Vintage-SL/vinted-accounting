@@ -78,11 +78,16 @@ export async function POST(req: NextRequest) {
     try {
       publishResult = await publishListingToEbay(accessToken, listing, policies);
     } catch (err) {
-      // IDs de políticas cacheados que eBay ya no acepta (p. ej. creados en
-      // sandbox): se re-resuelven contra eBay y se reintenta una vez.
+      // IDs de políticas cacheados / política de envío sin servicio válido
+      // (25007): se recrean y se reintenta una vez.
       if (!isInvalidEbayPolicyError(err)) throw err;
+      const forceNewFulfillment =
+        err instanceof EbayApiError &&
+        (/"errorId":25007/.test(err.body) ||
+          /valid shipping service/i.test(err.body));
       policies = await ensureEbayListingPolicies(account, accessToken, {
         skipCache: true,
+        forceNewFulfillment,
       });
       publishResult = await publishListingToEbay(accessToken, listing, policies);
     }

@@ -114,12 +114,79 @@ function assertEbayPolicyAccess(account: IAccount, marketplaceId: string) {
   }
 }
 
+const LOCATION_BY_MARKETPLACE: Record<
+  string,
+  {
+    addressLine1: string;
+    city: string;
+    stateOrProvince?: string;
+    postalCode: string;
+    country: string;
+  }
+> = {
+  EBAY_US: {
+    addressLine1: "2125 Hamilton Ave",
+    city: "San Jose",
+    stateOrProvince: "CA",
+    postalCode: "95125",
+    country: "US",
+  },
+  EBAY_GB: {
+    addressLine1: "1 High Street",
+    city: "London",
+    postalCode: "SW1A 1AA",
+    country: "GB",
+  },
+  EBAY_ES: {
+    addressLine1: "Calle Principal 1",
+    city: "Madrid",
+    postalCode: "28001",
+    country: "ES",
+  },
+  EBAY_DE: {
+    addressLine1: "Hauptstrasse 1",
+    city: "Berlin",
+    postalCode: "10115",
+    country: "DE",
+  },
+  EBAY_FR: {
+    addressLine1: "1 Rue de Rivoli",
+    city: "Paris",
+    postalCode: "75001",
+    country: "FR",
+  },
+  EBAY_IT: {
+    addressLine1: "Via Roma 1",
+    city: "Roma",
+    postalCode: "00100",
+    country: "IT",
+  },
+};
+
+/** Códigos de envío conocidos como válidos por marketplace (fallback del metadata). */
+const SHIPPING_SERVICE_BY_MARKETPLACE: Record<string, string> = {
+  EBAY_US: "USPSPriority",
+  EBAY_GB: "UK_RoyalMailFirstClassStandard",
+  EBAY_ES: "ES_CorreosNationalPostal",
+  EBAY_DE: "DE_DHLPaket",
+  EBAY_FR: "FR_LaPosteColissimo",
+  EBAY_IT: "IT_ExpressCourier",
+};
+
 async function ensureMerchantLocation(
   accessToken: string,
   account: IAccount,
+  marketplaceId: string,
   existingKey?: string | null
 ): Promise<string> {
-  if (existingKey) return existingKey;
+  // Clave por marketplace: una ubicación ES no sirve para ofertas EBAY_US
+  // (el envío doméstico queda inválido → error 25007).
+  const merchantLocationKey =
+    existingKey && existingKey.includes(marketplaceId.slice(-2))
+      ? existingKey
+      : `RL-${marketplaceId.replace("EBAY_", "")}-${account._id?.toString().slice(-8)}`;
+
+  if (existingKey === merchantLocationKey) return existingKey;
 
   const { ebayApiRequest } = await import("@/libs/ebay/api");
 
@@ -129,11 +196,15 @@ async function ensureMerchantLocation(
       "GET",
       "/sell/inventory/v1/location?limit=20"
     );
-    const found = firstId(
-      locations.locations as { merchantLocationKey: string }[] | undefined,
-      "merchantLocationKey"
-    );
-    if (found) return found;
+    const keys = (locations.locations ?? [])
+      .map((l) => l.merchantLocationKey)
+      .filter(Boolean);
+    if (keys.includes(merchantLocationKey)) return merchantLocationKey;
+    const found = keys[0];
+    // Solo reutilizamos una ubicación existente si su clave ya es la del marketplace
+    if (found && found.includes(marketplaceId.replace("EBAY_", ""))) {
+      return found;
+    }
   } catch (err) {
     if (err instanceof EbayApiError && err.status === 403) {
       throw new EbayPoliciesPermissionError();
@@ -145,24 +216,18 @@ async function ensureMerchantLocation(
     }
   }
 
-  // La clave va en la URL (createInventoryLocation), no en el body.
-  const merchantLocationKey = `RL-${account._id?.toString().slice(-8)}`;
+  const address =
+    LOCATION_BY_MARKETPLACE[marketplaceId] ?? LOCATION_BY_MARKETPLACE.EBAY_ES;
+
   try {
     await ebayApiRequest(
       accessToken,
       "POST",
       `/sell/inventory/v1/location/${encodeURIComponent(merchantLocationKey)}`,
       {
-        location: {
-          address: {
-            addressLine1: "Calle Principal 1",
-            city: "Madrid",
-            postalCode: "28001",
-            country: "ES",
-          },
-        },
+        location: { address },
         locationTypes: ["WAREHOUSE"],
-        name: "Reventa Libertad",
+        name: `Reventa Libertad ${marketplaceId}`,
       }
     );
   } catch (err) {
@@ -227,70 +292,141 @@ async function fetchAccountPolicies(
 }
 
 /**
- * Los códigos de servicio de envío varían por marketplace y eBay rechaza
- * valores inventados ("Please select a valid shipping service"). Se consultan
- * los servicios válidos vía Metadata API y se elige uno nacional de tarifa plana.
- * El parseo es tolerante porque los nombres de campo de la respuesta no están
- * documentados de forma consistente.
+ * Los códigos de servicio de envío varían por marketplace. Preferimos un
+ * código conocido-bueno; si Metadata API responde, validamos que esté en la
+ * lista o elegimos uno doméstico de tarifa plana.
  */
 async function resolveDomesticShippingServiceCode(
   accessToken: string,
   marketplaceId: string
 ): Promise<string> {
-  const { ebayApiRequest } = await import("@/libs/ebay/api");
+  const knownGood = SHIPPING_SERVICE_BY_MARKETPLACE[marketplaceId];
 
-  const data = await ebayApiRequest<Record<string, unknown>>(
-    accessToken,
-    "GET",
-    `/sell/metadata/v1/shipping/marketplace/${marketplaceId}/get_shipping_services`
-  );
-
-  const rawList = (data.shippingServices ??
-    data.shipping_services ??
-    []) as Record<string, unknown>[];
-
-  const services = rawList
-    .map((raw) => ({
-      code: (raw.shippingService ??
-        raw.shippingServiceCode ??
-        raw.shipping_service ??
-        null) as string | null,
-      international: Boolean(
-        raw.internationalService ?? raw.international_service ?? false
-      ),
-      category: (raw.shippingCategory ??
-        raw.shipping_category ??
-        "") as string,
-      costTypes: (raw.shippingCostTypes ??
-        raw.shipping_cost_types ??
-        []) as string[],
-      valid: (raw.validForSellingFlow ??
-        raw.valid_for_selling_flow ??
-        true) as boolean,
-    }))
-    .filter(
-      (s) => s.code && s.valid && !s.international && s.category !== "PICKUP"
+  try {
+    const { ebayApiRequest } = await import("@/libs/ebay/api");
+    const data = await ebayApiRequest<Record<string, unknown>>(
+      accessToken,
+      "GET",
+      `/sell/metadata/v1/shipping/marketplace/${marketplaceId}/get_shipping_services`
     );
 
-  const flatRate = (s: (typeof services)[number]) =>
-    s.costTypes.includes("FLAT_RATE");
+    const rawList = (data.shippingServices ??
+      data.shipping_services ??
+      []) as Record<string, unknown>[];
 
-  const preferred =
-    services.find((s) => s.category === "STANDARD" && flatRate(s)) ??
-    services.find(flatRate) ??
-    services.find((s) => s.category === "STANDARD") ??
-    services[0];
+    const services = rawList
+      .map((raw) => ({
+        code: (raw.shippingService ??
+          raw.shippingServiceCode ??
+          raw.shipping_service ??
+          null) as string | null,
+        international: Boolean(
+          raw.internationalService ?? raw.international_service ?? false
+        ),
+        category: (raw.shippingCategory ??
+          raw.shipping_category ??
+          "") as string,
+        costTypes: (raw.shippingCostTypes ??
+          raw.shipping_cost_types ??
+          []) as string[],
+        valid: (raw.validForSellingFlow ??
+          raw.valid_for_selling_flow ??
+          true) as boolean,
+      }))
+      .filter(
+        (s) => s.code && s.valid && !s.international && s.category !== "PICKUP"
+      );
 
-  if (!preferred?.code) {
-    // Incluimos un extracto de la respuesta real para poder diagnosticar
-    // qué forma tienen los datos si eBay cambia el formato.
-    const sample = JSON.stringify(data).slice(0, 600);
-    throw new Error(
-      `eBay no devolvió ningún servicio de envío nacional válido para ${marketplaceId}. Respuesta: ${sample}`
-    );
+    if (knownGood && services.some((s) => s.code === knownGood)) {
+      return knownGood;
+    }
+
+    const flatRate = (s: (typeof services)[number]) =>
+      s.costTypes.length === 0 || s.costTypes.includes("FLAT_RATE");
+
+    const preferred =
+      services.find((s) => s.category === "STANDARD" && flatRate(s)) ??
+      services.find(flatRate) ??
+      services.find((s) => s.category === "STANDARD") ??
+      services[0];
+
+    if (preferred?.code) return preferred.code;
+  } catch {
+    // Metadata puede fallar en sandbox; usamos el código conocido
   }
 
-  return preferred.code;
+  if (knownGood) return knownGood;
+
+  throw new Error(
+    `No hay código de envío conocido para el marketplace ${marketplaceId}`
+  );
+}
+
+async function createFulfillmentPolicy(
+  accessToken: string,
+  marketplaceId: string
+): Promise<string> {
+  const { ebayApiRequest } = await import("@/libs/ebay/api");
+  const shippingServiceCode = await resolveDomesticShippingServiceCode(
+    accessToken,
+    marketplaceId
+  );
+
+  const created = await ebayApiRequest<{ fulfillmentPolicyId: string }>(
+    accessToken,
+    "POST",
+    "/sell/account/v1/fulfillment_policy",
+    {
+      name: `Reventa Libertad Envío ${marketplaceId} ${Date.now()}`,
+      marketplaceId,
+      categoryTypes: [{ name: "ALL_EXCLUDING_MOTORS_VEHICLES", default: true }],
+      handlingTime: { value: 1, unit: "DAY" },
+      shippingOptions: [
+        {
+          optionType: "DOMESTIC",
+          costType: "FLAT_RATE",
+          shippingServices: [
+            {
+              sortOrder: 1,
+              shippingServiceCode,
+              shippingCost: {
+                value: "4.99",
+                currency: getEbayCurrency(marketplaceId),
+              },
+            },
+          ],
+        },
+      ],
+    }
+  );
+
+  return created.fulfillmentPolicyId;
+}
+
+async function fulfillmentPolicyHasShipping(
+  accessToken: string,
+  fulfillmentPolicyId: string
+): Promise<boolean> {
+  try {
+    const { ebayApiRequest } = await import("@/libs/ebay/api");
+    const policy = await ebayApiRequest<{
+      shippingOptions?: Array<{
+        shippingServices?: Array<{ shippingServiceCode?: string }>;
+      }>;
+    }>(
+      accessToken,
+      "GET",
+      `/sell/account/v1/fulfillment_policy/${encodeURIComponent(fulfillmentPolicyId)}`
+    );
+
+    return Boolean(
+      policy.shippingOptions?.some((opt) =>
+        opt.shippingServices?.some((s) => Boolean(s.shippingServiceCode))
+      )
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** eBay 20403: la cuenta no está adherida al programa de Business Policies. */
@@ -326,39 +462,10 @@ async function createMissingPolicies(
 
   try {
     if (!fulfillmentPolicyId) {
-      const shippingServiceCode = await resolveDomesticShippingServiceCode(
+      fulfillmentPolicyId = await createFulfillmentPolicy(
         accessToken,
         marketplaceId
       );
-
-      const created = await ebayApiRequest<{ fulfillmentPolicyId: string }>(
-        accessToken,
-        "POST",
-        "/sell/account/v1/fulfillment_policy",
-        {
-          name: "Reventa Libertad Envío",
-          marketplaceId,
-          categoryTypes: [{ name: "ALL_EXCLUDING_MOTORS_VEHICLES", default: true }],
-          handlingTime: { value: 1, unit: "DAY" },
-          shippingOptions: [
-            {
-              optionType: "DOMESTIC",
-              costType: "FLAT_RATE",
-              shippingServices: [
-                {
-                  sortOrder: 1,
-                  shippingServiceCode,
-                  shippingCost: {
-                    value: "4.99",
-                    currency: getEbayCurrency(marketplaceId),
-                  },
-                },
-              ],
-            },
-          ],
-        }
-      );
-      fulfillmentPolicyId = created.fulfillmentPolicyId;
     }
 
     if (!paymentPolicyId) {
@@ -407,23 +514,28 @@ async function createMissingPolicies(
  * eBay responde 400 (25709) "Invalid value for xxxPolicyId" cuando la oferta
  * referencia políticas que ya no existen o pertenecen a otro entorno
  * (p. ej. IDs de sandbox cacheados y reutilizados en producción).
+ * El 25007 indica una política de envío sin servicio válido.
  */
 export function isInvalidEbayPolicyError(err: unknown): boolean {
+  if (!(err instanceof EbayApiError) || err.status !== 400) return false;
   return (
-    err instanceof EbayApiError &&
-    err.status === 400 &&
     /Invalid value for (fulfillment|payment|return)PolicyId|merchantLocationKey/i.test(
       err.body
-    )
+    ) ||
+    /invalid data in the associated Fulfillment policy|add at least one valid shipping service/i.test(
+      err.body
+    ) ||
+    /"errorId":25007/.test(err.body)
   );
 }
 
 export async function ensureEbayListingPolicies(
   account: IAccount,
   accessToken: string,
-  options: { skipCache?: boolean } = {}
+  options: { skipCache?: boolean; forceNewFulfillment?: boolean } = {}
 ): Promise<EbayListingPolicies> {
   const skipCache = options.skipCache ?? false;
+  const forceNewFulfillment = options.forceNewFulfillment ?? false;
   // En sandbox se ignora el marketplace guardado en la cuenta: solo EBAY_US
   // funciona de forma coherente allí.
   const marketplaceId = isEbayProduction()
@@ -434,6 +546,7 @@ export async function ensureEbayListingPolicies(
 
   if (
     !skipCache &&
+    !forceNewFulfillment &&
     account.ebayMerchantLocationKey &&
     account.ebayFulfillmentPolicyId &&
     account.ebayPaymentPolicyId &&
@@ -454,8 +567,8 @@ export async function ensureEbayListingPolicies(
     ? {}
     : policiesFromEnv(marketplaceId);
   let fulfillmentPolicyId =
-    (skipCache ? null : account.ebayFulfillmentPolicyId) ||
-    envPolicies.fulfillmentPolicyId ||
+    (skipCache || forceNewFulfillment ? null : account.ebayFulfillmentPolicyId) ||
+    (forceNewFulfillment ? null : envPolicies.fulfillmentPolicyId) ||
     null;
   let paymentPolicyId =
     (skipCache ? null : account.ebayPaymentPolicyId) ||
@@ -470,11 +583,31 @@ export async function ensureEbayListingPolicies(
     envPolicies.merchantLocationKey ||
     null;
 
+  if (forceNewFulfillment) {
+    fulfillmentPolicyId = await createFulfillmentPolicy(
+      accessToken,
+      marketplaceId
+    );
+  }
+
   if (!fulfillmentPolicyId || !paymentPolicyId || !returnPolicyId) {
     const resolveFromEbay = async () => {
       const fetched = await fetchAccountPolicies(accessToken, marketplaceId);
+
+      let fetchedFulfillment =
+        fulfillmentPolicyId || fetched.fulfillmentPolicyId;
+
+      // Si la política existente no tiene servicio de envío, no la reutilizamos
+      // (es la causa típica del error 25007).
+      if (
+        fetchedFulfillment &&
+        !(await fulfillmentPolicyHasShipping(accessToken, fetchedFulfillment))
+      ) {
+        fetchedFulfillment = null;
+      }
+
       return createMissingPolicies(accessToken, marketplaceId, {
-        fulfillmentPolicyId: fulfillmentPolicyId || fetched.fulfillmentPolicyId,
+        fulfillmentPolicyId: fetchedFulfillment,
         paymentPolicyId: paymentPolicyId || fetched.paymentPolicyId,
         returnPolicyId: returnPolicyId || fetched.returnPolicyId,
       });
@@ -521,6 +654,7 @@ export async function ensureEbayListingPolicies(
   merchantLocationKey = await ensureMerchantLocation(
     accessToken,
     account,
+    marketplaceId,
     merchantLocationKey
   );
 
