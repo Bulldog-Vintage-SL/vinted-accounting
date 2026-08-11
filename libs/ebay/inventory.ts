@@ -5,6 +5,7 @@ import {
   buildInventoryItemPayload,
   buildListingSku,
   getDefaultCategoryId,
+  resolveEbayLeafCategoryId,
 } from "@/libs/ebay/mappers";
 import type { EbayListingPolicies } from "@/libs/ebay/policies";
 
@@ -111,9 +112,16 @@ export async function createEbayOffer(
   accessToken: string,
   listing: IListing,
   sku: string,
-  policies: EbayListingPolicies
+  policies: EbayListingPolicies,
+  categoryId?: string
 ): Promise<string> {
-  const categoryId = getDefaultCategoryId(listing);
+  const resolvedCategoryId =
+    categoryId ??
+    (await resolveEbayLeafCategoryId(
+      accessToken,
+      policies.marketplaceId,
+      listing
+    ));
   const created = await ebayApiRequest<{ offerId: string }>(
     accessToken,
     "POST",
@@ -122,7 +130,7 @@ export async function createEbayOffer(
       sku,
       marketplaceId: policies.marketplaceId,
       format: "FIXED_PRICE",
-      categoryId,
+      categoryId: resolvedCategoryId,
       merchantLocationKey: policies.merchantLocationKey,
       listingDescription: listing.description ?? "",
       listingPolicies: {
@@ -148,9 +156,16 @@ export async function updateEbayOffer(
   offerId: string,
   listing: IListing,
   sku: string,
-  policies: EbayListingPolicies
+  policies: EbayListingPolicies,
+  categoryId?: string
 ) {
-  const categoryId = getDefaultCategoryId(listing);
+  const resolvedCategoryId =
+    categoryId ??
+    (await resolveEbayLeafCategoryId(
+      accessToken,
+      policies.marketplaceId,
+      listing
+    ));
   await ebayApiRequest(
     accessToken,
     "PUT",
@@ -159,7 +174,7 @@ export async function updateEbayOffer(
       sku,
       marketplaceId: policies.marketplaceId,
       format: "FIXED_PRICE",
-      categoryId,
+      categoryId: resolvedCategoryId,
       merchantLocationKey: policies.merchantLocationKey,
       listingDescription: listing.description ?? "",
       listingPolicies: {
@@ -205,6 +220,22 @@ export async function withdrawEbayOffer(
   );
 }
 
+export async function deleteEbayOffer(accessToken: string, offerId: string) {
+  await ebayApiRequest(
+    accessToken,
+    "DELETE",
+    `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`
+  );
+}
+
+function isNonLeafCategoryError(err: unknown): boolean {
+  return (
+    err instanceof EbayApiError &&
+    err.status === 400 &&
+    (/not a leaf category/i.test(err.body) || /"errorId":25005/.test(err.body))
+  );
+}
+
 export async function deleteEbayInventoryItem(
   accessToken: string,
   sku: string
@@ -222,7 +253,12 @@ export async function publishListingToEbay(
   policies: EbayListingPolicies
 ) {
   const sku = buildListingSku(listing);
-  const categoryId = getDefaultCategoryId(listing);
+  // Obligatorio: categoría hoja (error 25005 si usamos 11450/15724).
+  const categoryId = await resolveEbayLeafCategoryId(
+    accessToken,
+    policies.marketplaceId,
+    listing
+  );
 
   // La condición válida depende de la categoría: hay que resolverla ANTES
   // de publicar el offer (error 25059 si USED_GOOD se usa en moda).
@@ -237,15 +273,70 @@ export async function publishListingToEbay(
     existingOffers[0];
 
   let offerId = offer?.offerId;
+
+  // Ofertas draft antiguas (p. ej. con categoryId 11450) a menudo no se
+  // "curan" bien con un PUT: las borramos y recreamos con la categoría hoja.
+  if (offerId && offer?.status !== "PUBLISHED") {
+    try {
+      await deleteEbayOffer(accessToken, offerId);
+    } catch {
+      // Si el delete falla, intentamos update + publish igual
+    }
+    offerId = undefined;
+    offer = undefined;
+  }
+
   if (offerId) {
-    await updateEbayOffer(accessToken, offerId, listing, sku, policies);
+    await updateEbayOffer(
+      accessToken,
+      offerId,
+      listing,
+      sku,
+      policies,
+      categoryId
+    );
   } else {
-    offerId = await createEbayOffer(accessToken, listing, sku, policies);
+    offerId = await createEbayOffer(
+      accessToken,
+      listing,
+      sku,
+      policies,
+      categoryId
+    );
   }
 
   let listingId = offer?.listingId;
   if (!listingId || offer?.status !== "PUBLISHED") {
-    listingId = await publishEbayOffer(accessToken, offerId);
+    try {
+      listingId = await publishEbayOffer(accessToken, offerId);
+    } catch (err) {
+      if (!isNonLeafCategoryError(err)) throw err;
+
+      // Categoría aún no-hoja: recrear oferta con otro candidato verificado
+      try {
+        await deleteEbayOffer(accessToken, offerId);
+      } catch {
+        // ignore
+      }
+
+      const retryCategoryId = await resolveEbayLeafCategoryId(
+        accessToken,
+        policies.marketplaceId,
+        listing
+      );
+      await upsertEbayInventoryItem(accessToken, listing, sku, {
+        marketplaceId: policies.marketplaceId,
+        categoryId: retryCategoryId,
+      });
+      offerId = await createEbayOffer(
+        accessToken,
+        listing,
+        sku,
+        policies,
+        retryCategoryId
+      );
+      listingId = await publishEbayOffer(accessToken, offerId);
+    }
   }
 
   return { sku, offerId, listingId };

@@ -1,5 +1,9 @@
 import type { IListing } from "@/models/Listing";
-import { getEbayContentLanguage, getEbayMarketplaceId } from "@/libs/ebay/client";
+import {
+  getEbayContentLanguage,
+  getEbayMarketplaceId,
+  isEbayProduction,
+} from "@/libs/ebay/client";
 import { ebayApiRequest } from "@/libs/ebay/api";
 
 /**
@@ -75,6 +79,37 @@ export function buildListingSku(listing: Pick<IListing, "_id" | "sku">): string 
   return `RL-${id.slice(-12)}`.toUpperCase();
 }
 
+/** Padres conocidos de moda/bolsos por marketplace para buscar un leaf. */
+const FASHION_PARENT_BY_MARKETPLACE: Record<string, string> = {
+  EBAY_US: "15724", // Women's Bags & Handbags (puede no ser leaf)
+  EBAY_ES: "260019",
+  EBAY_GB: "169291",
+  EBAY_DE: "15724",
+  EBAY_FR: "15724",
+  EBAY_IT: "15724",
+};
+
+/**
+ * Candidatos leaf por marketplace. En sandbox la Taxonomy API miente sobre
+ * leafCategoryTreeNode, así que probamos estos IDs contra
+ * getItemAspectsForCategory (solo funciona en categorías hoja).
+ */
+const LEAF_CANDIDATES_BY_MARKETPLACE: Record<string, string[]> = {
+  EBAY_US: [
+    "163570", // Clutches & Evening Bags
+    "169291", // Shoulder Bags
+    "45258", // Crossbody Bags
+    "15687", // Women's Accessories
+    "30120", // Common sandbox example category
+    "9355", // Cell Phones (sandbox-friendly leaf)
+  ],
+  EBAY_ES: ["260023", "15724", "163570"],
+  EBAY_GB: ["163570", "169291"],
+  EBAY_DE: ["163570", "169291"],
+  EBAY_FR: ["163570", "169291"],
+  EBAY_IT: ["163570", "169291"],
+};
+
 export function getDefaultCategoryId(
   listing: Pick<IListing, "attributes" | "itemType">
 ): string {
@@ -83,12 +118,184 @@ export function getDefaultCategoryId(
   if (typeof fromAttributes === "string" && fromAttributes.trim()) {
     return fromAttributes.trim();
   }
+  if (typeof fromAttributes === "number") {
+    return String(fromAttributes);
+  }
   if (listing.itemType?.trim() && /^\d+$/.test(listing.itemType.trim())) {
     return listing.itemType.trim();
   }
-  // 11450 es la categoría raíz "Clothing, Shoes & Accessories" y no admite
-  // listing directo con condiciones estándar. Usamos un leaf de moda/bolsos.
-  return process.env.EBAY_DEFAULT_CATEGORY_ID || "15724";
+  // Nunca devolver 11450 (raíz). Preferir leaf conocido o env.
+  return (
+    process.env.EBAY_DEFAULT_CATEGORY_ID ||
+    LEAF_CANDIDATES_BY_MARKETPLACE[getEbayMarketplaceId()]?.[0] ||
+    "163570"
+  );
+}
+
+interface TaxonomyCategoryNode {
+  category?: { categoryId?: string; categoryName?: string };
+  leafCategoryTreeNode?: boolean;
+  childCategoryTreeNodes?: TaxonomyCategoryNode[];
+}
+
+function findFirstLeafId(node: TaxonomyCategoryNode | undefined): string | null {
+  if (!node) return null;
+  if (node.leafCategoryTreeNode && node.category?.categoryId) {
+    return String(node.category.categoryId);
+  }
+  for (const child of node.childCategoryTreeNodes ?? []) {
+    const found = findFirstLeafId(child);
+    if (found) return found;
+  }
+  // Sin flag leaf pero sin hijos → tratar como leaf
+  if (
+    (!node.childCategoryTreeNodes || node.childCategoryTreeNodes.length === 0) &&
+    node.category?.categoryId
+  ) {
+    return String(node.category.categoryId);
+  }
+  return null;
+}
+
+async function getEbayCategoryTreeId(
+  accessToken: string,
+  marketplaceId: string
+): Promise<string | null> {
+  try {
+    const data = await ebayApiRequest<{ categoryTreeId?: string }>(
+      accessToken,
+      "GET",
+      `/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=${marketplaceId}`
+    );
+    return data.categoryTreeId ? String(data.categoryTreeId) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function suggestLeafCategoryId(
+  accessToken: string,
+  treeId: string,
+  query: string
+): Promise<string | null> {
+  try {
+    const data = await ebayApiRequest<{
+      categorySuggestions?: Array<{
+        category?: { categoryId?: string };
+      }>;
+    }>(
+      accessToken,
+      "GET",
+      `/commerce/taxonomy/v1/category_tree/${treeId}/get_category_suggestions` +
+        `?q=${encodeURIComponent(query)}`
+    );
+    const id = data.categorySuggestions?.[0]?.category?.categoryId;
+    return id ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function leafFromSubtree(
+  accessToken: string,
+  treeId: string,
+  categoryId: string
+): Promise<string | null> {
+  try {
+    const data = await ebayApiRequest<{
+      categorySubtreeNode?: TaxonomyCategoryNode;
+    }>(
+      accessToken,
+      "GET",
+      `/commerce/taxonomy/v1/category_tree/${treeId}/get_category_subtree` +
+        `?category_id=${encodeURIComponent(categoryId)}`
+    );
+    return findFirstLeafId(data.categorySubtreeNode);
+  } catch {
+    return null;
+  }
+}
+
+/** getItemAspectsForCategory solo responde OK en categorías hoja. */
+async function isVerifiedLeafCategory(
+  accessToken: string,
+  treeId: string,
+  categoryId: string
+): Promise<boolean> {
+  try {
+    await ebayApiRequest(
+      accessToken,
+      "GET",
+      `/commerce/taxonomy/v1/category_tree/${treeId}/get_item_aspects_for_category` +
+        `?category_id=${encodeURIComponent(categoryId)}`
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resuelve un categoryId HOJA válido para el marketplace.
+ * Evita el error 25005 ("The category selected is not a leaf category").
+ */
+export async function resolveEbayLeafCategoryId(
+  accessToken: string,
+  marketplaceId: string,
+  listing: Pick<IListing, "title" | "attributes" | "itemType" | "description">
+): Promise<string> {
+  const configured = getDefaultCategoryId(listing);
+  const treeId = await getEbayCategoryTreeId(accessToken, marketplaceId);
+  const candidates = [
+    process.env.EBAY_DEFAULT_CATEGORY_ID,
+    configured,
+    ...(LEAF_CANDIDATES_BY_MARKETPLACE[marketplaceId] ??
+      LEAF_CANDIDATES_BY_MARKETPLACE.EBAY_US),
+  ].filter((id, idx, arr): id is string => Boolean(id) && arr.indexOf(id) === idx);
+
+  // En sandbox NO confiamos en leafCategoryTreeNode (devuelve basura).
+  // Verificamos cada candidato con getItemAspectsForCategory.
+  if (treeId) {
+    for (const candidate of candidates) {
+      if (await isVerifiedLeafCategory(accessToken, treeId, candidate)) {
+        return candidate;
+      }
+    }
+
+    if (isEbayProduction()) {
+      const query = [listing.title, listing.itemType]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      if (query) {
+        const suggested = await suggestLeafCategoryId(
+          accessToken,
+          treeId,
+          query
+        );
+        if (
+          suggested &&
+          (await isVerifiedLeafCategory(accessToken, treeId, suggested))
+        ) {
+          return suggested;
+        }
+      }
+
+      const parent =
+        FASHION_PARENT_BY_MARKETPLACE[marketplaceId] ??
+        FASHION_PARENT_BY_MARKETPLACE.EBAY_US;
+      const fromParent = await leafFromSubtree(accessToken, treeId, parent);
+      if (
+        fromParent &&
+        (await isVerifiedLeafCategory(accessToken, treeId, fromParent))
+      ) {
+        return fromParent;
+      }
+    }
+  }
+
+  // Último recurso: primer candidato (mejor que 11450)
+  return candidates[0] || "163570";
 }
 
 export function buildEbayListingUrl(
