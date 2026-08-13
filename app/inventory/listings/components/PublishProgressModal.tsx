@@ -48,9 +48,23 @@ const SINGLE_FIELD_OPTIONS: Record<string, string[]> = {
 export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, onRetryJob }: Props<T>) {
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null)
 
-  const hasActiveJob = jobs.some((job) => job.status === 'processing' || job.status === 'retrying')
+  // IMPORTANTE: el cierre se calcula SOLO a partir del estado real de `jobs`,
+  // que la cola mantiene actualizado con certeza vía eventos job:success/job:failed.
+  // No confiamos en `isBusy` (prop del padre) para bloquear el cierre, porque
+  // puede desincronizarse tras un retry y dejar el modal atascado sin poder
+  // cerrarse nunca. `isBusy` solo se usa como señal informativa adicional
+  // mientras aún no hay ningún job (fase inicial, antes de que lleguen jobs).
+  const hasActiveJob = jobs.some((job) =>
+    job.status === 'processing' || job.status === 'retrying' || job.status === 'pending'
+  )
   const allFailed = jobs.length > 0 && jobs.every((job) => job.status === 'failed')
-  const blockClose = (isBusy || hasActiveJob) && !allFailed
+  const noJobsYet = jobs.length === 0
+
+  // Bloqueamos el cierre si: aún no hay jobs pero el padre dice que está ocupado
+  // (fase de arranque), o si hay algún job realmente activo ahora mismo.
+  // En cuanto todos los jobs están en estado terminal (completed/failed),
+  // dejamos de bloquear pase lo que pase con `isBusy`.
+  const blockClose = (noJobsYet ? isBusy : hasActiveJob) && !allFailed
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && blockClose) return

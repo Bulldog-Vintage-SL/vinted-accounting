@@ -27,9 +27,19 @@ export function processStepResult(
       s.photoIds = [...(s.photoIds ?? []), result.id]
       break
 
-    case 'GET_CATEGORY_SUGGESTIONS':
-      s.categoryId = s.originalPayload.listing?.attributes?.vintedCategoryId ?? result.categories?.[0]?.id
+    case 'GET_CATEGORY_SUGGESTIONS': {
+      const existingId = s.originalPayload.listing?.attributes?.vintedCategoryId
+
+      if (existingId !== 0 && existingId != null) {
+        s.categoryId = existingId
+      } else if (result.categories?.[0]) {
+        s.categoryId = result.categories[0]
+      } else {
+        s.categoryId = 123 
+      }
+
       break
+    }
 
     case 'GET_PACKAGE_SUGGESTION':
       s.packageSizeId = result.package_size_id

@@ -71,7 +71,7 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
 
 // Campos requeridos por plataforma
 const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)[]> = {
-  vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size'],
+  vinted: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender', 'vestiaire_min_price'],
   depop: ['description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
