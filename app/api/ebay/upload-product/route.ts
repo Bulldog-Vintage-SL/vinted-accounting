@@ -84,7 +84,10 @@ export async function POST(req: NextRequest) {
       const forceNewFulfillment =
         err instanceof EbayApiError &&
         (/"errorId":25007/.test(err.body) ||
-          /valid shipping service/i.test(err.body));
+          /"errorId":25709/.test(err.body) ||
+          /valid shipping service/i.test(err.body) ||
+          /fulfillmentPolicyId/i.test(err.body) ||
+          /Valor no v[aá]lido para fulfillmentPolicyId/i.test(err.body));
       policies = await ensureEbayListingPolicies(account, accessToken, {
         skipCache: true,
         forceNewFulfillment,

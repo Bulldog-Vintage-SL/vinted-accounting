@@ -5,7 +5,6 @@ import { getValidEbayAccessToken } from "@/libs/ebay/account-token";
 import {
   getEbayMarketplaceId,
   getEbayCurrency,
-  isEbayProduction,
   hasEbaySellAccountScope,
   normalizeEbayMarketplaceId,
 } from "@/libs/ebay/client";
@@ -514,19 +513,25 @@ async function createMissingPolicies(
 /**
  * eBay responde 400 (25709) "Invalid value for xxxPolicyId" cuando la oferta
  * referencia políticas que ya no existen o pertenecen a otro entorno
- * (p. ej. IDs de sandbox cacheados y reutilizados en producción).
+ * (p. ej. IDs de sandbox/EBAY_US cacheados y reutilizados en EBAY_ES).
+ * El mensaje puede venir en inglés o español según Content-Language.
  * El 25007 indica una política de envío sin servicio válido.
  */
 export function isInvalidEbayPolicyError(err: unknown): boolean {
   if (!(err instanceof EbayApiError) || err.status !== 400) return false;
+  const text = `${err.message}\n${err.body}`;
   return (
     /Invalid value for (fulfillment|payment|return)PolicyId|merchantLocationKey/i.test(
-      err.body
+      text
+    ) ||
+    /Valor no v[aá]lido para (fulfillment|payment|return)PolicyId|merchantLocationKey/i.test(
+      text
     ) ||
     /invalid data in the associated Fulfillment policy|add at least one valid shipping service/i.test(
-      err.body
+      text
     ) ||
-    /"errorId":25007/.test(err.body)
+    /"errorId":25007/.test(text) ||
+    /"errorId":25709/.test(text)
   );
 }
 
@@ -537,18 +542,20 @@ export async function ensureEbayListingPolicies(
 ): Promise<EbayListingPolicies> {
   const skipCache = options.skipCache ?? false;
   const forceNewFulfillment = options.forceNewFulfillment ?? false;
-  // En sandbox se fuerza EBAY_US. En producción usamos el de la cuenta solo
-  // si es un enum válido; si no, EBAY_MARKETPLACE_ID / EBAY_ES.
-  const marketplaceId = isEbayProduction()
-    ? normalizeEbayMarketplaceId(account.ebayMarketplaceId) ||
-      getEbayMarketplaceId()
-    : getEbayMarketplaceId();
+
+  // La fuente de verdad es la config del servidor (EBAY_MARKETPLACE_ID), no un
+  // ebayMarketplaceId antiguo de sandbox (EBAY_US) guardado en la cuenta.
+  const marketplaceId = getEbayMarketplaceId();
+  const cachedMarketplace = normalizeEbayMarketplaceId(account.ebayMarketplaceId);
+  const marketplaceChanged =
+    Boolean(cachedMarketplace) && cachedMarketplace !== marketplaceId;
 
   assertEbayPolicyAccess(account, marketplaceId);
 
   if (
     !skipCache &&
     !forceNewFulfillment &&
+    !marketplaceChanged &&
     account.ebayMerchantLocationKey &&
     account.ebayFulfillmentPolicyId &&
     account.ebayPaymentPolicyId &&
@@ -563,29 +570,32 @@ export async function ensureEbayListingPolicies(
     };
   }
 
-  // Con skipCache ignoramos tanto los IDs cacheados en la cuenta como los de
-  // las variables de entorno: se vuelven a resolver directamente contra eBay.
-  const envPolicies: Partial<EbayListingPolicies> = skipCache
+  // Si cambió el marketplace (US→ES) o pedimos recrear, ignoramos IDs cacheados.
+  const ignoreCachedIds = skipCache || forceNewFulfillment || marketplaceChanged;
+
+  const envPolicies: Partial<EbayListingPolicies> = ignoreCachedIds
     ? {}
     : policiesFromEnv(marketplaceId);
+
   let fulfillmentPolicyId =
-    (skipCache || forceNewFulfillment ? null : account.ebayFulfillmentPolicyId) ||
-    (forceNewFulfillment ? null : envPolicies.fulfillmentPolicyId) ||
+    (ignoreCachedIds ? null : account.ebayFulfillmentPolicyId) ||
+    envPolicies.fulfillmentPolicyId ||
     null;
   let paymentPolicyId =
-    (skipCache ? null : account.ebayPaymentPolicyId) ||
+    (ignoreCachedIds ? null : account.ebayPaymentPolicyId) ||
     envPolicies.paymentPolicyId ||
     null;
   let returnPolicyId =
-    (skipCache ? null : account.ebayReturnPolicyId) ||
+    (ignoreCachedIds ? null : account.ebayReturnPolicyId) ||
     envPolicies.returnPolicyId ||
     null;
   let merchantLocationKey =
-    (skipCache ? null : account.ebayMerchantLocationKey) ||
+    (ignoreCachedIds ? null : account.ebayMerchantLocationKey) ||
     envPolicies.merchantLocationKey ||
     null;
 
-  if (forceNewFulfillment) {
+  // Si el marketplace cambió, siempre crear fulfillment fresco para EBAY_ES.
+  if (forceNewFulfillment || marketplaceChanged) {
     fulfillmentPolicyId = await createFulfillmentPolicy(
       accessToken,
       marketplaceId
