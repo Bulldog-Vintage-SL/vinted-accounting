@@ -431,21 +431,64 @@ async function fulfillmentPolicyHasShipping(
 
 /** eBay 20403: la cuenta no está adherida al programa de Business Policies. */
 function isBusinessPolicyEligibilityError(err: unknown): boolean {
+  if (!(err instanceof EbayApiError) || err.status !== 400) return false;
+  const text = `${err.message}\n${err.body}`;
   return (
-    err instanceof EbayApiError &&
-    err.status === 400 &&
-    /not eligible for Business Policy/i.test(err.body)
+    /not eligible for Business Policy/i.test(text) ||
+    /no ha decidido usar las pol[ií]ticas del vendedor/i.test(text) ||
+    /pol[ií]ticas del vendedor/i.test(text) ||
+    /"errorId":20403/.test(text)
   );
 }
 
 async function optInToSellingPolicyManagement(accessToken: string) {
   const { ebayApiRequest } = await import("@/libs/ebay/api");
-  await ebayApiRequest(accessToken, "POST", "/sell/account/v1/program/opt_in", {
-    programType: "SELLING_POLICY_MANAGEMENT",
-  });
+  await ebayApiRequest(
+    accessToken,
+    "POST",
+    "/sell/account/v1/program/opt_in",
+    { programType: "SELLING_POLICY_MANAGEMENT" },
+    { marketplaceId: getEbayMarketplaceId() }
+  );
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Ejecuta una acción que crea/lista políticas; si eBay dice que el vendedor
+ * no está en Business Policies, hace opt-in y reintenta.
+ */
+async function withBusinessPolicyOptIn<T>(
+  accessToken: string,
+  action: () => Promise<T>
+): Promise<T> {
+  try {
+    return await action();
+  } catch (err) {
+    if (!isBusinessPolicyEligibilityError(err)) throw err;
+
+    try {
+      await optInToSellingPolicyManagement(accessToken);
+    } catch (optErr) {
+      console.warn("eBay Business Policies opt-in failed:", optErr);
+    }
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+      await sleep(3000);
+      try {
+        return await action();
+      } catch (retryErr) {
+        if (!isBusinessPolicyEligibilityError(retryErr)) throw retryErr;
+      }
+    }
+
+    throw new Error(
+      "Tu cuenta de eBay (producción) no tiene activadas las políticas de vendedor (Business Policies). " +
+        "Actívalas una vez en https://www.bizpolicy.ebay.es/businesspolicy/manage " +
+        "(o Seller Hub → Account → Business policies) e inténtalo de nuevo."
+    );
+  }
+}
 
 async function createMissingPolicies(
   accessToken: string,
@@ -596,9 +639,8 @@ export async function ensureEbayListingPolicies(
 
   // Si el marketplace cambió, siempre crear fulfillment fresco para EBAY_ES.
   if (forceNewFulfillment || marketplaceChanged) {
-    fulfillmentPolicyId = await createFulfillmentPolicy(
-      accessToken,
-      marketplaceId
+    fulfillmentPolicyId = await withBusinessPolicyOptIn(accessToken, () =>
+      createFulfillmentPolicy(accessToken, marketplaceId)
     );
   }
 
@@ -625,38 +667,7 @@ export async function ensureEbayListingPolicies(
       });
     };
 
-    let resolved: Awaited<ReturnType<typeof resolveFromEbay>> | null = null;
-    try {
-      resolved = await resolveFromEbay();
-    } catch (err) {
-      if (!isBusinessPolicyEligibilityError(err)) throw err;
-
-      // La cuenta de eBay no está adherida a Business Policies (error 20403):
-      // la adherimos vía API. El alta es asíncrona en eBay, así que
-      // reintentamos unas cuantas veces antes de rendirnos.
-      try {
-        await optInToSellingPolicyManagement(accessToken);
-      } catch {
-        // Si el propio opt-in falla, dejamos que el mensaje final lo explique
-      }
-
-      for (let attempt = 0; attempt < 3 && !resolved; attempt++) {
-        await sleep(3000);
-        try {
-          resolved = await resolveFromEbay();
-        } catch (retryErr) {
-          if (!isBusinessPolicyEligibilityError(retryErr)) throw retryErr;
-        }
-      }
-
-      if (!resolved) {
-        throw new Error(
-          "Tu cuenta de eBay no está adherida a las políticas de venta (Business Policies) " +
-            "y no se pudo activar automáticamente. Actívalas manualmente en " +
-            "https://www.bizpolicy.ebay.es/businesspolicy/manage y vuelve a intentarlo."
-        );
-      }
-    }
+    const resolved = await withBusinessPolicyOptIn(accessToken, resolveFromEbay);
 
     fulfillmentPolicyId = resolved.fulfillmentPolicyId;
     paymentPolicyId = resolved.paymentPolicyId;
