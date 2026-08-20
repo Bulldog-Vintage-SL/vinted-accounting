@@ -16,6 +16,46 @@ export class EbayApiError extends Error {
   }
 }
 
+/**
+ * Convierte errores de eBay en mensajes accionables para el usuario.
+ * p.ej. SELLING_PRIVILEGE_REQUIRED → enlace de onboarding de vendedor.
+ */
+export function getEbayUserFacingErrorMessage(err: unknown): string | null {
+  if (!(err instanceof EbayApiError)) return null;
+  const text = `${err.message}\n${err.body}`;
+
+  if (
+    /SELLING_PRIVILEGE_REQUIRED/i.test(text) ||
+    (/cuenta de vendedor/i.test(text) && /"errorId":25002/.test(text))
+  ) {
+    let onboardUrl: string | null = null;
+    try {
+      const parsed = JSON.parse(err.body) as {
+        errors?: Array<{ parameters?: Array<{ name?: string; value?: string }> }>;
+      };
+      for (const e of parsed.errors || []) {
+        for (const p of e.parameters || []) {
+          if (p.value?.startsWith("https://")) {
+            onboardUrl = p.value;
+            break;
+          }
+        }
+        if (onboardUrl) break;
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    return (
+      "Tu cuenta de eBay aún no tiene privilegios de vendedor activos. " +
+      "Completa el alta de vendedor en eBay España y vuelve a publicar." +
+      (onboardUrl ? ` Enlace: ${onboardUrl}` : " Abre: https://www.ebay.es/sl/sell")
+    );
+  }
+
+  return null;
+}
+
 function stripNullish(value: unknown): unknown {
   if (value === null || value === undefined) return undefined;
   if (Array.isArray(value)) {

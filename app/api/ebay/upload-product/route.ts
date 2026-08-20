@@ -12,7 +12,7 @@ import {
 import { publishListingToEbay } from "@/libs/ebay/inventory";
 import { buildEbayListingUrl } from "@/libs/ebay/mappers";
 import { getEbayMarketplaceId } from "@/libs/ebay/client";
-import { EbayApiError } from "@/libs/ebay/api";
+import { EbayApiError, getEbayUserFacingErrorMessage } from "@/libs/ebay/api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -157,6 +157,11 @@ export async function POST(req: NextRequest) {
           ? err.message
           : new EbayPoliciesPermissionError().message;
       return NextResponse.json({ error: message }, { status: 403 });
+    }
+
+    const userFacing = getEbayUserFacingErrorMessage(err);
+    if (userFacing) {
+      return NextResponse.json({ error: userFacing }, { status: 403 });
     }
 
     const message =
