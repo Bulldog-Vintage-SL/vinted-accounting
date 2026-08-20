@@ -7,6 +7,7 @@ import {
   getEbayCurrency,
   isEbayProduction,
   hasEbaySellAccountScope,
+  normalizeEbayMarketplaceId,
 } from "@/libs/ebay/client";
 import { EbayApiError } from "@/libs/ebay/api";
 
@@ -536,10 +537,11 @@ export async function ensureEbayListingPolicies(
 ): Promise<EbayListingPolicies> {
   const skipCache = options.skipCache ?? false;
   const forceNewFulfillment = options.forceNewFulfillment ?? false;
-  // En sandbox se ignora el marketplace guardado en la cuenta: solo EBAY_US
-  // funciona de forma coherente allí.
+  // En sandbox se fuerza EBAY_US. En producción usamos el de la cuenta solo
+  // si es un enum válido; si no, EBAY_MARKETPLACE_ID / EBAY_ES.
   const marketplaceId = isEbayProduction()
-    ? account.ebayMarketplaceId || getEbayMarketplaceId()
+    ? normalizeEbayMarketplaceId(account.ebayMarketplaceId) ||
+      getEbayMarketplaceId()
     : getEbayMarketplaceId();
 
   assertEbayPolicyAccess(account, marketplaceId);

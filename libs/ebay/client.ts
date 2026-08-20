@@ -82,12 +82,45 @@ export function isEbayProduction(): boolean {
   return getEnvironment() === "production";
 }
 
+const VALID_MARKETPLACE_IDS = new Set([
+  "EBAY_US",
+  "EBAY_GB",
+  "EBAY_ES",
+  "EBAY_DE",
+  "EBAY_FR",
+  "EBAY_IT",
+  "EBAY_AU",
+  "EBAY_CA",
+]);
+
+/**
+ * Normaliza cualquier valor de marketplace a un enum válido de eBay.
+ * Evita el error 2004 "Could not serialize field [marketplaceId]" cuando
+ * llega null, "", "EBAY-ES", "ES", etc.
+ */
+export function normalizeEbayMarketplaceId(
+  value?: string | null
+): string | null {
+  if (!value || typeof value !== "string") return null;
+  const cleaned = value.trim().toUpperCase().replace(/-/g, "_");
+  if (VALID_MARKETPLACE_IDS.has(cleaned)) return cleaned;
+  if (cleaned === "ES" || cleaned === "SPAIN") return "EBAY_ES";
+  if (cleaned === "US" || cleaned === "USA") return "EBAY_US";
+  if (cleaned === "UK" || cleaned === "GB") return "EBAY_GB";
+  if (cleaned === "DE" || cleaned === "FR" || cleaned === "IT" || cleaned === "AU" || cleaned === "CA") {
+    return `EBAY_${cleaned}`;
+  }
+  return null;
+}
+
 export function getEbayMarketplaceId(): string {
   // El sandbox de eBay solo funciona de forma coherente con el marketplace
   // de EEUU: los items se indexan por idioma (en-US) y una oferta para otro
   // marketplace no los encuentra (error 25751).
   if (!isEbayProduction()) return "EBAY_US";
-  return process.env.EBAY_MARKETPLACE_ID || "EBAY_ES";
+  return (
+    normalizeEbayMarketplaceId(process.env.EBAY_MARKETPLACE_ID) || "EBAY_ES"
+  );
 }
 
 const CURRENCY_BY_MARKETPLACE: Record<string, string> = {
@@ -112,12 +145,14 @@ const CONTENT_LANGUAGE_BY_MARKETPLACE: Record<string, string> = {
   EBAY_US: "en-US",
 };
 
-export function getEbayContentLanguage(): string {
+export function getEbayContentLanguage(marketplaceId?: string): string {
   // El sandbox de eBay solo soporta bien el marketplace de EEUU: con un
   // Content-Language distinto de en-US responde con el error 25709
   // "Invalid value for header Accept-Language".
   if (getEnvironment() !== "production") return "en-US";
-  return CONTENT_LANGUAGE_BY_MARKETPLACE[getEbayMarketplaceId()] ?? "en-US";
+  const id =
+    normalizeEbayMarketplaceId(marketplaceId) || getEbayMarketplaceId();
+  return CONTENT_LANGUAGE_BY_MARKETPLACE[id] ?? "es-ES";
 }
 
 /** Normalize eBay scope URLs to short names for storage, e.g. sell.account */

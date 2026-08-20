@@ -1,6 +1,10 @@
 import type { IListing } from "@/models/Listing";
 import { ebayApiRequest, EbayApiError } from "@/libs/ebay/api";
-import { getEbayCurrency } from "@/libs/ebay/client";
+import {
+  getEbayCurrency,
+  getEbayMarketplaceId,
+  normalizeEbayMarketplaceId,
+} from "@/libs/ebay/client";
 import {
   buildInventoryItemPayload,
   buildListingSku,
@@ -8,6 +12,16 @@ import {
   resolveEbayLeafCategoryId,
 } from "@/libs/ebay/mappers";
 import type { EbayListingPolicies } from "@/libs/ebay/policies";
+
+function resolveOfferMarketplaceId(policies: EbayListingPolicies): string {
+  // Preferimos la config del servidor (EBAY_MARKETPLACE_ID) sobre un valor
+  // cacheado raro en la cuenta, que provocaba error 2004 de serialización.
+  return (
+    getEbayMarketplaceId() ||
+    normalizeEbayMarketplaceId(policies.marketplaceId) ||
+    "EBAY_ES"
+  );
+}
 
 interface EbayOffer {
   offerId: string;
@@ -115,38 +129,41 @@ export async function createEbayOffer(
   policies: EbayListingPolicies,
   categoryId?: string
 ): Promise<string> {
+  const marketplaceId = resolveOfferMarketplaceId(policies);
   const resolvedCategoryId =
     categoryId ??
-    (await resolveEbayLeafCategoryId(
-      accessToken,
-      policies.marketplaceId,
-      listing
-    ));
+    (await resolveEbayLeafCategoryId(accessToken, marketplaceId, listing));
+
+  const offerBody = {
+    sku: String(sku),
+    marketplaceId: String(marketplaceId),
+    format: "FIXED_PRICE",
+    categoryId: String(resolvedCategoryId),
+    merchantLocationKey: String(policies.merchantLocationKey),
+    listingDescription: String(listing.description ?? listing.title ?? ""),
+    listingPolicies: {
+      fulfillmentPolicyId: String(policies.fulfillmentPolicyId),
+      paymentPolicyId: String(policies.paymentPolicyId),
+      returnPolicyId: String(policies.returnPolicyId),
+    },
+    pricingSummary: {
+      price: {
+        value: String(listing.price ?? 0),
+        currency: getEbayCurrency(marketplaceId),
+      },
+    },
+    quantity: Number(listing.stock ?? 1),
+    includeCatalogProductDetails: false,
+  };
+
+  console.log("eBay createOffer body:", JSON.stringify(offerBody));
+
   const created = await ebayApiRequest<{ offerId: string }>(
     accessToken,
     "POST",
     "/sell/inventory/v1/offer",
-    {
-      sku,
-      marketplaceId: policies.marketplaceId,
-      format: "FIXED_PRICE",
-      categoryId: resolvedCategoryId,
-      merchantLocationKey: policies.merchantLocationKey,
-      listingDescription: listing.description ?? "",
-      listingPolicies: {
-        fulfillmentPolicyId: policies.fulfillmentPolicyId,
-        paymentPolicyId: policies.paymentPolicyId,
-        returnPolicyId: policies.returnPolicyId,
-      },
-      pricingSummary: {
-        price: {
-          value: String(listing.price ?? 0),
-          currency: getEbayCurrency(policies.marketplaceId),
-        },
-      },
-      quantity: listing.stock ?? 1,
-      includeCatalogProductDetails: false,
-    }
+    offerBody,
+    { marketplaceId }
   );
   return created.offerId;
 }
@@ -159,38 +176,39 @@ export async function updateEbayOffer(
   policies: EbayListingPolicies,
   categoryId?: string
 ) {
+  const marketplaceId = resolveOfferMarketplaceId(policies);
   const resolvedCategoryId =
     categoryId ??
-    (await resolveEbayLeafCategoryId(
-      accessToken,
-      policies.marketplaceId,
-      listing
-    ));
+    (await resolveEbayLeafCategoryId(accessToken, marketplaceId, listing));
+
+  const offerBody = {
+    sku: String(sku),
+    marketplaceId: String(marketplaceId),
+    format: "FIXED_PRICE",
+    categoryId: String(resolvedCategoryId),
+    merchantLocationKey: String(policies.merchantLocationKey),
+    listingDescription: String(listing.description ?? listing.title ?? ""),
+    listingPolicies: {
+      fulfillmentPolicyId: String(policies.fulfillmentPolicyId),
+      paymentPolicyId: String(policies.paymentPolicyId),
+      returnPolicyId: String(policies.returnPolicyId),
+    },
+    pricingSummary: {
+      price: {
+        value: String(listing.price ?? 0),
+        currency: getEbayCurrency(marketplaceId),
+      },
+    },
+    quantity: Number(listing.stock ?? 1),
+    includeCatalogProductDetails: false,
+  };
+
   await ebayApiRequest(
     accessToken,
     "PUT",
     `/sell/inventory/v1/offer/${encodeURIComponent(offerId)}`,
-    {
-      sku,
-      marketplaceId: policies.marketplaceId,
-      format: "FIXED_PRICE",
-      categoryId: resolvedCategoryId,
-      merchantLocationKey: policies.merchantLocationKey,
-      listingDescription: listing.description ?? "",
-      listingPolicies: {
-        fulfillmentPolicyId: policies.fulfillmentPolicyId,
-        paymentPolicyId: policies.paymentPolicyId,
-        returnPolicyId: policies.returnPolicyId,
-      },
-      pricingSummary: {
-        price: {
-          value: String(listing.price ?? 0),
-          currency: getEbayCurrency(policies.marketplaceId),
-        },
-      },
-      quantity: listing.stock ?? 1,
-      includeCatalogProductDetails: false,
-    }
+    offerBody,
+    { marketplaceId }
   );
 }
 
