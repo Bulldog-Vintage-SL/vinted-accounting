@@ -1,12 +1,7 @@
-/*
-  Componente de creacion de un producto, cuando se aprieta el boton de crear el producto se llama a la funcion 
-  que tiene el form en su atributo onSubmit inicializado en la page.tsx que llame a la componente.
-*/
-
 "use client";
 
 import { useState, useTransition, type ChangeEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import BrandSelect from "./BrandSelector";
@@ -26,6 +21,9 @@ const GENDER_OPTIONS: { label: string; value: "hombre" | "mujer" | "unisex" }[] 
   { label: "Unisex", value: "unisex" },
 ];
 
+const MAX_AI_PHOTOS = 3;
+
+
 export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [form, setForm] = useState<ListingForm>({
     ...initialData,
@@ -34,6 +32,14 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
+
+  // --- Sugerencias con IA ---
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+
+  const [aiSelectedPhotos, setAiSelectedPhotos] = useState<string[]>([]);
+  const [suggestSizeCondition, setSuggestSizeCondition] = useState(false);
+
   const update = <K extends keyof ListingForm>(
     field: K,
     value: ListingForm[K]
@@ -154,25 +160,141 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     update("stock", parsed);
   };
 
+  const toggleAiPhoto = (url: string) => {
+    setAiSelectedPhotos(prev => {
+      if (prev.includes(url)) return prev.filter(u => u !== url);
+      if (prev.length >= MAX_AI_PHOTOS) return prev;
+      return [...prev, url];
+    });
+  };
+
+  const removePhoto = (url: string) => {
+    update("photo_url", form.photo_url.filter(u => u !== url));
+    setAiSelectedPhotos(prev => prev.filter(u => u !== url));
+  };
+
+  const handleGenerateSuggestions = async () => {
+    const orderedSelection = form.photo_url.filter(url => aiSelectedPhotos.includes(url));
+    if (orderedSelection.length === 0) return;
+
+    setIsGeneratingSuggestions(true);
+    setSuggestionsError(null);
+
+    try {
+      const res = await fetch("/api/field-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imgUrls: orderedSelection,
+          suggestSizeCondition,
+          k: 5,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Error al generar sugerencias");
+      }
+
+      const data = await res.json();
+
+      if (data.title) update("title", data.title);
+      if (data.description) update("description", data.description);
+
+      updateAttribute("brand", data.brand ?? "Sin marca");
+
+      if (Array.isArray(data.colors)) {
+        setForm(prev => ({ ...prev, colors: data.colors }));
+      }
+
+      if (typeof data.price === "number") {
+        setPriceInput(formatPriceForDisplay(data.price));
+        update("price", data.price);
+      }
+
+      if (data.gender) update("gender", data.gender);
+
+      if (data.category) {
+        update("item_type", data.category.title);
+        updateAttribute("categoryPath", data.category.path);
+        updateAttribute("vintedCategoryId", data.category.id);
+      }
+
+      if (data.size) updateAttribute("size", data.size);
+      if (data.condition) update("condition", data.condition);
+
+    } catch (err) {
+      setSuggestionsError(err instanceof Error ? err.message : "Error desconocido");
+    } finally {
+      setIsGeneratingSuggestions(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
 
       {/* Fotos */}
       <div>
-        <label className="block text-sm font-medium">Fotos</label>
+        <div className="flex items-center justify-between">
+          <label className="block text-sm font-medium">Fotos</label>
+
+          <button
+            type="button"
+            onClick={handleGenerateSuggestions}
+            disabled={aiSelectedPhotos.length === 0 || isGeneratingSuggestions}
+            className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 px-3 py-1.5 rounded-md hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            {isGeneratingSuggestions ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            Rellenar con IA
+          </button>
+        </div>
+
+        {suggestionsError && (
+          <p className="text-sm text-red-600 mt-1" role="alert">{suggestionsError}</p>
+        )}
+
+        <p className="text-xs text-gray-500 mt-1">
+          Selecciona hasta {MAX_AI_PHOTOS} fotos para la IA ({aiSelectedPhotos.length}/{MAX_AI_PHOTOS}). La primera seleccionada se usa para el título.
+        </p>
 
         <div className="grid grid-cols-3 gap-3 mt-2">
-          {form.photo_url?.map((url, i) => (
-            <div key={i} className="relative group">
-              <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
-              <button
-                onClick={() => update("photo_url", form.photo_url.filter((_, idx) => idx !== i))}
-                className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
-              >
-                X
-              </button>
-            </div>
-          ))}
+          {form.photo_url?.map((url, i) => {
+            const isSelected = aiSelectedPhotos.includes(url);
+            const selectionOrder = aiSelectedPhotos.indexOf(url);
+            const isDisabled = !isSelected && aiSelectedPhotos.length >= MAX_AI_PHOTOS;
+
+            return (
+              <div key={i} className="relative group">
+                <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
+
+                <button
+                  onClick={() => removePhoto(url)}
+                  className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                >
+                  X
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => toggleAiPhoto(url)}
+                  disabled={isDisabled}
+                  className={`absolute bottom-1 left-1 flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium border transition
+              ${isSelected
+                      ? "bg-purple-600 text-white border-purple-600"
+                      : "bg-white/90 text-gray-600 border-gray-300"}
+              ${isDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:border-purple-400"}
+            `}
+                  title={isSelected ? "Quitar de selección IA" : "Enviar a la IA"}
+                >
+                  {isSelected ? selectionOrder + 1 : "IA"}
+                </button>
+              </div>
+            );
+          })}
 
           {/* Boton para anyadir fotos */}
           <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -203,6 +325,17 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
             />
           </label>
         </div>
+
+        {/* Checkbox talla/condición */}
+        <label className="flex items-center gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={suggestSizeCondition}
+            onChange={e => setSuggestSizeCondition(e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          Sugerir también talla y estado (recomendado: incluye una foto de la etiqueta)
+        </label>
       </div>
 
       {/* Titulo */}
@@ -225,6 +358,8 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           className="mt-1 w-full rounded-md border border-gray-300 p-2 h-32"
         />
       </div>
+
+      {/* resto del formulario sin cambios ... */}
 
       {/* Grid de 2 columnas */}
       <div className="grid grid-cols-2 gap-4">
