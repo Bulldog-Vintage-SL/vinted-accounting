@@ -33,7 +33,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
 
-  // --- Sugerencias con IA ---
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
