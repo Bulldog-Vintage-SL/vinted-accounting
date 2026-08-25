@@ -422,6 +422,81 @@ function mapListingColorToEbay(color: string): string {
   return COLOR_ES_TO_EN[key] ?? color;
 }
 
+/**
+ * Nombres localizados de eBay (EBAY_ES: Talla, Marca…) → clave canónica
+ * de sourceByAspect. Sin esto, Talla no coincidía con `size` y el fallback
+ * genérico enviaba "Black" (error 25129).
+ */
+const ASPECT_SOURCE_ALIASES: Record<string, string> = {
+  size: "size",
+  talla: "size",
+  tamano: "size",
+  "clothing size": "size",
+  "shoe size": "size",
+  "talla de ropa": "size",
+  "talla de zapato": "size",
+  brand: "brand",
+  marca: "brand",
+  color: "color",
+  colour: "color",
+  department: "department",
+  departamento: "department",
+  style: "style",
+  estilo: "style",
+  material: "material",
+  pattern: "pattern",
+  patron: "pattern",
+  estampado: "pattern",
+  "outer shell material": "outer shell material",
+  "material de la capa exterior": "outer shell material",
+  "bag height": "bag height",
+  "bag depth": "bag depth",
+  "bag width": "bag width",
+  "altura del bolso": "bag height",
+  "fondo del bolso": "bag depth",
+  "ancho del bolso": "bag width",
+};
+
+const SIZE_SYNONYMS: Record<string, string[]> = {
+  "talla unica": ["Talla única", "One Size", "TU", "Única", "Unique"],
+  "one size": ["One Size", "Talla única", "TU"],
+  tu: ["Talla única", "One Size", "TU"],
+  unica: ["Talla única", "One Size"],
+  xs: ["XS"],
+  s: ["S"],
+  m: ["M"],
+  l: ["L"],
+  xl: ["XL"],
+  xxl: ["XXL", "2XL"],
+  xxxl: ["XXXL", "3XL"],
+  "2xl": ["2XL", "XXL"],
+  "3xl": ["3XL", "XXXL"],
+  "4xl": ["4XL"],
+  "5xl": ["5XL"],
+  "6xl": ["6XL"],
+  "7xl": ["7XL"],
+  "8xl": ["8XL"],
+};
+
+function expandSizePreferences(size: string): string[] {
+  const extra = SIZE_SYNONYMS[normalizeKey(size)] ?? [];
+  return [size, ...extra.filter((v) => normalizeKey(v) !== normalizeKey(size))];
+}
+
+function colorPreferences(colors: string[]): string[] {
+  if (!colors.length) return ["Negro", "Black"];
+  const out: string[] = [];
+  for (const color of colors) {
+    const mapped = mapListingColorToEbay(color);
+    for (const value of [color, mapped]) {
+      if (value && !out.some((v) => normalizeKey(v) === normalizeKey(value))) {
+        out.push(value);
+      }
+    }
+  }
+  return out;
+}
+
 interface CategoryAspect {
   localizedAspectName?: string;
   aspectConstraint?: {
@@ -471,18 +546,21 @@ function pickAspectValue(
         pref.toLowerCase().includes(a.toLowerCase())
     );
     if (partial) return partial;
-    // FREE_TEXT: aceptar el valor preferido aunque no esté en la lista
-    if (
-      allowed.length === 0 ||
-      aspect.aspectConstraint?.aspectMode === "FREE_TEXT"
-    ) {
-      return pref;
-    }
   }
 
-  // Aspecto obligatorio sin valor del listing: primer valor permitido
-  if (aspect.aspectConstraint?.aspectRequired && allowed[0]) {
-    return allowed[0];
+  // Si eBay publica valores estándar (error 25129), NUNCA enviar un valor
+  // custom aunque aspectMode siga siendo FREE_TEXT.
+  if (allowed.length > 0) {
+    if (aspect.aspectConstraint?.aspectRequired) return allowed[0];
+    return null;
+  }
+
+  // Sin lista de valores: solo FREE_TEXT acepta el valor del listing.
+  if (
+    preferred[0] &&
+    aspect.aspectConstraint?.aspectMode === "FREE_TEXT"
+  ) {
+    return preferred[0];
   }
 
   return null;
@@ -501,16 +579,17 @@ export async function resolveEbayProductAspects(
   const attrs = (listing.attributes ?? {}) as Record<string, unknown>;
   const brand = typeof attrs.brand === "string" ? attrs.brand.trim() : "";
   const size = typeof attrs.size === "string" ? attrs.size.trim() : "";
-  const colors = (listing.colors ?? []).map(mapListingColorToEbay);
+  const colors = colorPreferences(listing.colors ?? []);
   const department =
     DEPARTMENT_MAP[normalizeKey(listing.gender ?? "")] ?? listing.gender ?? "";
 
   const sourceByAspect: Record<string, string[]> = {
-    color: colors.length ? colors : ["Black"],
-    colour: colors.length ? colors : ["Black"],
-    brand: brand ? [brand] : ["Unbranded"],
-    size: size ? [size] : ["One Size"],
-    department: department ? [department] : ["Women"],
+    color: colors,
+    brand: brand ? [brand] : ["Unbranded", "Sin marca"],
+    size: size
+      ? expandSizePreferences(size)
+      : ["Talla única", "One Size", "TU"],
+    department: department ? [department] : ["Women", "Mujer"],
     style: ["Casual"],
     material: ["Unknown"],
     pattern: ["Solid"],
@@ -529,7 +608,7 @@ export async function resolveEbayProductAspects(
   const aspects: Record<string, string[]> = {};
 
   if (categoryAspects.length === 0) {
-    // Sin metadata: enviar al menos Color/Brand (los más comunes en moda)
+    // Sin metadata: enviar al menos Color/Brand/Size (los más comunes en moda)
     aspects.Color = sourceByAspect.color;
     if (brand) aspects.Brand = [brand];
     if (size) aspects.Size = [size];
@@ -541,16 +620,14 @@ export async function resolveEbayProductAspects(
     if (!name) continue;
 
     const key = normalizeKey(name);
-    const preferred = sourceByAspect[key] ?? [];
+    const sourceKey = ASPECT_SOURCE_ALIASES[key] ?? key;
+    const preferred = sourceByAspect[sourceKey] ?? [];
     const required = Boolean(aspect.aspectConstraint?.aspectRequired);
 
     // Solo rellenamos aspectos requeridos o los que tenemos valor claro
     if (!required && preferred.length === 0) continue;
 
-    const value = pickAspectValue(
-      aspect,
-      preferred.length ? preferred : required ? ["Black", "Other", "N/A"] : []
-    );
+    const value = pickAspectValue(aspect, preferred);
     if (value) {
       aspects[name] = [value];
     }

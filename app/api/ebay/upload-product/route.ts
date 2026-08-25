@@ -13,23 +13,10 @@ import { publishListingToEbay } from "@/libs/ebay/inventory";
 import { buildEbayListingUrl } from "@/libs/ebay/mappers";
 import { getEbayMarketplaceId } from "@/libs/ebay/client";
 import { EbayApiError, getEbayUserFacingErrorMessage } from "@/libs/ebay/api";
+import { validateListingRequiredFields } from "@/lib/external-integrations/validators";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
-
-function validateListingForEbay(listing: {
-  title?: string | null;
-  description?: string | null;
-  price?: number | null;
-  photoUrl?: string[];
-}) {
-  const missing: string[] = [];
-  if (!listing.title?.trim()) missing.push("título");
-  if (!listing.description?.trim()) missing.push("descripción");
-  if (!listing.price || listing.price <= 0) missing.push("precio");
-  if (!listing.photoUrl?.length) missing.push("foto");
-  return missing;
-}
 
 export async function POST(req: NextRequest) {
   const userId = await getAuthenticatedUserId();
@@ -49,10 +36,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "listing no encontrado" }, { status: 404 });
   }
 
-  const missing = validateListingForEbay(listing);
+  const missing = validateListingRequiredFields(listing, "ebay");
   if (missing.length) {
     return NextResponse.json(
-      { error: `Faltan campos obligatorios: ${missing.join(", ")}` },
+      {
+        error: `Faltan campos obligatorios: ${missing.map((f) => f.label).join(", ")}`,
+        missingFields: missing,
+      },
       { status: 422 }
     );
   }

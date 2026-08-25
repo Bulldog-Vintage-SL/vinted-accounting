@@ -10,7 +10,7 @@ import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
-  uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem,
+  uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem
 } from '@/lib/external-integrations'
 
@@ -174,18 +174,12 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
     return { published: true, platform: 'depop' }
   }
   else if (account.platform === 'ebay') {
-    const res = await fetchWithTimeout('/api/ebay/upload-product', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listingId: listing.id, accountId: account.accountId }),
-    }, 120000)
-    const data = await res.json()
-
-    if (!res.ok || !data?.ok) {
-      throw new Error(`eBay: ${data?.error || 'Error desconocido'}`)
+    const res = await uploadEbayItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`eBay: ${res.message}`)
     }
-
-    return { published: true, platform: 'ebay', publication: data.publication }
+    return { published: true, platform: 'ebay', publication: res.data }
   }
   else {
     throw new Error(`Plataforma no soportada: ${account.platform}`)

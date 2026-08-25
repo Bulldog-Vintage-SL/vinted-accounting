@@ -420,6 +420,21 @@ function RetryForm({
           )
         }
 
+        if (field.key === 'description') {
+          return (
+            <div key={field.key} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>
+              <textarea
+                value={values[field.key] ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+                rows={4}
+                placeholder="Describe el artículo"
+                className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-[80px]"
+              />
+            </div>
+          )
+        }
+
         return (
           <div key={field.key} className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-600 capitalize">{field.label}</label>

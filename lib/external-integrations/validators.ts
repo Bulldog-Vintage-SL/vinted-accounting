@@ -14,7 +14,7 @@ export class MissingFieldsError extends Error {
   }
 }
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'ebay'
 
 export const VESTIAIRE_MIN_PRICE = 16
 
@@ -37,10 +37,12 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
       ? { key: 'colors', label: 'colores' }
       : null,
 
-  photo_url: (listing) =>
-    !Array.isArray(listing?.photo_url) || listing.photo_url.length === 0
+  photo_url: (listing) => {
+    const photos = listing?.photo_url ?? listing?.photoUrl
+    return !Array.isArray(photos) || photos.length === 0
       ? { key: 'photo_url', label: 'foto' }
-      : null,
+      : null
+  },
 
   brand: (listing) =>
     !listing?.attributes?.brand?.trim() ? { key: 'attributes.brand', label: 'marca' } : null,
@@ -75,6 +77,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender', 'vestiaire_min_price'],
   depop: ['description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
+  ebay: ['title', 'description', 'price', 'photo_url'],
 }
 
 export function validateListingRequiredFields(listing: any, platform: Platform): MissingField[] {
