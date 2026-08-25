@@ -4,6 +4,13 @@ import { zodResponseFormat } from "openai/helpers/zod";
 import { getFlatCategories, findCategoryById, findClosestHombreCategory } from "@/lib/categories";
 import { matchBrand } from "@/lib/brands";
 import { COLOR_OPTIONS, SIZE_OPTIONS, CONDITION_OPTIONS } from "@/lib/constants";
+import fs from "fs";
+import path from "path";
+
+const GUIDE_CONTENT = fs.readFileSync(
+  path.join(process.cwd(), "data", "documento-guia-gpt.txt"),
+  "utf-8"
+);
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -24,7 +31,7 @@ async function generateTitleAndDescription(imgUrl: string) {
             type: "text",
             text:
               "Genera un título corto y descriptivo, y una descripción breve (2-3 frases) " +
-              "para este producto de segunda mano como si lo fueses a subir a un marketplace como Vinted, en inglés.",
+              "para este producto de segunda mano como si lo fueses a subir a un marketplace como Vinted, titulo en ingles y descripcion en español.",
           },
           { type: "image_url", image_url: { url: imgUrl } },
         ],
@@ -59,6 +66,10 @@ async function getSimilarListings(title: string, description: string, k: number)
 
 
 const FieldsSchema = z.object({
+  title: z.string().describe(
+    "Título corto y descriptivo del producto para el marketplace, en inglés, " +
+    "generado ya con el contexto completo (listings similares y guía)."
+  ),
   description: z.string(),
   brand: z.string().describe(
     "Nombre de la marca detectada en la prenda (logo, etiqueta, texto visible). " +
@@ -76,7 +87,7 @@ const FieldsSchema = z.object({
     .describe("El id de la categoría más adecuada, SI LA PRENDA ES DE CORTE UNISEX PRIORIZA ELEGIR UNA OPCIÓN DE HOMBRE, EXACTAMENTE uno de los ids de la lista proporcionada"),
 });
 
-async function generateFields(imgUrl: string, title: string, similarListings: unknown) {
+async function generateFields(imgUrl: string, draftTitle: string, similarListings: unknown) {
   const categories = getFlatCategories();
   const categoriesContext = categories.map(c => ({ id: c.id, path: c.path }));
 
@@ -88,6 +99,7 @@ async function generateFields(imgUrl: string, title: string, similarListings: un
         content:
           "Eres un asistente que rellena campos de producto para un marketplace de ropa de segunda mano (estilo Vinted). " +
           "Usa la imagen del producto y, como referencia de precio y estilo, los listings similares en JSON. " +
+          "Genera también un título nuevo y definitivo (no te limites a copiar el título borrador). " +
           "Para la categoría, DEBES elegir un id EXACTO de la lista de categorías válidas proporcionada; nunca inventes un id que no esté en la lista.",
       },
       {
@@ -96,9 +108,10 @@ async function generateFields(imgUrl: string, title: string, similarListings: un
           {
             type: "text",
             text:
-              `Título del producto: "${title}"\n\n` +
+              `Título borrador (solo como referencia, genera uno nuevo mejorado): "${draftTitle}"\n\n` +
               `Listings similares (referencia de precio/tono, no copiar literalmente):\n${JSON.stringify(similarListings)}\n\n` +
               `Categorías válidas (elige un "id" de aquí):\n${JSON.stringify(categoriesContext)}\n\n` +
+              `Usa como guía para descripción y título esto: \n${GUIDE_CONTENT}\n\n` +
               "Genera los campos del producto en base a la imagen y este contexto.",
           },
           { type: "image_url", image_url: { url: imgUrl } },
@@ -121,6 +134,7 @@ async function generateFields(imgUrl: string, title: string, similarListings: un
   const matchedBrand = matchBrand(parsed.brand);
 
   return {
+    title: parsed.title,
     description: parsed.description,
     brand: matchedBrand,
     colors: parsed.colors,
@@ -162,8 +176,8 @@ async function generateSizeAndCondition(
           "Eres un asistente que analiza fotos de una prenda de ropa de segunda mano para determinar su talla y estado. " +
           "Para 'size': SOLO la indiques si ves explícitamente una etiqueta con la talla escrita y legible en alguna imagen. " +
           "Si la prenda no es de mujer elige una categoría de Hombre." +
-          "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" + 
-          "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc."+
+          "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
+          "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
           "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
           "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null.",
       },
@@ -203,9 +217,9 @@ export async function POST(req: Request) {
 
     const mainImgUrl = imgUrls[0];
 
-    const { title, description: draftDescription } = await generateTitleAndDescription(mainImgUrl);
-    const similarListings = await getSimilarListings(title, draftDescription, body.k ?? 5);
-    const fields = await generateFields(mainImgUrl, title, similarListings);
+    const { title: draftTitle, description: draftDescription } = await generateTitleAndDescription(mainImgUrl);
+    const similarListings = await getSimilarListings(draftTitle, draftDescription, body.k ?? 5);
+    const fields = await generateFields(mainImgUrl, draftTitle, similarListings);
 
     let sizeCondition: { size: string | null; condition: string | null } = {
       size: null,
@@ -216,7 +230,7 @@ export async function POST(req: Request) {
       sizeCondition = await generateSizeAndCondition(imgUrls);
     }
 
-    return Response.json({ title, ...fields, ...sizeCondition });
+    return Response.json({ ...fields, ...sizeCondition });
 
   } catch (err) {
     console.error("Field suggestions error:", err);
