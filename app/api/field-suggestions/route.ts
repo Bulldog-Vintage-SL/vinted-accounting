@@ -179,7 +179,9 @@ async function generateSizeAndCondition(
           "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
           "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
           "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
-          "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null.",
+          "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
+          "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
+          "Si no tienes una foto de donde sacar la talla NO la rellenes",
       },
       {
         role: "user",

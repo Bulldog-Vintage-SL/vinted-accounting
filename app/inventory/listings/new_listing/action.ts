@@ -34,3 +34,4 @@ export async function createListingFromForm(data: ListingForm) {
 
   redirect("/inventory/listings");
 }
+ 
