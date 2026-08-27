@@ -32,7 +32,7 @@ interface Props {
     onSaveListing: (data: ListingForm) => Promise<void>;
 }
 
-// Reintenta con backoff ante 429; si el body trae "try again in Xs", espera exactamente eso
+// eslint-disable-next-line no-undef
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 4): Promise<Response> {
     let attempt = 0;
 
