@@ -46,6 +46,13 @@ export function serializePublication(doc: unknown) {
   const raw = toPlain(doc);
   const listing = raw.listingId as Record<string, unknown> | string | null | undefined;
 
+  const listingId =
+    listing && typeof listing === "object"
+      ? (listing.id as string) || listing._id?.toString?.() || ""
+      : typeof listing === "string"
+        ? listing
+        : "";
+
   const listingData =
     listing && typeof listing === "object"
       ? {
@@ -69,6 +76,7 @@ export function serializePublication(doc: unknown) {
     last_sync:
       (raw.lastSync as string) ?? (raw.last_sync as string) ?? null,
     listing: listingData,
+    listing_id: listingId,
     publication_url:
       (raw.publicationUrl as string) ?? (raw.publication_url as string) ?? null,
     account_id:

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   const appUrl = getAppUrl();
   const params = new URLSearchParams({
     client_id: process.env.SHOPIFY_CLIENT_ID!,
-    scope: "read_products,write_products",
+    scope: "read_products,write_products,read_orders",
     redirect_uri: `${appUrl}/api/shopify/callback`,
     state,
   });

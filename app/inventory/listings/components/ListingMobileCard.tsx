@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { Loader2, Send, Trash2, BadgeCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { Listing } from "@/app/inventory/listings/types";
+import { formatListingStatus } from "@/libs/inventory/display";
 
 interface Props {
   listing: Listing;
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onPublish: (listing: Listing) => void;
+  onMarkSold: (listing: Listing) => void;
   onDelete: (id: string) => void;
   isPublishing: boolean;
 }
@@ -19,10 +21,12 @@ export function ListingMobileCard({
   selected,
   onSelect,
   onPublish,
+  onMarkSold,
   onDelete,
   isPublishing,
 }: Props) {
   const photo = listing.photo_url?.[0];
+  const isSold = listing.status === "sold";
 
   return (
     <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -54,7 +58,9 @@ export function ListingMobileCard({
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
             <span className="font-medium tabular-nums">€{Number(listing.price).toFixed(2)}</span>
-            <Badge variant="default" className="text-xs">{listing.status}</Badge>
+            <Badge variant={isSold ? "secondary" : "default"} className="text-xs">
+              {formatListingStatus(listing.status)}
+            </Badge>
           </div>
           <p className="mt-1 text-xs text-gray-500 truncate">
             SKU: {listing.sku || "—"} · {listing.condition || "—"}
@@ -63,9 +69,18 @@ export function ListingMobileCard({
       </div>
 
       <div className="mt-4 flex gap-2">
+        {!isSold && (
+          <button
+            onClick={() => onMarkSold(listing)}
+            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg font-medium transition"
+            aria-label="Marcar como vendido"
+          >
+            <BadgeCheck size={18} />
+          </button>
+        )}
         <button
           onClick={() => onPublish(listing)}
-          disabled={isPublishing}
+          disabled={isPublishing || isSold}
           className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition disabled:opacity-50"
         >
           {isPublishing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

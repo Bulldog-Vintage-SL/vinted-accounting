@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import NextLink from "next/link";
 import {
   Download,
   Package,
@@ -22,6 +23,7 @@ import {
 import apiClient from "@/libs/api";
 import { SaleItemThumbnail } from "./components/SaleItemThumbnail";
 import { SaleMobileCard } from "./components/SaleMobileCard";
+import { formatPlatformName } from "@/libs/inventory/display";
 
 interface Sale {
   _id: string;
@@ -40,6 +42,8 @@ interface Sale {
   itemImageUrl?: string;
   isManual?: boolean;
   bundleId?: string;
+  listingId?: string | null;
+  platform?: string | null;
 }
 
 interface Bundle {
@@ -549,7 +553,23 @@ export default function SalesPage() {
                               <td className="py-3 px-2 min-w-0">
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium text-gray-900 truncate">{sale.itemName}</p>
-                                  <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
+                                  <div className="flex items-center gap-2 mt-0.5">
+                                    {sale.platform ? (
+                                      <span className="text-xs text-gray-500">
+                                        {formatPlatformName(sale.platform)}
+                                      </span>
+                                    ) : (
+                                      <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
+                                    )}
+                                    {sale.listingId && (
+                                      <NextLink
+                                        href={`/inventory/listings/${sale.listingId}`}
+                                        className="text-xs text-blue-600 hover:underline"
+                                      >
+                                        Ver producto
+                                      </NextLink>
+                                    )}
+                                  </div>
                                 </div>
                               </td>
                               <td className="py-3 px-2">
@@ -666,7 +686,23 @@ export default function SalesPage() {
                                 <td className="py-3 px-2 min-w-0">
                                   <div className="min-w-0">
                                     <p className="text-sm font-medium text-gray-900 truncate">{sale.itemName}</p>
-                                    <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      {sale.platform ? (
+                                        <span className="text-xs text-gray-500">
+                                          {formatPlatformName(sale.platform)}
+                                        </span>
+                                      ) : (
+                                        <p className="text-xs text-gray-400 truncate">#{sale.transactionId}</p>
+                                      )}
+                                      {sale.listingId && (
+                                        <NextLink
+                                          href={`/inventory/listings/${sale.listingId}`}
+                                          className="text-xs text-blue-600 hover:underline"
+                                        >
+                                          Ver producto
+                                        </NextLink>
+                                      )}
+                                    </div>
                                   </div>
                                 </td>
                                 <td className="hidden xl:table-cell py-3 px-3 text-sm text-gray-500 text-right whitespace-nowrap">{hasCost ? formatCurrency(sale.purchasePrice!) : "-"}</td>

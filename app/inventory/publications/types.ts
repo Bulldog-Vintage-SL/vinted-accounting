@@ -14,6 +14,7 @@ export type Publication = {
         title: string;
         photo_url: string[]
     } | null;
+    listing_id?: string;
     publication_url: string | null;
     account_id: string;
 };

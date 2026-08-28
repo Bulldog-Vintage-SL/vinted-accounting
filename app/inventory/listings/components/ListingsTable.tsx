@@ -21,6 +21,7 @@ import { PublishProgressModal } from './PublishProgressModal'
 import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
+import { MarkSoldModal } from './MarkSoldModal'
 import { ListingMobileCard } from './ListingMobileCard'
 import type { Job } from '@/lib/queue/types'
 
@@ -46,6 +47,11 @@ export function ListingsTable() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [listingToDelete, setListingToDelete] = useState<Listing | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const [markSoldOpen, setMarkSoldOpen] = useState(false)
+  const [listingToMarkSold, setListingToMarkSold] = useState<Listing | null>(null)
+  const [isMarkingSold, setIsMarkingSold] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'available' | 'sold' | 'all'>('available')
 
   const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
   const [listingsToDelete, setListingsToDelete] = useState<Listing[]>([])
@@ -192,6 +198,14 @@ export function ListingsTable() {
   }, [isBulkDeleting, onEvent, mutate, pushToast])
 
   const handlePublish = useCallback((listing: Listing) => {
+    if (listing.status === 'sold') {
+      pushToast({
+        message: 'Producto vendido',
+        description: 'Este producto ya está marcado como vendido y no se puede volver a publicar.',
+        type: 'error',
+      })
+      return
+    }
     setPublishingListingId(listing.id)
 
     openSelector((accounts) => {
@@ -214,12 +228,19 @@ export function ListingsTable() {
       publishJobsRef.current = jobs
       setPublishPhase('publishing')
     })
-  }, [openSelector, clear, enqueue])
+  }, [openSelector, clear, enqueue, pushToast])
 
   // Publicacion masiva
   const handleBulkPublish = useCallback(() => {
-    const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
-    if (selected.length === 0) return
+    const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id) && l.status !== 'sold')
+    if (selected.length === 0) {
+      pushToast({
+        message: 'Nada que publicar',
+        description: 'Los productos seleccionados ya están vendidos o no hay selección válida.',
+        type: 'error',
+      })
+      return
+    }
 
     setIsBulkPublishing(true)
 
@@ -248,7 +269,7 @@ export function ListingsTable() {
       setSelectedIds([])
       tableRef.current?.resetSelection()
     })
-  }, [data, selectedIds, openSelector, clear, enqueue])
+  }, [data, selectedIds, openSelector, clear, enqueue, pushToast])
 
   const handleClosePublishModal = useCallback(() => {
     setPublishPhase('idle')
@@ -327,9 +348,60 @@ export function ListingsTable() {
     }
   }, [listingToDelete, mutate, pushToast])
 
+  const handleMarkSoldClick = useCallback((listing: Listing) => {
+    setListingToMarkSold(listing)
+    setMarkSoldOpen(true)
+  }, [])
+
+  const handleConfirmMarkSold = useCallback(async (payload: {
+    publicationId: string | null
+    platform: string
+    salePrice: number
+    saleDate: string
+    purchasePrice: number
+  }) => {
+    if (!listingToMarkSold) return
+    setIsMarkingSold(true)
+
+    try {
+      const res = await fetch(`/api/listings/${listingToMarkSold.id}/mark-sold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        pushToast({
+          message: 'No se pudo marcar como vendido',
+          description: data?.error || 'Inténtalo de nuevo.',
+          type: 'error',
+        })
+        return
+      }
+
+      mutate()
+      pushToast({
+        message: 'Producto vendido',
+        description: `"${listingToMarkSold.title}" se ha registrado en Ventas.`,
+        type: 'success',
+      })
+      setMarkSoldOpen(false)
+      setListingToMarkSold(null)
+    } catch (err) {
+      console.error('Error marcando como vendido:', err)
+      pushToast({
+        message: 'Error al guardar',
+        description: 'No se pudo conectar con el servidor.',
+        type: 'error',
+      })
+    } finally {
+      setIsMarkingSold(false)
+    }
+  }, [listingToMarkSold, mutate, pushToast])
+
   const columns = useMemo(
-    () => createColumns(handleDeleteClick, handlePublish, publishingListingId),
-    [handleDeleteClick, handlePublish, publishingListingId]
+    () => createColumns(handleDeleteClick, handlePublish, handleMarkSoldClick, publishingListingId),
+    [handleDeleteClick, handlePublish, handleMarkSoldClick, publishingListingId]
   )
 
   const handleMobileSelect = useCallback((id: string, checked: boolean) => {
@@ -339,7 +411,11 @@ export function ListingsTable() {
     })
   }, [])
 
-  const listings = data ?? []
+  const listings = (data ?? []).filter((listing: Listing) => {
+    if (statusFilter === 'sold') return listing.status === 'sold'
+    if (statusFilter === 'available') return listing.status !== 'sold'
+    return true
+  })
 
   if (isLoading) return <PageLoader label="Cargando productos..." />
   if (error) return <div className="p-4 text-red-500">Error cargando listings</div>
@@ -355,6 +431,26 @@ export function ListingsTable() {
           onRetryFailed={retryFailed}
         />
       )}
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {([
+          { id: 'available', label: 'Disponibles' },
+          { id: 'sold', label: 'Vendidos' },
+          { id: 'all', label: 'Todos' },
+        ] as const).map((filter) => (
+          <button
+            key={filter.id}
+            onClick={() => setStatusFilter(filter.id)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+              statusFilter === filter.id
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {filter.label}
+          </button>
+        ))}
+      </div>
 
       <div className="hidden md:block">
         <DataTable
@@ -377,6 +473,7 @@ export function ListingsTable() {
               selected={selectedIds.includes(listing.id)}
               onSelect={handleMobileSelect}
               onPublish={handlePublish}
+              onMarkSold={handleMarkSoldClick}
               onDelete={handleDeleteClick}
               isPublishing={publishingListingId === listing.id}
             />
@@ -491,6 +588,18 @@ export function ListingsTable() {
             : `${listingsToDelete.length} productos seleccionados`
         }
         isLoading={isBulkDeleting}
+      />
+
+      <MarkSoldModal
+        open={markSoldOpen}
+        listing={listingToMarkSold}
+        isLoading={isMarkingSold}
+        onClose={() => {
+          if (isMarkingSold) return
+          setMarkSoldOpen(false)
+          setListingToMarkSold(null)
+        }}
+        onConfirm={handleConfirmMarkSold}
       />
     </div>
   )

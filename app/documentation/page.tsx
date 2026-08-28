@@ -28,7 +28,7 @@ const docSections: DocSection[] = [
       "Reventa Libertad tiene dos partes: contabilidad de Vinted (desde Gmail) y cross-listing (publicar el mismo producto en varias tiendas).",
     points: [
       "Inicia sesión con Google. Es obligatorio: Gmail sirve para sincronizar ventas y gastos de Vinted.",
-      "Ve al Dashboard y pulsa Sincronizar. La primera vez descarga todo el historial de correos de Vinted. Repítelo cada día para mantener los datos al día.",
+      "Ve al Dashboard y pulsa Sincronizar. Trae ventas de Vinted (Gmail), intenta casarlas con tus listings por título, e importa pedidos pagados de eBay y Shopify.",
       "Revisa ventas completadas y asigna cada venta a un lote de inventario para ver tu beneficio real y el ROI.",
       "Descarga etiquetas de envío desde ventas pendientes (una o varias a la vez).",
       "Para vender en más sitios (Wallapop, Shopify, eBay…), instala la extensión de Chrome y conecta tus cuentas en Ajustes → Cuentas vinculadas.",
@@ -54,6 +54,9 @@ const docSections: DocSection[] = [
     points: [
       "Separa ventas pendientes de envío y ventas completadas.",
       "Permite crear, editar y eliminar ventas manuales cuando sea necesario.",
+      "También puedes marcar un producto como vendido desde Inventario: la venta queda enlazada al listing y a la plataforma.",
+      "Al sincronizar, las ventas de Vinted (Gmail) se casan con un listing si el título coincide de forma única. Los pedidos pagados de eBay (SKU) y Shopify (variante/SKU) hacen lo mismo.",
+      "Si Shopify no trae pedidos, reconecta la tienda en Ajustes: hace falta el permiso de leer pedidos.",
       "Incluye vinculación/desvinculación de ventas con bundles del inventario.",
       "Desde pendientes, puedes descargar etiqueta individual o varias combinadas.",
     ],
@@ -69,6 +72,7 @@ const docSections: DocSection[] = [
       "Listings: tus productos con fotos, título, precio y descripción. Es tu catálogo central.",
       "Publicaciones: cada listing publicado en una tienda concreta (Vinted, Wallapop, Shopify…).",
       "Puedes crear un producto nuevo, importarlo desde una tienda donde ya lo tengas, o publicarlo en varias a la vez.",
+      "Desde Inventario puedes marcar un producto como vendido: se crea la venta, el listing pasa a vendido y las publicaciones se cierran en Relist (los anuncios en las tiendas hay que retirarlos en Publicaciones).",
       "Los bundles siguen disponibles para controlar lotes de compra, coste por unidad y rentabilidad.",
       "Al eliminar un bundle, las ventas vinculadas se desvinculan automáticamente.",
     ],
@@ -146,6 +150,7 @@ const docSections: DocSection[] = [
           "Importar: trae tus productos de Shopify al inventario.",
           "Publicar: crea el producto en Shopify con fotos, precio y stock desde un listing.",
           "Editar o borrar: desde Publicaciones, sin abrir Shopify manualmente.",
+          "Al sincronizar, se importan pedidos pagados. Si no aparecen, reconecta Shopify: hace falta el permiso de leer pedidos (read_orders).",
         ],
       },
       {
@@ -156,6 +161,7 @@ const docSections: DocSection[] = [
           "Importar: Inventario → Añadir listing → Importar → elige tu cuenta eBay.",
           "Publicar: crea o edita un listing con título, descripción, precio y fotos → Publicar → eBay.",
           "Editar o borrar: desde Publicaciones, igual que Shopify (sin extensión).",
+          "Al sincronizar, se importan pedidos pagados y se casan con el listing por SKU (el que se genera al publicar).",
           "La primera publicación crea automáticamente políticas de envío/pago/devolución en eBay si no existen.",
         ],
       },

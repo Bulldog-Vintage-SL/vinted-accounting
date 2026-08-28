@@ -16,6 +16,8 @@ import {
   processEmailsBatch,
 } from "@/libs/gmail-api";
 import { backfillMissingSaleImagesFromGmail } from "@/libs/sales/backfill-images";
+import { matchUnlinkedVintedSales } from "@/libs/sales/match-listing";
+import { syncMarketplaceOrdersForUser } from "@/libs/sales/sync-marketplace-orders";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 3 minutos para sincronización completa
@@ -203,6 +205,7 @@ export async function POST(req: NextRequest) {
           hasLabel: pending.hasAttachment,
           snippet: pending.snippet,
           itemImageUrl: pending.itemImageUrl || completed?.itemImageUrl,
+          platform: "vinted",
         };
 
         console.log(`💾 Guardando venta: ${pending.messageId} - ${pending.itemName}`);
@@ -278,6 +281,7 @@ export async function POST(req: NextRequest) {
           hasLabel: false,
           snippet: completed.snippet,
           itemImageUrl: completed.itemImageUrl,
+          platform: "vinted",
         };
 
         console.log(`💾 Guardando venta completada: ${completed.messageId} - ${completed.itemName}`);
@@ -464,6 +468,18 @@ export async function POST(req: NextRequest) {
     const imageBackfill = await backfillMissingSaleImagesFromGmail(gmail, user._id);
     console.log(`   🖼️ Imágenes: ${imageBackfill.updated}/${imageBackfill.checked} ventas actualizadas desde Gmail`);
 
+    const userId = user._id.toString();
+    console.log("🔗 Emparejando ventas de Vinted con listings...");
+    const vintedMatches = await matchUnlinkedVintedSales(userId);
+    console.log(`   ✅ Vinted: ${vintedMatches.matched} emparejadas, ${vintedMatches.skipped} sin match único`);
+
+    console.log("🛒 Sincronizando pedidos de eBay y Shopify...");
+    const marketplaceOrders = await syncMarketplaceOrdersForUser(userId);
+    console.log(
+      `   eBay: ${marketplaceOrders.ebay.newSales} nuevas, ${marketplaceOrders.ebay.matched} casadas; ` +
+        `Shopify: ${marketplaceOrders.shopify.newSales} nuevas, ${marketplaceOrders.shopify.matched} casadas`
+    );
+
     console.log(`✅ Sincronización completada:`);
     console.log(`   📧 Ventas: ${pendingMessageIds.length} etiquetas, ${completedMessageIds.length} transferencias`);
     console.log(`   💾 Ventas: ${newSales} nuevas, ${updatedSales} actualizadas, ${expiredSales} vencidas, ${salesErrors} errores`);
@@ -500,6 +516,11 @@ export async function POST(req: NextRequest) {
         errors: expensesErrors,
       },
       images: imageBackfill,
+      listingMatches: {
+        vinted: vintedMatches,
+        ebay: marketplaceOrders.ebay,
+        shopify: marketplaceOrders.shopify,
+      },
     });
   } catch (error: any) {
     console.error("❌ Sync error:", error);

@@ -6,6 +6,17 @@ const PUBLICATION_STATUS_LABELS: Record<string, string> = {
   hidden: "Oculta",
   inactive: "Inactiva",
   archived: "Archivada",
+  sold: "Vendida",
+};
+
+export const PLATFORM_NAMES: Record<string, string> = {
+  vinted: "Vinted",
+  wallapop: "Wallapop",
+  vestiaire: "Vestiaire Collective",
+  ebay: "eBay",
+  shopify: "Shopify",
+  depop: "Depop",
+  manual: "Manual",
 };
 
 const SYNC_STATUS_LABELS: Record<string, string> = {
@@ -27,6 +38,20 @@ export function formatPublicationStatus(status: string | null | undefined): stri
   return PUBLICATION_STATUS_LABELS[key] ?? status ?? "Activa";
 }
 
+export function formatPlatformName(platform: string | null | undefined): string {
+  if (!platform) return "—";
+  return PLATFORM_NAMES[platform] ?? platform;
+}
+
+export function formatListingStatus(status: string | null | undefined): string {
+  const key = (status?.trim() || "active").toLowerCase();
+  if (key === "sold") return "Vendido";
+  if (key === "active") return "Activo";
+  if (key === "inactive") return "Inactivo";
+  if (key === "closed") return "Cerrado";
+  return status || "Activo";
+}
+
 export function formatSyncStatus(sync: string | null | undefined): string {
   if (!sync) return "—";
   const key = sync.toLowerCase();
@@ -41,7 +66,7 @@ export function publicationStatusClass(status: string | null | undefined): strin
   if (key === "draft" || key === "pending" || key === "reserved") {
     return "bg-yellow-100 text-yellow-700";
   }
-  if (key === "closed" || key === "inactive" || key === "archived" || key === "hidden") {
+  if (key === "closed" || key === "inactive" || key === "archived" || key === "hidden" || key === "sold") {
     return "bg-gray-200 text-gray-700";
   }
   return "bg-blue-100 text-blue-700";

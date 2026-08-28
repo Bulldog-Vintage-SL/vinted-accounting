@@ -28,6 +28,9 @@ export interface ISale {
   itemImageUrl?: string;
   isManual?: boolean; // Si fue añadida manualmente
   bundleId?: mongoose.Types.ObjectId; // Enlace al bundle
+  listingId?: mongoose.Types.ObjectId | null;
+  publicationId?: mongoose.Types.ObjectId | null;
+  platform?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -132,6 +135,19 @@ const saleSchema = new mongoose.Schema(
       ref: "Bundle",
       index: true,
     },
+    listingId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Listing",
+    },
+    publicationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Publication",
+    },
+    platform: {
+      type: String,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -144,6 +160,9 @@ saleSchema.index({ userId: 1, emailId: 1 });
 
 // Índice para búsquedas por fecha
 saleSchema.index({ userId: 1, saleDate: -1 });
+
+// Un listing solo puede generar una venta
+saleSchema.index({ listingId: 1 }, { unique: true, sparse: true });
 
 // add plugin that converts mongoose to json
 saleSchema.plugin(toJSON);

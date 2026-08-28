@@ -1,3 +1,4 @@
+import { NextRequest } from "next/server";
 import connectMongo from "@/libs/mongoose";
 import Listing from "@/models/Listing";
 import Publication from "@/models/Publication";
@@ -8,7 +9,7 @@ import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) {
@@ -21,8 +22,21 @@ export async function GET() {
     await connectMongo();
     const listings = await Listing.find({ userId }).select("_id");
     const listingIds = listings.map((l) => l._id);
+    const listingIdFilter = req.nextUrl.searchParams.get("listingId");
 
-    const data = await Publication.find({ listingId: { $in: listingIds } })
+    const query: { listingId: mongoose.Types.ObjectId | { $in: mongoose.Types.ObjectId[] } } = {
+      listingId: { $in: listingIds },
+    };
+
+    if (listingIdFilter) {
+      const owned = listingIds.find((id) => id.toString() === listingIdFilter);
+      if (!owned) {
+        return Response.json({ status: "success", data: [] });
+      }
+      query.listingId = owned;
+    }
+
+    const data = await Publication.find(query)
       .populate("listingId", "title photoUrl userId")
       .sort({ createdAt: -1 });
 

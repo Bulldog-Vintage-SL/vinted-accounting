@@ -10,6 +10,8 @@ import {
   Truck,
 } from "lucide-react";
 import { SaleItemThumbnail } from "./SaleItemThumbnail";
+import NextLink from "next/link";
+import { formatPlatformName } from "@/libs/inventory/display";
 
 interface SaleCardProps {
   sale: {
@@ -26,6 +28,8 @@ interface SaleCardProps {
     hasLabel?: boolean;
     itemImageUrl?: string;
     bundleId?: string;
+    listingId?: string | null;
+    platform?: string | null;
   };
   variant: "pending" | "completed";
   carrierNames: Record<string, string>;
@@ -93,7 +97,17 @@ export function SaleMobileCard({
 
         <div className="min-w-0 flex-1">
           <p className="font-medium text-gray-900 line-clamp-2">{sale.itemName}</p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">#{sale.transactionId}</p>
+          <p className="text-xs text-gray-400 mt-0.5 truncate">
+            {sale.platform ? formatPlatformName(sale.platform) : `#${sale.transactionId}`}
+          </p>
+          {sale.listingId ? (
+            <NextLink
+              href={`/inventory/listings/${sale.listingId}`}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Ver producto
+            </NextLink>
+          ) : null}
           <p className="text-xs text-gray-500 mt-1">{formatDate(displayDate)}</p>
 
           {variant === "pending" ? (

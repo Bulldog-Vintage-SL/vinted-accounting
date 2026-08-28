@@ -13,6 +13,8 @@ import {
   processEmailsBatch,
 } from "@/libs/gmail-api";
 import { backfillMissingSaleImagesFromGmail } from "@/libs/sales/backfill-images";
+import { matchUnlinkedVintedSales } from "@/libs/sales/match-listing";
+import { syncMarketplaceOrdersForUser } from "@/libs/sales/sync-marketplace-orders";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // 2 minutos para sincronización completa
@@ -130,6 +132,7 @@ export async function POST(req: NextRequest) {
           hasLabel: pending.hasAttachment,
           snippet: pending.snippet,
           itemImageUrl: pending.itemImageUrl || completed?.itemImageUrl,
+          platform: "vinted",
         };
 
         const result = await Sale.findOneAndUpdate(
@@ -168,6 +171,7 @@ export async function POST(req: NextRequest) {
           hasLabel: false,
           snippet: completed.snippet,
           itemImageUrl: completed.itemImageUrl,
+          platform: "vinted",
         };
 
         const result = await Sale.findOneAndUpdate(
@@ -208,6 +212,10 @@ export async function POST(req: NextRequest) {
 
     const imageBackfill = await backfillMissingSaleImagesFromGmail(gmail, user._id);
 
+    const userId = user._id.toString();
+    const vintedMatches = await matchUnlinkedVintedSales(userId);
+    const marketplaceOrders = await syncMarketplaceOrdersForUser(userId);
+
     return NextResponse.json({
       success: true,
       message: "Sincronización completada",
@@ -220,6 +228,9 @@ export async function POST(req: NextRequest) {
         errors,
         imagesUpdated: imageBackfill.updated,
         imagesChecked: imageBackfill.checked,
+        vintedMatched: vintedMatches.matched,
+        ebay: marketplaceOrders.ebay,
+        shopify: marketplaceOrders.shopify,
       },
       stats: {
         pending: pendingStats,

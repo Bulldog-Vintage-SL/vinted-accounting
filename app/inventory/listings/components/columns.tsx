@@ -3,12 +3,14 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Listing } from '@/app/inventory/listings/types'
-import { Trash2, Send, Loader2 } from 'lucide-react'
+import { Trash2, Send, Loader2, BadgeCheck } from 'lucide-react'
 import Link from 'next/link'
+import { formatListingStatus } from '@/libs/inventory/display'
 
 export const createColumns = (
   onDelete: (id: string) => void,
   onPublish: (listing: Listing) => void,
+  onMarkSold: (listing: Listing) => void,
   publishingListingId: string | null,
 ): ColumnDef<Listing>[] => [
 
@@ -122,8 +124,13 @@ export const createColumns = (
           active: 'default',
           inactive: 'secondary',
           banned: 'destructive',
+          sold: 'secondary',
         }
-        return <Badge variant={variants[status] ?? 'default'} className="text-[10px] px-1.5 py-0">{status}</Badge>
+        return (
+          <Badge variant={variants[status] ?? 'default'} className="text-[10px] px-1.5 py-0">
+            {formatListingStatus(status)}
+          </Badge>
+        )
       },
     },
 
@@ -183,20 +190,31 @@ export const createColumns = (
       id: 'actions',
       header: '',
       meta: {
-        headerClassName: 'w-24',
-        cellClassName: 'w-24',
+        headerClassName: 'w-32',
+        cellClassName: 'w-32',
       },
       cell: ({ row, isHovered }: any) => {
         const isPublishing = publishingListingId === row.original.id
+        const isSold = row.original.status === 'sold'
 
         return (
           <div className="flex justify-end">
             <div className={`flex gap-1.5 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 ${isHovered ? 'md:opacity-100' : ''}`}>
+              {!isSold && (
+                <button
+                  onClick={() => onMarkSold(row.original)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-lg shadow transition"
+                  title="Marcar como vendido"
+                >
+                  <BadgeCheck size={16} />
+                </button>
+              )}
+
               <button
                 onClick={() => onPublish(row.original)}
-                disabled={isPublishing}
+                disabled={isPublishing || isSold}
                 className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg shadow transition disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Publicar"
+                title={isSold ? 'Producto vendido' : 'Publicar'}
               >
                 {isPublishing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               </button>

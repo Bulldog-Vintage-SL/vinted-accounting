@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
 
     const enrichedSales = sales.map((sale) => ({
       ...sale,
+      listingId: sale.listingId ? String(sale.listingId) : null,
+      publicationId: sale.publicationId ? String(sale.publicationId) : null,
+      platform: sale.platform ?? null,
       itemImageUrl: resolveSaleImageUrl(sale, listingImageLookup),
     }));
 

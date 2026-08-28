@@ -3,13 +3,15 @@
 import useSWR from 'swr'
 import Link from 'next/link'
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { ArrowLeft, Loader2, Plus, X, ImagePlus } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, X, ImagePlus, BadgeCheck } from 'lucide-react'
 import { Listing, ListingForm } from '../types'
 import { useToast } from '@/components/toast'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { PageLoader } from '@/components/ui/page-loader'
 import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
 import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
+import { MarkSoldModal } from '../components/MarkSoldModal'
+import { formatListingStatus } from '@/libs/inventory/display'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -85,6 +87,8 @@ export function ListingDetailForm({ listingId }: Props) {
   const [selectedColor, setSelectedColor] = useState('')
   const [activePhotoIdx, setActivePhotoIdx] = useState(0)
   const [priceInput, setPriceInput] = useState('')
+  const [markSoldOpen, setMarkSoldOpen] = useState(false)
+  const [isMarkingSold, setIsMarkingSold] = useState(false)
 
   useEffect(() => {
     if (!data) return
@@ -217,6 +221,47 @@ export function ListingDetailForm({ listingId }: Props) {
     }
   }
 
+  const handleConfirmMarkSold = async (payload: {
+    publicationId: string | null
+    platform: string
+    salePrice: number
+    saleDate: string
+    purchasePrice: number
+  }) => {
+    setIsMarkingSold(true)
+    try {
+      const res = await fetch(`/api/listings/${listingId}/mark-sold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const result = await res.json().catch(() => null)
+      if (!res.ok) {
+        pushToast({
+          message: 'No se pudo marcar como vendido',
+          description: result?.error || 'Inténtalo de nuevo.',
+          type: 'error',
+        })
+        return
+      }
+      await mutate()
+      pushToast({
+        message: 'Producto vendido',
+        description: 'Se ha registrado en Ventas.',
+        type: 'success',
+      })
+      setMarkSoldOpen(false)
+    } catch {
+      pushToast({
+        message: 'Error al guardar',
+        description: 'No se pudo conectar con el servidor.',
+        type: 'error',
+      })
+    } finally {
+      setIsMarkingSold(false)
+    }
+  }
+
   if (isLoading) {
     return <PageLoader label="Cargando producto..." />
   }
@@ -238,20 +283,31 @@ export function ListingDetailForm({ listingId }: Props) {
           Volver a productos
         </Link>
 
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-        >
-          {isSaving && <Loader2 size={16} className="animate-spin" />}
-          {isSaving ? 'Guardando...' : 'Guardar cambios'}
-        </button>
+        <div className="flex items-center gap-2">
+          {data.status !== 'sold' && (
+            <button
+              onClick={() => setMarkSoldOpen(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition text-sm"
+            >
+              <BadgeCheck size={16} />
+              Marcar vendido
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={isSaving || data.status === 'sold'}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          >
+            {isSaving && <Loader2 size={16} className="animate-spin" />}
+            {isSaving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
       </div>
 
       {/* Info no editable */}
       <div className="flex gap-4 text-xs text-gray-400 border-b border-gray-100 pb-4">
         <span>SKU: <span className="text-gray-600 font-medium">{data.sku}</span></span>
-        <span>Estado: <span className="text-gray-600 font-medium">{data.status}</span></span>
+        <span>Estado: <span className="text-gray-600 font-medium">{formatListingStatus(data.status)}</span></span>
         <span>Creado: <span className="text-gray-600 font-medium">{new Date(data.created_at).toLocaleDateString('es-ES')}</span></span>
       </div>
 
@@ -478,6 +534,17 @@ export function ListingDetailForm({ listingId }: Props) {
           </div>
         </div>
       </div>
+
+      <MarkSoldModal
+        open={markSoldOpen}
+        listing={data}
+        isLoading={isMarkingSold}
+        onClose={() => {
+          if (isMarkingSold) return
+          setMarkSoldOpen(false)
+        }}
+        onConfirm={handleConfirmMarkSold}
+      />
     </div>
   )
 }

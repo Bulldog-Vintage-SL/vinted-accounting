@@ -48,7 +48,7 @@ export default function ListingsPage() {
         
 
         <p className="text-gray-600 mb-6 sm:mb-8 text-sm sm:text-base">
-          Gestiona y visualiza tus productos.
+          Gestiona y visualiza tus productos. Marca como vendido para registrar la venta sin borrar el anuncio en las tiendas.
         </p>
 
         <ListingsTable />
