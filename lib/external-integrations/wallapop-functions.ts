@@ -186,30 +186,55 @@ export async function importWallapopWardrobe(userId: string) {
 
       const items = result.result.state.items;
 
-      // Importamos los articulos que se nos han devuelto
-      const resApi = await fetch('/api/listings/import/wallapop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          wardrobe: items,
-          timestamp: Date.now(),
-          accountId: userId
-        })
-      });
+      // Nos quedamos solo con los campos que usa el endpoint de import:
+      // el JSON completo de Wallapop (imágenes en varios tamaños, etc.)
+      // supera el límite de 4.5MB de body de Vercel (413) con armarios grandes.
+      const slimItems = items.map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        slug: item.slug,
+        price: { amount: item.price?.amount },
+        images: (item.images ?? []).map((image: any) => ({
+          urls: {
+            big: image?.urls?.big,
+            medium: image?.urls?.medium,
+            small: image?.urls?.small,
+          },
+        })),
+      }));
 
-      const data = await resApi.json();
+      const BATCH_SIZE = 25;
+      let lastData: any = null;
 
-      if (!resApi.ok || data.status !== "success") {
-        return {
-          ok: false,
-          message: data.message || "Error guardando la cuenta",
-        };
+      for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
+        const batch = slimItems.slice(i, i + BATCH_SIZE);
+
+        const resApi = await fetch('/api/listings/import/wallapop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wardrobe: batch,
+            timestamp: Date.now(),
+            accountId: userId
+          })
+        });
+
+        const data = await resApi.json();
+
+        if (!resApi.ok || data.status !== "success") {
+          return {
+            ok: false,
+            message: data.message || "Error guardando la cuenta",
+          };
+        }
+
+        lastData = data;
       }
 
       return {
         ok: true,
-        message: data.message,
-        data,
+        message: lastData?.message ?? "Armario importado correctamente",
+        data: lastData,
       };
 
     }

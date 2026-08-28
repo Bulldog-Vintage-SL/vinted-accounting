@@ -3,6 +3,10 @@
 */
 
 import type { WorkflowStep } from '../types'
+import {
+  VESTIAIRE_SEARCH_URL,
+  buildVestiaireSearchBody,
+} from './vestiaire-import-steps'
 
 export function buildGetVestiaireItemSteps(externalId: string): WorkflowStep[] {
   return [
@@ -11,16 +15,9 @@ export function buildGetVestiaireItemSteps(externalId: string): WorkflowStep[] {
       platform: 'vestiaire',
       type: 'GET_ITEMS_NEW',
       request: {
-        url: 'https://search.vestiairecollective.com/v1/product/search',
+        url: VESTIAIRE_SEARCH_URL,
         method: 'POST',
-        body: {
-          pagination: { limit: 60, offset: 0 },
-          fields: ['name', 'description', 'brand', 'pictures', 'price', 'colors', 'size', 'link', 'sold', 'createdAt', 'universeId'],
-          locale: { country: 'ES', language: 'es', currency: 'EUR', sizeType: 'ES' },
-          filters: { 'seller.id': [externalId], sold: ['0'] },
-          mySizes: null,
-          sortBy: 'relevance'
-        }
+        body: buildVestiaireSearchBody(externalId, 0)
       }
     }
   ]

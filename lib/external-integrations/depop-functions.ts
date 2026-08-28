@@ -175,29 +175,55 @@ export async function importDepopWardrobe(userId: string) {
 
             const items = result.result.state.items;
 
-            const resApi = await fetch('/api/listings/import/depop', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    accountId: userId,
-                    wardrobe: items,
-                    timestamp: Date.now()
-                })
-            });
+            const slimItems = items.map((item: any) => ({
+                id: item.id,
+                slug: item.slug,
+                description: item.description,
+                sold: item.sold,
+                status: item.status,
+                sizes: item.sizes,
+                pricing: item.pricing?.original_price?.total_price != null
+                    ? { original_price: { total_price: item.pricing.original_price.total_price } }
+                    : item.pricing,
+                pictures: (item.pictures ?? []).map((pic: any) => ({
+                    '1280': pic?.['1280'],
+                    '960': pic?.['960'],
+                    '640': pic?.['640'],
+                })),
+            }));
 
-            const data = await resApi.json();
+            const BATCH_SIZE = 25;
+            let lastData: any = null;
 
-            if (!resApi.ok || data.status !== "success") {
-                return {
-                    ok: false,
-                    message: data.message || "Error guardando la cuenta",
-                };
+            for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
+                const batch = slimItems.slice(i, i + BATCH_SIZE);
+
+                const resApi = await fetch('/api/listings/import/depop', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        accountId: userId,
+                        wardrobe: batch,
+                        timestamp: Date.now()
+                    })
+                });
+
+                const data = await resApi.json();
+
+                if (!resApi.ok || data.status !== "success") {
+                    return {
+                        ok: false,
+                        message: data.message || "Error guardando la cuenta",
+                    };
+                }
+
+                lastData = data;
             }
 
             return {
                 ok: true,
-                message: data.message,
-                data,
+                message: lastData?.message ?? "Armario importado correctamente",
+                data: lastData,
             };
 
         }

@@ -262,28 +262,48 @@ export async function importVestiaireWardrobe(accountId: string) {
     const result = await runFlow('IMPORT_VESTIAIRE_WARDROBE', { externalId })
     console.log(result)
 
-    if (!result?.result?.result?.items) {
+    const items = result?.result?.state?.items ?? result?.result?.result?.items
+    if (!items) {
       return { ok: false, message: 'No se pudieron obtener los artículos' }
     }
 
-    const items = result.result.result.items
+    const slimItems = items.map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      brand: item.brand ? { name: item.brand.name } : null,
+      pictures: item.pictures ?? [],
+      price: item.price?.cents != null ? { cents: item.price.cents } : item.price,
+      colors: item.colors,
+      size: item.size ? { label: item.size.label } : null,
+      link: item.link,
+      universeId: item.universeId,
+    }))
 
-    const res = await fetch('/api/listings/import/vestiaire', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        accountId: accountId,
-        wardrobe: items,
-        timestamp: Date.now()
+    const BATCH_SIZE = 25
+    let lastData: any = null
+
+    for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
+      const batch = slimItems.slice(i, i + BATCH_SIZE)
+
+      const res = await fetch('/api/listings/import/vestiaire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: accountId,
+          wardrobe: batch,
+          timestamp: Date.now()
+        })
       })
-    })
 
-    const data = await res.json()
-    if (!res.ok || data.status !== 'success') {
-      return { ok: false, message: data.message || 'Error guardando artículos' }
+      const data = await res.json()
+      if (!res.ok || data.status !== 'success') {
+        return { ok: false, message: data.message || 'Error guardando artículos' }
+      }
+      lastData = data
     }
 
-    return { ok: true, message: data.message, data }
+    return { ok: true, message: lastData?.message ?? 'Armario importado correctamente', data: lastData }
 
   } catch (err: any) {
     return { ok: false, message: err?.message || 'Error inesperado' }

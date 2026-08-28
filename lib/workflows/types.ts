@@ -144,6 +144,9 @@ export interface WorkflowState {
   wallaMaxWeightKg?: number
   wallaItemId?: string
   wallaItem?: any
+  wallaNextSince?: string
+  wallaNextUrl?: string
+  wallaNextStart?: number
 
   // Vestiaire Collective
   vestiaireId?: string
@@ -158,6 +161,7 @@ export interface WorkflowState {
   vestAddressId?: string
   vestProductId?: string
   vestPublicationUrl?: string
+  vestNextOffset?: number
 
   // Depop
   username?: string

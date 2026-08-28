@@ -6,6 +6,11 @@
 
 import type { WorkflowStep, WorkflowState } from './types'
 import { buildVestiaireFieldSteps } from './vestiaire/vestiaire-field-mapper'
+import {
+  VESTIAIRE_SEARCH_LIMIT,
+  VESTIAIRE_SEARCH_URL,
+  buildVestiaireSearchBody,
+} from './vestiaire/vestiaire-import-steps'
 
 export function processStepResult(
   steps: WorkflowStep[],
@@ -110,9 +115,44 @@ export function processStepResult(
       s.subscriptions = result
       break
 
-    case 'GET_WALLA_WARDROBE':
-      s.items = result.data ?? [];
+    case 'GET_WALLA_WARDROBE': {
+      const pageItems: any[] = result.data ?? []
+      const existingIds = new Set((s.items ?? []).map((item: any) => String(item.id)))
+      const newItems = pageItems.filter((item: any) => !existingIds.has(String(item.id)))
+      s.items = [...(s.items ?? []), ...newItems]
+
+      s.wallaNextSince = undefined
+      s.wallaNextUrl = undefined
+      s.wallaNextStart = undefined
+
+      // La API de "mis artículos" pagina de ~40 en ~40. El token oficial
+      // va en meta.pagination.next (query since=); el endpoint de consumidor
+      // a veces devuelve una URL completa o usa start= como offset.
+      const nextToken = result.meta?.pagination?.next ?? result.meta?.next
+      if (typeof nextToken === 'string' && nextToken.length > 0 && newItems.length > 0) {
+        if (nextToken.startsWith('http')) s.wallaNextUrl = nextToken
+        else s.wallaNextSince = nextToken
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_WALLA_WARDROBE',
+          platform: 'wallapop',
+          request: { url: '', method: 'GET' }
+        })
+      } else if (
+        newItems.length > 0 &&
+        newItems.length === pageItems.length &&
+        pageItems.length >= 20
+      ) {
+        s.wallaNextStart = s.items.length
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_WALLA_WARDROBE',
+          platform: 'wallapop',
+          request: { url: '', method: 'GET' }
+        })
+      }
       break
+    }
 
     case 'GET_USER_ME':
       s.userId = result.id
@@ -350,7 +390,44 @@ export function processStepResult(
       s.depopUpdateDone = true
       break
 
-    case 'GET_ITEMS_NEW':
+    case 'GET_ITEMS_NEW': {
+      // En Vestiaire este paso es la búsqueda del armario (en Vinted es un
+      // GET de página y no acumula nada).
+      if (completed.platform === 'vestiaire') {
+        const pageItems: any[] = result.items ?? result.hits ?? []
+        const existingIds = new Set((s.items ?? []).map((item: any) => String(item.id)))
+        const newItems = pageItems.filter((item: any) => !existingIds.has(String(item.id)))
+        s.items = [...(s.items ?? []), ...newItems]
+
+        const limit = result.pagination?.limit ?? VESTIAIRE_SEARCH_LIMIT
+        const offset =
+          result.pagination?.offset ??
+          completed.request?.body?.pagination?.offset ??
+          s.vestNextOffset ??
+          0
+        const total =
+          result.pagination?.total ??
+          result.total ??
+          result.nbHits ??
+          result.stats?.total
+        const nextOffset = offset + pageItems.length
+        const hasMore =
+          newItems.length > 0 &&
+          (typeof total === 'number' ? nextOffset < total : pageItems.length >= limit)
+
+        if (hasMore) {
+          s.vestNextOffset = nextOffset
+          steps.splice(currentStep + 1, 0, {
+            id: crypto.randomUUID(),
+            type: 'GET_ITEMS_NEW',
+            platform: 'vestiaire',
+            request: { url: '', method: 'POST' }
+          })
+        }
+      }
+      break
+    }
+
     case 'GET_CONFIGURATION':
     case 'GET_PROFILE':
     case 'DELETE_VINTED':
@@ -421,6 +498,22 @@ export function processStepResult(
       break
 
     // Wallapop
+    case 'GET_WALLA_WARDROBE':
+      if (!next.request.url) {
+        if (s.wallaNextUrl) {
+          next.request.url = s.wallaNextUrl
+        } else if (s.wallaNextSince) {
+          next.request.url =
+            `https://api.wallapop.com/api/v3/user/items` +
+            `?since=${encodeURIComponent(s.wallaNextSince)}`
+        } else {
+          next.request.url =
+            `https://api.wallapop.com/api/v3/user/items` +
+            `?start=${s.wallaNextStart ?? 0}`
+        }
+      }
+      break
+
     case 'GET_WALLA_COMPONENTS':
       next.request.body = {
         fields: {
@@ -469,6 +562,17 @@ export function processStepResult(
       break
 
     // Vestiaire Collective
+    case 'GET_ITEMS_NEW':
+      if (next.platform === 'vestiaire' && !next.request.url) {
+        next.request.url = VESTIAIRE_SEARCH_URL
+        next.request.method = 'POST'
+        next.request.body = buildVestiaireSearchBody(
+          String(s.originalPayload?.externalId ?? ''),
+          s.vestNextOffset ?? 0
+        )
+      }
+      break
+
     case 'ADD_VEST_PRODUCT':
       next.request.body = {
         universe: String(s.vestUniverseId),
@@ -514,9 +618,15 @@ export function processStepResult(
 
     // Depop
     case 'GET_DEPOP_WARDROBE':
-      next.request.url =
-        `https://webapi.depop.com/api/v3/shop/${s.userId}/products/` +
-        `?limit=24&offset_id=${encodeURIComponent(s.depopLastOffsetId)}`
+      if (!next.request.url) {
+        const shopId = s.userId ?? s.originalPayload?.externalId
+        const offset = s.depopLastOffsetId
+          ? `&offset_id=${encodeURIComponent(s.depopLastOffsetId)}`
+          : ''
+        next.request.url =
+          `https://webapi.depop.com/api/v3/shop/${shopId}/products/` +
+          `?limit=24${offset}`
+      }
       break
 
     case 'PREDICT_DEPOP_CATEGORY':
