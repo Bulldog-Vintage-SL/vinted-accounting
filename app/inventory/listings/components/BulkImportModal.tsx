@@ -42,6 +42,7 @@ interface Props {
     onSaveListing: (data: ListingForm) => Promise<Listing>;
 }
 
+// eslint-disable-next-line no-undef
 async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 4): Promise<Response> {
     let attempt = 0;
 
