@@ -13,6 +13,9 @@ import { useRouter } from "next/navigation";
 import { useQueue } from '@/hooks/useQueue';
 import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 import { LoadingButton } from "@/components/ui/loading-button";
+import { Sparkles } from "lucide-react";
+import { BulkImportModal } from "./BulkImportModal";
+import { createListingsFromBulk } from "../actions"
 import type { Job, JobStatus } from '@/lib/queue/types';
 
 interface Props {
@@ -29,6 +32,7 @@ export function AddListingModal({ open, onClose }: Props) {
     const router = useRouter();
     const { enqueue, onEvent } = useQueue<SelectedAccount>();
     const [isImporting, setIsImporting] = useState(false);
+    const [bulkOpen, setBulkOpen] = useState(false);
 
     const [importPhase, setImportPhase] = useState<ImportPhase>('idle');
     const jobsRef = useRef<Job<'import', SelectedAccount>[]>([]);
@@ -108,7 +112,7 @@ export function AddListingModal({ open, onClose }: Props) {
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
-                className="!max-w-[700px] w-full p-0 rounded-2xl overflow-hidden"
+                className="!max-w-[920px] w-full p-0 rounded-2xl overflow-hidden"
                 onPointerDownOutside={(e) => { if (isBusy) e.preventDefault(); }}
                 onEscapeKeyDown={(e) => { if (isBusy) e.preventDefault(); }}
                 showCloseButton={importPhase !== 'importing'}
@@ -123,39 +127,39 @@ export function AddListingModal({ open, onClose }: Props) {
                             </DialogHeader>
                         </div>
 
-                        <div className="flex flex-row divide-x divide-gray-200">
-                            <div className="flex-1 p-8 flex flex-col justify-between hover:bg-gray-50 transition">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-blue-100 text-blue-600 p-3 rounded-xl">
-                                        <Upload size={26} />
+                        <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-200">
+                            <div className="p-6 flex flex-col justify-between hover:bg-gray-50 transition">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-100 text-blue-600 p-2.5 rounded-xl shrink-0">
+                                        <Upload size={22} />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-semibold text-gray-800">
+                                        <h3 className="text-lg font-semibold text-gray-800 leading-tight">
                                             Crear producto nuevo
                                         </h3>
-                                        <p className="text-gray-600 text-sm">
+                                        <p className="text-gray-600 text-xs mt-0.5">
                                             Crear un nuevo producto listo para subir a tus plataformas.
                                         </p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleCreate}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-5 self-start text-sm"
                                 >
                                     Subir
                                 </button>
                             </div>
 
-                            <div className="flex-1 p-8 flex flex-col justify-between hover:bg-gray-50 transition">
-                                <div className="flex items-center gap-4">
-                                    <div className="bg-blue-100 text-blue-600 p-3 rounded-xl">
-                                        <FolderOpen size={26} />
+                            <div className="p-6 flex flex-col justify-between hover:bg-gray-50 transition">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-100 text-blue-600 p-2.5 rounded-xl shrink-0">
+                                        <FolderOpen size={22} />
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-semibold text-gray-800">
+                                        <h3 className="text-lg font-semibold text-gray-800 leading-tight">
                                             Importar Armario
                                         </h3>
-                                        <p className="text-gray-600 text-sm">
+                                        <p className="text-gray-600 text-xs mt-0.5">
                                             Importa tus productos ya publicados en tus plataformas.
                                         </p>
                                     </div>
@@ -164,15 +168,36 @@ export function AddListingModal({ open, onClose }: Props) {
                                     onClick={handleImport}
                                     loading={isImporting}
                                     loadingText="Abriendo selector..."
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-5 self-start text-sm"
                                 >
                                     Importar
                                 </LoadingButton>
                             </div>
+
+                            <div className="p-6 flex flex-col justify-between hover:bg-gray-50 transition">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-purple-100 text-purple-600 p-2.5 rounded-xl shrink-0">
+                                        <Sparkles size={22} />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-800 leading-tight">
+                                            Alta masiva con IA
+                                        </h3>
+                                        <p className="text-gray-600 text-xs mt-0.5">
+                                            Sube varias fotos, agrúpalas por producto y deja que la IA rellene los datos.
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => { onClose(); setBulkOpen(true); }}
+                                    className="bg-purple-600 hover:bg-purple-700 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-5 self-start text-sm"
+                                >
+                                    Empezar
+                                </button>
+                            </div>
                         </div>
                     </>
                 )}
-
                 {(importPhase === 'importing' || importPhase === 'done') && (
                     <div className="p-8">
                         <DialogHeader>
@@ -211,7 +236,20 @@ export function AddListingModal({ open, onClose }: Props) {
                     </div>
                 )}
             </DialogContent>
+            <BulkImportModal
+                open={bulkOpen}
+                onClose={() => setBulkOpen(false)}
+                onSaveListing={async (listing) => {
+                    const created = await createListingsFromBulk(listing);
+                    if (!created) {
+                        throw new Error("La creación del producto no devolvió el registro guardado");
+                    }
+                    return created;
+                }}
+            />
         </Dialog>
+
+
     );
 }
 

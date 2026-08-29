@@ -175,11 +175,13 @@ async function generateSizeAndCondition(
         content:
           "Eres un asistente que analiza fotos de una prenda de ropa de segunda mano para determinar su talla y estado. " +
           "Para 'size': SOLO la indiques si ves explícitamente una etiqueta con la talla escrita y legible en alguna imagen. " +
-          "Si la prenda no es de mujer elige una categoría de Hombre." +
+          "Si la prenda es de corte unisex, no explicitamente de mujer, elige SIEMPRE una categoría de la rama Hombre y pon Unisex como género!!!." +
           "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
           "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
           "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
-          "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null.",
+          "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
+          "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
+          "Si no tienes una foto de donde sacar la talla NO la rellenes",
       },
       {
         role: "user",
