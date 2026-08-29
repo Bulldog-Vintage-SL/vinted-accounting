@@ -239,8 +239,12 @@ export function AddListingModal({ open, onClose }: Props) {
             <BulkImportModal
                 open={bulkOpen}
                 onClose={() => setBulkOpen(false)}
-                onSaveListing={async (listings) => {
-                    await createListingsFromBulk(listings);
+                onSaveListing={async (listing) => {
+                    const created = await createListingsFromBulk(listing);
+                    if (!created) {
+                        throw new Error("La creación del producto no devolvió el registro guardado");
+                    }
+                    return created;
                 }}
             />
         </Dialog>
