@@ -74,6 +74,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const [drafts, setDrafts] = useState<DraftListing[]>([]);
     const [aiSelectedPhotos, setAiSelectedPhotos] = useState<Set<string>>(new Set());
     const [selectedAccounts, setSelectedAccounts] = useState<SelectedAccount[]>([]);
+    const [isSaving, setIsSaving] = useState(false);
 
 
     const [autoPublish, setAutoPublish] = useState(false);
@@ -280,62 +281,68 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     };
 
     const handleSaveAll = async (sourceDrafts?: DraftListing[], accountsOverride?: SelectedAccount[]) => {
-        const list = sourceDrafts ?? drafts;
-        const accounts = accountsOverride ?? selectedAccounts;
+        if (isSaving) return;
+        setIsSaving(true);
 
-        const readyDrafts = list.filter(d => d.status === "done" && d.data);
-        if (readyDrafts.length === 0) return;
+        try {
+            const list = sourceDrafts ?? drafts;
+            const accounts = accountsOverride ?? selectedAccounts;
 
-        const createdListings: { draft: DraftListing; listing: Listing }[] = [];
+            const readyDrafts = list.filter(d => d.status === "done" && d.data);
+            if (readyDrafts.length === 0) return;
 
-        for (const draft of readyDrafts) {
-            try {
-                const createdListing = await onSaveListing(draft.data as ListingForm);
+            const createdListings: { draft: DraftListing; listing: Listing }[] = [];
 
-                if (!createdListing?.id) {
-                    throw new Error("El guardado no devolvió el producto creado (sin id)");
+            for (const draft of readyDrafts) {
+                try {
+                    const createdListing = await onSaveListing(draft.data as ListingForm);
+
+                    if (!createdListing?.id) {
+                        throw new Error("El guardado no devolvió el producto creado (sin id)");
+                    }
+
+                    createdListings.push({ draft, listing: createdListing });
+                } catch (err) {
+                    console.error("Error creando listing:", err);
+                    pushToast({ type: "error", message: `No se pudo crear "${draft.data?.title ?? "producto"}"` });
                 }
-
-                createdListings.push({ draft, listing: createdListing });
-            } catch (err) {
-                console.error("Error creando listing:", err);
-                pushToast({ type: "error", message: `No se pudo crear "${draft.data?.title ?? "producto"}"` });
             }
-        }
 
-        if (createdListings.length === 0) {
-            pushToast({ type: "error", message: "No se pudo crear ningún producto" });
-            return;
-        }
+            if (createdListings.length === 0) {
+                pushToast({ type: "error", message: "No se pudo crear ningún producto" });
+                return;
+            }
 
-        if (accounts.length === 0) {
+            if (accounts.length === 0) {
+                pushToast({
+                    type: "success",
+                    message: "Productos guardados",
+                    description: `${createdListings.length} producto(s) creado(s) correctamente.`,
+                });
+                reset();
+                onClose();
+                return;
+            }
 
-            pushToast({
-                type: "success",
-                message: "Productos guardados",
-                description: `${createdListings.length} producto(s) creado(s) correctamente.`,
+            setPhase("publishing");
+            clear();
+
+            const allJobs: UploadJob[] = [];
+            for (const { listing } of createdListings) {
+                for (const account of accounts) {
+                    allJobs.push({ listing, account });
+                }
+            }
+
+            const jobs = enqueue("upload", allJobs as unknown as Listing[], {}, (item) => {
+                const { listing, account } = item as unknown as UploadJob;
+                return `${listing.title ?? "Producto"} en ${account.platform}`;
             });
-            reset();
-            onClose();
-            return;
+
+            setPublishJobs(jobs);
+        } finally {
+            setIsSaving(false);
         }
-
-        setPhase("publishing");
-        clear();
-
-        const allJobs: UploadJob[] = [];
-        for (const { listing } of createdListings) {
-            for (const account of accounts) {
-                allJobs.push({ listing, account });
-            }
-        }
-
-        const jobs = enqueue("upload", allJobs as unknown as Listing[], {}, (item) => {
-            const { listing, account } = item as unknown as UploadJob;
-            return `${listing.title ?? "Producto"} en ${account.platform}`;
-        });
-
-        setPublishJobs(jobs);
     };
 
     useEffect(() => {
@@ -652,9 +659,10 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                             {phase === "review" && !autoPublish && (
                                 <button
                                     onClick={() => handleSaveAll()}
-                                    disabled={drafts.every(d => d.status !== "done")}
+                                    disabled={isSaving || drafts.every(d => d.status !== "done")}
                                     className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold px-5 py-2 rounded-lg mt-6 disabled:opacity-40"
                                 >
+                                    {isSaving && <Loader2 size={14} className="animate-spin" />}
                                     {selectedAccounts.length > 0
                                         ? `Crear y publicar ${drafts.filter(d => d.status === "done").length} producto(s)`
                                         : `Guardar ${drafts.filter(d => d.status === "done").length} producto(s)`}
