@@ -1291,6 +1291,27 @@ function countryToAddressName(countryCode: string): string {
   return map[countryCode] ?? 'Spain'
 }
 
+function limitTrailingHashtags(description: string | undefined | null, maxHashtags = 5): string | undefined | null {
+  if (!description) return description
+
+  const hashtagRegex = /#[^\s#]+/g
+  const matches = [...description.matchAll(hashtagRegex)]
+
+  if (matches.length <= maxHashtags) return description
+
+  const toRemove = matches.slice(maxHashtags)
+
+  let result = description
+  for (let i = toRemove.length - 1; i >= 0; i--) {
+    const m = toRemove[i]
+    const start = m.index!
+    const end = start + m[0].length
+    result = result.slice(0, start) + result.slice(end)
+  }
+
+  return result.replace(/[ \t]+/g, ' ').replace(/[ \t]+([\n.,!?])/g, '$1').trim()
+}
+
 function buildDepopUpdateItemBody(s: WorkflowState) {
   const item = s.depopItemRaw
   const fields = s.originalPayload?.fields ?? {}
@@ -1303,7 +1324,7 @@ function buildDepopUpdateItemBody(s: WorkflowState) {
     colour: item.colour ?? [],
     condition: item.condition,
     country: item.country,
-    description: fields.description ?? item.description,
+    description: limitTrailingHashtags(fields.description ?? item.description),
     gender: item.gender,
     geo_position_lat: s.depopGeoLat,
     geo_position_lng: s.depopGeoLng,

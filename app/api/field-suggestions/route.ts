@@ -181,6 +181,7 @@ async function generateSizeAndCondition(
           "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
           "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
           "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
+          "NUNCA pongas más de 5 hashtags en la descripción" +
           "Si no tienes una foto de donde sacar la talla NO la rellenes",
       },
       {
