@@ -46,6 +46,8 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
       }
     })
   }
+  /*
+  
   steps.push({
     id: crypto.randomUUID(),
     platform: 'vinted',
@@ -55,6 +57,9 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
       method: 'GET'
     }
   })
+  
+  */
+  
 
   steps.push({
     id: crypto.randomUUID(),

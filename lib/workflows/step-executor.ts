@@ -30,6 +30,8 @@ export function processStepResult(
     // VINTED
     case 'UPLOAD_PHOTO':
       s.photoIds = [...(s.photoIds ?? []), result.id]
+      const existingId = s.originalPayload.listing?.attributes?.vintedCategoryId
+      s.categoryId = existingId
       break
 
     case 'GET_CATEGORY_SUGGESTIONS': {
