@@ -28,11 +28,12 @@ export function processStepResult(
   switch (completed.type) {
 
     // VINTED
-    case 'UPLOAD_PHOTO':
+    case 'UPLOAD_PHOTO': {
       s.photoIds = [...(s.photoIds ?? []), result.id]
       const existingId = s.originalPayload.listing?.attributes?.vintedCategoryId
       s.categoryId = existingId
       break
+    }
 
     case 'GET_CATEGORY_SUGGESTIONS': {
       const existingId = s.originalPayload.listing?.attributes?.vintedCategoryId
@@ -42,7 +43,7 @@ export function processStepResult(
       } else if (result.categories?.[0]) {
         s.categoryId = result.categories[0]
       } else {
-        s.categoryId = 123 
+        s.categoryId = 123
       }
 
       break
