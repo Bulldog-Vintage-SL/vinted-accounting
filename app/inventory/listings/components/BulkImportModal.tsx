@@ -9,6 +9,8 @@ import { useAccountSelector, SelectedAccount } from "@/hooks/useAccountSelector"
 import { useQueue } from "@/hooks/useQueue";
 import { PublishProgressModal } from "@/app/inventory/listings/components/PublishProgressModal";
 import { applyFieldPatch } from "@/lib/external-integrations/validators";
+import BrandSelect from "@/app/inventory/listings/new_listing/components/BrandSelector";
+import CategorySelect from "@/app/inventory/listings/new_listing/components/CategorySelect";
 import { useToast } from "@/components/toast";
 import type { Job } from "@/lib/queue/types";
 
@@ -162,10 +164,10 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         });
     };
 
-    
+
     const handleWantsToPublish = () => {
         openSelector((accounts) => {
-            if (accounts.length === 0) return; 
+            if (accounts.length === 0) return;
             setSelectedAccounts(accounts);
             handleGenerate(buildGroups(), accounts);
         });
@@ -179,7 +181,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const handleGenerate = async (groups: string[][], accountsForRun: SelectedAccount[]) => {
         if (groups.length === 0) return;
 
-       
+
         let workingDrafts: DraftListing[] = groups.map((g, i) => ({
             id: `draft-${i}-${Date.now()}`,
             photos: g,
@@ -263,6 +265,19 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
             return { ...d, data: { ...base, ...patch } as Partial<ListingForm> };
         }));
     };
+    const updateDraftAttribute = (id: string, patch: Partial<ListingForm["attributes"]>) => {
+        setDrafts(prev => prev.map(d => {
+            if (d.id !== id) return d;
+            const base = (d.data ?? {}) as Partial<ListingForm>;
+            return {
+                ...d,
+                data: {
+                    ...base,
+                    attributes: { ...(base.attributes ?? {}), ...patch },
+                } as Partial<ListingForm>,
+            };
+        }));
+    };
 
     const handleSaveAll = async (sourceDrafts?: DraftListing[], accountsOverride?: SelectedAccount[]) => {
         const list = sourceDrafts ?? drafts;
@@ -294,7 +309,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         }
 
         if (accounts.length === 0) {
-            
+
             pushToast({
                 type: "success",
                 message: "Productos guardados",
@@ -577,6 +592,40 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                         disabled={autoPublish}
                                                         className="w-full font-medium border border-gray-200 rounded p-1.5 text-sm disabled:opacity-60"
                                                     />
+
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <BrandSelect
+                                                            value={draft.data.attributes?.brand}
+                                                            onChange={brand => updateDraftAttribute(draft.id, { brand })}
+                                                        />
+                                                        <CategorySelect
+                                                            value={draft.data.attributes?.categoryPath ?? ""}
+                                                            unisex={draft.data.gender === "unisex"}
+                                                            onChange={({ fullPath, leaf, gender }) => {
+                                                                updateDraft(draft.id, {
+                                                                    item_type: leaf?.title ?? "",
+                                                                    ...(gender ? { gender } : {}),
+                                                                });
+                                                                updateDraftAttribute(draft.id, {
+                                                                    categoryPath: fullPath,
+                                                                    vintedCategoryId: leaf?.id ?? null,
+                                                                });
+                                                            }}
+                                                        />
+                                                    </div>
+
+                                                    <select
+                                                        value={draft.data.attributes?.size ?? ""}
+                                                        onChange={e => updateDraftAttribute(draft.id, { size: e.target.value })}
+                                                        disabled={autoPublish}
+                                                        className="w-full border border-gray-200 rounded p-1.5 text-sm disabled:opacity-60"
+                                                    >
+                                                        <option value="">Selecciona una talla</option>
+                                                        {["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"].map(size => (
+                                                            <option key={size} value={size}>{size}</option>
+                                                        ))}
+                                                    </select>
+
                                                     <div className="relative w-20">
                                                         <input
                                                             type="number"
@@ -589,7 +638,6 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                             disabled={autoPublish}
                                                             className="w-full border border-gray-200 rounded p-1.5 pr-6 disabled:opacity-60"
                                                         />
-
                                                         <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
                                                             €
                                                         </span>
