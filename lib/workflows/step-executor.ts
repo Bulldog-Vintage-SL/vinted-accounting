@@ -668,7 +668,7 @@ export function processStepResult(
         colour: s.depopColourIds,
         condition: s.depopConditionId,
         country: s.depopCountryCode ?? 'ES',
-        description: l.description,
+        description: limitTrailingHashtags(l.description),
         gender: s.depopGender,
         geo_position_lat: s.depopGeoLat,
         geo_position_lng: s.depopGeoLng,
