@@ -13,6 +13,7 @@ import BrandSelect from "@/app/inventory/listings/new_listing/components/BrandSe
 import CategorySelect from "@/app/inventory/listings/new_listing/components/CategorySelect";
 import { useToast } from "@/components/toast";
 import type { Job } from "@/lib/queue/types";
+import { useRef } from "react";
 
 type Phase = "upload" | "group" | "publish-choice" | "generating" | "review" | "publishing";
 
@@ -75,6 +76,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const [aiSelectedPhotos, setAiSelectedPhotos] = useState<Set<string>>(new Set());
     const [selectedAccounts, setSelectedAccounts] = useState<SelectedAccount[]>([]);
     const [isSaving, setIsSaving] = useState(false);
+    const autoPublishAccountsRef = useRef<SelectedAccount[] | null>(null);
 
 
     const [autoPublish, setAutoPublish] = useState(false);
@@ -182,19 +184,17 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const handleGenerate = async (groups: string[][], accountsForRun: SelectedAccount[]) => {
         if (groups.length === 0) return;
 
-
-        let workingDrafts: DraftListing[] = groups.map((g, i) => ({
+        const initialDrafts: DraftListing[] = groups.map((g, i) => ({
             id: `draft-${i}-${Date.now()}`,
             photos: g,
             data: null,
             status: "pending",
         }));
-        setDrafts(workingDrafts);
+        setDrafts(initialDrafts);
         setPhase("generating");
 
-        for (const draft of workingDrafts) {
-            workingDrafts = workingDrafts.map(d => d.id === draft.id ? { ...d, status: "generating" } : d);
-            setDrafts(workingDrafts);
+        for (const draft of initialDrafts) {
+            setDrafts(prev => prev.map(d => d.id === draft.id ? { ...d, status: "generating" } : d));
 
             try {
                 const selectedInGroup = draft.photos.filter(url => aiSelectedPhotos.has(url));
@@ -235,28 +235,25 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                     },
                 };
 
-                workingDrafts = workingDrafts.map(d => d.id === draft.id ? {
+                setDrafts(prev => prev.map(d => d.id === draft.id ? {
                     ...d,
                     status: "done",
                     data: generatedData,
-                } : d);
-                setDrafts(workingDrafts);
+                } : d));
             } catch (err) {
-                workingDrafts = workingDrafts.map(d => d.id === draft.id ? {
+                setDrafts(prev => prev.map(d => d.id === draft.id ? {
                     ...d, status: "error", error: err instanceof Error ? err.message : "Error desconocido",
-                } : d);
-                setDrafts(workingDrafts);
+                } : d));
             }
 
             // pequeño respiro entre productos para no comerte el TPM de golpe
             await new Promise(resolve => setTimeout(resolve, 400));
         }
 
-        setPhase("review");
-
         if (autoPublish && accountsForRun.length > 0) {
-            handleSaveAll(workingDrafts, accountsForRun);
+            autoPublishAccountsRef.current = accountsForRun;
         }
+        setPhase("review");
     };
 
     const updateDraft = (id: string, patch: Partial<ListingForm>) => {
@@ -350,6 +347,14 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         const unsubscribe = onEvent(() => forceTick(t => t + 1));
         return unsubscribe;
     }, [phase, onEvent]);
+
+    useEffect(() => {
+        if (phase === "review" && autoPublishAccountsRef.current) {
+            const accounts = autoPublishAccountsRef.current;
+            autoPublishAccountsRef.current = null;
+            handleSaveAll(undefined, accounts);
+        }
+    }, [phase, drafts]);
 
     const handleClosePublishModal = () => {
         reset();
