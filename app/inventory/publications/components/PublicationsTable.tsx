@@ -20,6 +20,8 @@ import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopI
 import { reuploadVintedItem } from '@/lib/external-integrations/'
 import { MissingFieldsError } from '@/lib/external-integrations/validators'
 import { PublicationMobileCard } from './PublicationMobileCard'
+import { TablePagination } from '@/components/ui/table-pagination'
+import { INVENTORY_PAGE_SIZE, useClientPagination } from '@/hooks/useClientPagination'
 import type { Job } from '@/lib/queue/types'
 import type { Listing } from '../../listings/types'
 
@@ -100,7 +102,7 @@ async function reuploadPublication(publication: Publication): Promise<void> {
 }
 
 export function PublicationsTable() {
-    const { data, error, isLoading, mutate } = useSWR('/api/publications', fetcher, {
+    const { data, error, isLoading, mutate } = useSWR<Publication[]>('/api/publications', fetcher, {
         revalidateOnFocus: true,
         revalidateOnReconnect: true,
         revalidateIfStale: true,
@@ -383,7 +385,21 @@ export function PublicationsTable() {
         })
     }, [])
 
-    const publications = data ?? []
+    const publications = Array.isArray(data) ? data : []
+    const {
+        page,
+        setPage,
+        pageItems,
+        totalPages,
+        from,
+        to,
+        total,
+    } = useClientPagination<Publication>(publications, INVENTORY_PAGE_SIZE)
+
+    useEffect(() => {
+        setSelectedIds([])
+        tableRef.current?.resetSelection()
+    }, [page])
 
     if (isLoading) return <PageLoader label="Cargando publicaciones..." />
     if (error) return <div className="p-4 text-red-500">Error cargando publicaciones</div>
@@ -392,19 +408,20 @@ export function PublicationsTable() {
         <div className="w-full">
             <div className="hidden md:block">
                 <DataTable
+                    key={page}
                     ref={tableRef}
                     columns={columns}
-                    data={publications}
+                    data={pageItems}
                     onSelectionChange={setSelectedIds}
                     compact
                 />
             </div>
 
             <div className="md:hidden space-y-3">
-                {publications.length === 0 ? (
+                {pageItems.length === 0 ? (
                     <p className="text-center text-gray-500 py-8">Sin resultados.</p>
                 ) : (
-                    publications.map((publication) => (
+                    pageItems.map((publication) => (
                         <PublicationMobileCard
                             key={publication.id}
                             publication={publication}
@@ -417,6 +434,16 @@ export function PublicationsTable() {
                     ))
                 )}
             </div>
+
+            <TablePagination
+                page={page}
+                totalPages={totalPages}
+                from={from}
+                to={to}
+                total={total}
+                noun="publicaciones"
+                onPageChange={setPage}
+            />
 
             {selectedIds.length > 0 && (
                 <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">
