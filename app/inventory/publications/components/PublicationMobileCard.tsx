@@ -54,12 +54,12 @@ export function PublicationMobileCard({
 
         <div className="min-w-0 flex-1">
           {publication.publication_url ? (
-            <a>
+            <a
               href={publication.publication_url}
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold text-blue-600 hover:underline line-clamp-2"
-            
+            >
               {title}
             </a>
           ) : (
