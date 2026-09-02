@@ -98,6 +98,9 @@ export default function AccountSelectorModal() {
   }, [open]);
 
   const syncAccount = async (accountId: string): Promise<boolean> => {
+    // Bloquear si ya hay otra cuenta sincronizando
+    if (syncingId !== null && syncingId !== accountId) return false;
+
     const account = accounts.find((a) => a.id === accountId);
     if (!account) return false;
 
@@ -185,6 +188,9 @@ export default function AccountSelectorModal() {
   };
 
   const handleAccountClick = (acc: any) => {
+    // Si hay otra cuenta sincronizando, ignorar clicks en el resto
+    if (syncingId !== null && syncingId !== acc.id) return;
+
     const needsSync =
       !NO_SYNC_REQUIRED.has(acc.platform) && !syncedInSession.has(acc.id);
 
@@ -318,13 +324,15 @@ export default function AccountSelectorModal() {
                     const noSyncNeeded = NO_SYNC_REQUIRED.has(acc.platform);
                     const isSynced = noSyncNeeded || syncedInSession.has(acc.id);
                     const isSyncing = syncingId === acc.id;
+                    const blockedByOtherSync = syncingId !== null && syncingId !== acc.id;
 
                     return (
                       <div
                         key={acc.id}
                         onClick={() => handleAccountClick(acc)}
                         className={`flex items-center justify-between px-4 py-3 transition cursor-pointer ${isSelected ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'
-                          } ${isSyncing ? 'opacity-70' : ''}`}
+                          } ${isSyncing ? 'opacity-70' : ''} ${blockedByOtherSync ? 'opacity-40 pointer-events-none' : ''
+                          }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           {/* Icono de estado */}
@@ -393,12 +401,18 @@ export default function AccountSelectorModal() {
                               e.stopPropagation();
                               syncAccount(acc.id);
                             }}
-                            disabled={isSyncing}
+                            disabled={isSyncing || blockedByOtherSync}
                             className={`p-1.5 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed shrink-0 ml-3 ${!isSynced
                               ? 'bg-yellow-500 text-white hover:bg-yellow-600'
                               : 'text-gray-400 hover:text-gray-600 hover:bg-gray-200'
                               }`}
-                            title={!isSynced ? "Sincronizar para poder usar esta cuenta" : "Sincronizar de nuevo"}
+                            title={
+                              blockedByOtherSync
+                                ? "Espera a que termine la sincronización en curso"
+                                : !isSynced
+                                  ? "Sincronizar para poder usar esta cuenta"
+                                  : "Sincronizar de nuevo"
+                            }
                           >
                             {isSyncing ? (
                               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
