@@ -12,7 +12,7 @@ import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
-  reuploadVintedItem
+  reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem
 } from '@/lib/external-integrations'
 
 // Entidad para upload
@@ -248,12 +248,51 @@ const reuploadPublicationExecutor: Executor<Publication> = async (job) => {
       publication.external_id,
       publication.id
     )
-    
+
     if (isUploadFailure(result)) {
       if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
       throw new Error(result.message || 'Error en Vinted')
     }
     return { reuploaded: true, platform: 'vinted', data: result.data }
+  } else if (publication.platform === 'wallapop') {
+    const result = await reuploadWallapopItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Wallapop')
+    }
+    return { reuploaded: true, platform: 'wallapop', data: result.data }
+  } else if (publication.platform === 'vestiaire') {
+    const result = await reuploadVestiaireItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Vestiaire')
+    }
+    return { reuploaded: true, platform: 'vestiaire', data: result.data }
+  } else if (publication.platform === 'depop') {
+    const result = await reuploadDepopItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Depop')
+    }
+    return { reuploaded: true, platform: 'depop', data: result.data }
   }
   else {
     throw new Error(`Resubida no soportada para "${publication.platform}"`)

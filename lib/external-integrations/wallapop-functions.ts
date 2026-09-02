@@ -1,5 +1,8 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
 import { runFlow } from './extensionBridge'
+import { uploadPhoto } from '@/utils/uploadPhoto'
+import { transformListingImages } from '../images/processListingImages'
+import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 
 // Subir producto a Wallapop
@@ -58,6 +61,105 @@ export async function uploadWallapopItem(listing: any, accountId: string): Promi
       message: err?.message || "Error inesperado",
     }
   }
+}
+
+export async function reuploadWallapopItem(
+  accountId: string, listing: Listing, itemExternalId: string, publicationId: string
+): Promise<UploadResult> {
+
+  try {
+
+    const missing = validateListingRequiredFields(listing, 'wallapop')
+    if (missing.length > 0) throw new MissingFieldsError(missing)
+
+    // Borrar la publicacion
+    const resDelete = await deleteWallapopItem(itemExternalId, publicationId);
+
+    if (!resDelete.ok) {
+      return {
+        ok: false,
+        message: `No se pudo eliminar la publicación anterior: ${resDelete.message}`,
+      };
+    }
+
+    console.log("Borrado")
+    console.log(resDelete)
+
+    // Modificar las imagenes
+    const transformedImages = await transformListingImages(listing)
+
+    const uploadedUrls = await Promise.all(
+      transformedImages.map((blob, i) =>
+        uploadPhoto(new File([blob], `${listing.id}_${i}.jpg`, { type: "image/jpeg" }))
+      )
+    );
+
+    console.log("Imagenes")
+    console.log(uploadedUrls)
+
+    // Modificar el titulo y la descripcion
+    const resModTexts = await fetch("/api/modify-texts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: listing.title,
+        description: listing.description,
+      }),
+    });
+
+    if (!resModTexts.ok) {
+      throw new Error("Error modificando título y descripción");
+    }
+
+    const { title: newTitle, description: newDescription } = await resModTexts.json();
+
+    console.log("Textos")
+    console.log(newTitle)
+
+    // Crear un producto temporal con los campos del producto
+    const modifiedListing: Listing = {
+      ...listing,
+      photo_url: uploadedUrls,
+      title: newTitle,
+      description: newDescription,
+    };
+
+    // Resubir el producto y crear la nueva publicacion
+    const uploadResult = await uploadWallapopItem(
+      modifiedListing,
+      accountId
+    );
+
+    if (!uploadResult.ok) {
+      return {
+        ok: false,
+        message: `Error al resubir el producto: ${uploadResult.message}`,
+      };
+    }
+
+    return {
+      ok: true,
+      message: "Publicación resubida correctamente en Wallapop",
+      data: {
+        listingId: listing.id,
+        newTitle,
+        newDescription,
+        publication: uploadResult.data,
+      },
+    };
+
+  } catch (err: any) {
+    if (err instanceof MissingFieldsError) {
+      return { ok: false, message: err.message, missingFields: err.fields }
+    }
+    return {
+      ok: false,
+      message: err?.message || 'Error inesperado',
+    };
+  }
+
 }
 
 // Buscar cuenta de Wallapop
