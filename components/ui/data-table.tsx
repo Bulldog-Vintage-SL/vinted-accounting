@@ -40,6 +40,7 @@ export const DataTable = forwardRef(function DataTable<TData, TValue>(
     onRowSelectionChange: setRowSelection,
     getCoreRowModel: getCoreRowModel(),
     enableRowSelection: true,
+    getRowId: (row) => (row as { id?: string }).id ?? String((row as { _id?: string })._id ?? ""),
   })
 
   // Expone resetSelection al padre
@@ -53,8 +54,8 @@ export const DataTable = forwardRef(function DataTable<TData, TValue>(
   }, [rowSelection])
 
   return (
-    <div className="rounded-md border overflow-hidden">
-      <Table className={cn(compact && 'table-fixed w-full text-xs sm:text-sm')}>
+    <div className="overflow-hidden rounded-md border">
+      <Table className={cn(compact && 'table-fixed w-full min-w-[52rem] text-xs sm:text-sm')}>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>

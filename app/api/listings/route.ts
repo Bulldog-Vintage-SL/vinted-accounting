@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import connectMongo from "@/libs/mongoose";
 import Listing from "@/models/Listing";
+import Publication from "@/models/Publication";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import {
   listingFormToMongo,
   serializeListing,
 } from "@/libs/listings/serialize";
 import { validateListingCreationFields } from "@/libs/listings/validation";
+import { sortPlatforms } from "@/libs/inventory/display";
 import mongoose from "mongoose";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +21,32 @@ export async function GET() {
     }
 
     await connectMongo();
-    const data = await Listing.find({ userId }).sort({ createdAt: -1 });
-    return NextResponse.json(data.map(serializeListing));
+    const listings = await Listing.find({ userId }).sort({ createdAt: -1 });
+    const listingIds = listings.map((listing) => listing._id);
+    const publications =
+      listingIds.length > 0
+        ? await Publication.find({ listingId: { $in: listingIds } }).select(
+            "listingId platform"
+          )
+        : [];
+
+    const platformsByListing = new Map<string, string[]>();
+    for (const publication of publications) {
+      const listingId = publication.listingId.toString();
+      const current = platformsByListing.get(listingId) ?? [];
+      current.push(publication.platform);
+      platformsByListing.set(listingId, current);
+    }
+
+    return NextResponse.json(
+      listings.map((listing) =>
+        serializeListing(listing, {
+          platforms: sortPlatforms(
+            platformsByListing.get(listing._id?.toString() ?? "") ?? []
+          ),
+        })
+      )
+    );
   } catch (err) {
     console.error("Error obteniendo listings:", err);
     return NextResponse.json(
