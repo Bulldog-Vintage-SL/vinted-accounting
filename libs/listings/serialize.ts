@@ -10,7 +10,10 @@ function toPlain(doc: unknown): Record<string, unknown> {
   return (doc as Record<string, unknown>) ?? {};
 }
 
-export function serializeListing(doc: unknown) {
+export function serializeListing(
+  doc: unknown,
+  extras?: { platforms?: string[] }
+) {
   const raw = toPlain(doc);
   const tags = raw.tags;
 
@@ -39,6 +42,7 @@ export function serializeListing(doc: unknown) {
     gender: raw.gender ?? null,
     item_type: (raw.itemType as string) ?? (raw.item_type as string) ?? null,
     stock: (raw.stock as number) ?? 1,
+    platforms: extras?.platforms ?? [],
   };
 }
 

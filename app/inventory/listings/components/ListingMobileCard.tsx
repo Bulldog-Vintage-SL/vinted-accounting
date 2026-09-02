@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { Loader2, Send, Trash2, BadgeCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import type { Listing } from "@/app/inventory/listings/types";
-import { formatListingStatus } from "@/libs/inventory/display";
+import { formatListingStatus, listingStatusClass } from "@/libs/inventory/display";
+import { PlatformLogos } from "@/app/inventory/components/platform-logos";
 
 interface Props {
   listing: Listing;
@@ -43,26 +43,29 @@ export function ListingMobileCard({
           <img
             src={photo}
             alt={listing.title}
-            className="w-16 h-16 rounded-lg object-cover shrink-0"
+            className="h-12 w-12 shrink-0 rounded-lg object-cover"
           />
         ) : (
-          <div className="w-16 h-16 rounded-lg bg-gray-100 shrink-0" />
+          <div className="h-12 w-12 shrink-0 rounded-lg bg-gray-100" />
         )}
 
         <div className="min-w-0 flex-1">
           <Link
             href={`/inventory/listings/${listing.id}`}
-            className="font-semibold text-blue-600 hover:underline line-clamp-2"
+            className="line-clamp-2 font-semibold text-blue-600 hover:underline"
           >
             {listing.title}
           </Link>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
             <span className="font-medium tabular-nums">€{Number(listing.price).toFixed(2)}</span>
-            <Badge variant={isSold ? "secondary" : "default"} className="text-xs">
+            <span className={`rounded px-2 py-0.5 text-xs font-semibold ${listingStatusClass(listing.status)}`}>
               {formatListingStatus(listing.status)}
-            </Badge>
+            </span>
           </div>
-          <p className="mt-1 text-xs text-gray-500 truncate">
+          <div className="mt-2">
+            <PlatformLogos platforms={listing.platforms ?? []} />
+          </div>
+          <p className="mt-1 truncate text-xs text-gray-500">
             SKU: {listing.sku || "—"} · {listing.condition || "—"}
           </p>
         </div>
@@ -72,7 +75,7 @@ export function ListingMobileCard({
         {!isSold && (
           <button
             onClick={() => onMarkSold(listing)}
-            className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 px-4 rounded-lg font-medium transition"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white transition hover:bg-emerald-700"
             aria-label="Marcar como vendido"
           >
             <BadgeCheck size={18} />
@@ -81,14 +84,14 @@ export function ListingMobileCard({
         <button
           onClick={() => onPublish(listing)}
           disabled={isPublishing || isSold}
-          className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-4 rounded-lg font-medium transition disabled:opacity-50"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition hover:bg-blue-700 disabled:opacity-50"
         >
           {isPublishing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
           Publicar
         </button>
         <button
           onClick={() => onDelete(listing.id)}
-          className="inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-2.5 px-4 rounded-lg font-medium transition"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 font-medium text-white transition hover:bg-red-600"
           aria-label="Eliminar producto"
         >
           <Trash2 size={18} />

@@ -23,6 +23,8 @@ import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
 import { MarkSoldModal } from './MarkSoldModal'
 import { ListingMobileCard } from './ListingMobileCard'
+import { TablePagination } from '@/components/ui/table-pagination'
+import { INVENTORY_PAGE_SIZE, useClientPagination } from '@/hooks/useClientPagination'
 import type { Job } from '@/lib/queue/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -35,7 +37,7 @@ type UploadJob = {
 type PublishPhase = 'idle' | 'publishing' | 'done'
 
 export function ListingsTable() {
-  const { data, error, isLoading, mutate } = useSWR('/api/listings', fetcher, {
+  const { data, error, isLoading, mutate } = useSWR<Listing[]>('/api/listings', fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateIfStale: false,
@@ -411,11 +413,26 @@ export function ListingsTable() {
     })
   }, [])
 
-  const listings = (data ?? []).filter((listing: Listing) => {
+  const listings = (Array.isArray(data) ? data : []).filter((listing) => {
     if (statusFilter === 'sold') return listing.status === 'sold'
     if (statusFilter === 'available') return listing.status !== 'sold'
     return true
   })
+
+  const {
+    page,
+    setPage,
+    pageItems,
+    totalPages,
+    from,
+    to,
+    total,
+  } = useClientPagination<Listing>(listings, INVENTORY_PAGE_SIZE, statusFilter)
+
+  useEffect(() => {
+    setSelectedIds([])
+    tableRef.current?.resetSelection()
+  }, [page, statusFilter])
 
   if (isLoading) return <PageLoader label="Cargando productos..." />
   if (error) return <div className="p-4 text-red-500">Error cargando listings</div>
@@ -454,19 +471,20 @@ export function ListingsTable() {
 
       <div className="hidden md:block">
         <DataTable
+          key={`${statusFilter}-${page}`}
           ref={tableRef}
           columns={columns}
-          data={listings}
+          data={pageItems}
           onSelectionChange={setSelectedIds}
           compact
         />
       </div>
 
       <div className="md:hidden space-y-3">
-        {listings.length === 0 ? (
+        {pageItems.length === 0 ? (
           <p className="text-center text-gray-500 py-8">Sin resultados.</p>
         ) : (
-          listings.map((listing) => (
+          pageItems.map((listing) => (
             <ListingMobileCard
               key={listing.id}
               listing={listing}
@@ -480,6 +498,16 @@ export function ListingsTable() {
           ))
         )}
       </div>
+
+      <TablePagination
+        page={page}
+        totalPages={totalPages}
+        from={from}
+        to={to}
+        total={total}
+        noun="productos"
+        onPageChange={setPage}
+      />
 
       {selectedIds.length > 0 && (
         <div className="mb-3 mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">

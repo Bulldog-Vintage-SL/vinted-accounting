@@ -8,15 +8,7 @@ import {
   publicationStatusClass,
   syncStatusClass,
 } from "@/libs/inventory/display";
-
-const PLATFORM_ICONS: Record<string, string> = {
-  vinted: "/icons/vinted.svg",
-  wallapop: "/icons/wallapop.svg",
-  vestiaire: "/icons/vestiaire.jpeg",
-  ebay: "/icons/ebay.svg",
-  shopify: "/icons/shopify.svg",
-  depop: "/icons/depop.jpeg"
-};
+import { PlatformLogos } from "@/app/inventory/components/platform-logos";
 
 interface Props {
   publication: Publication;
@@ -36,7 +28,6 @@ export function PublicationMobileCard({
   const listing = publication.listing;
   const photo = listing?.photo_url?.[0];
   const title = listing?.title || "Sin título";
-  const platformIcon = PLATFORM_ICONS[publication.platform];
 
   return (
     <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -53,10 +44,10 @@ export function PublicationMobileCard({
           <img
             src={photo}
             alt={title}
-            className="w-20 h-20 rounded-lg object-cover border shrink-0"
+            className="h-12 w-12 shrink-0 rounded-lg object-cover"
           />
         ) : (
-          <div className="w-20 h-20 rounded-lg bg-gray-100 border shrink-0" />
+          <div className="h-12 w-12 shrink-0 rounded-lg bg-gray-100" />
         )}
 
         <div className="min-w-0 flex-1">
@@ -65,28 +56,26 @@ export function PublicationMobileCard({
               href={publication.publication_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-blue-600 hover:underline line-clamp-2"
+              className="line-clamp-2 font-semibold text-blue-600 hover:underline"
             >
               {title}
             </a>
           ) : (
-            <p className="font-semibold text-gray-900 line-clamp-2">{title}</p>
+            <p className="line-clamp-2 font-semibold text-gray-900">{title}</p>
           )}
 
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            {platformIcon ? (
-              <img src={platformIcon} alt={publication.platform} className="w-6 h-6 rounded object-contain" />
-            ) : null}
+            <PlatformLogos platforms={[publication.platform]} />
             <span className="text-sm font-medium tabular-nums">
               €{Number(publication.price ?? 0).toFixed(2)}
             </span>
           </div>
 
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${publicationStatusClass(publication.status)}`}>
+            <span className={`rounded px-2 py-0.5 text-xs font-semibold ${publicationStatusClass(publication.status)}`}>
               {formatPublicationStatus(publication.status)}
             </span>
-            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${syncStatusClass(publication.sync_status)}`}>
+            <span className={`rounded px-2 py-0.5 text-xs font-semibold ${syncStatusClass(publication.sync_status)}`}>
               {formatSyncStatus(publication.sync_status)}
             </span>
           </div>
@@ -96,14 +85,14 @@ export function PublicationMobileCard({
       <div className="mt-4 flex gap-2">
         <button
           onClick={() => onEdit(publication.id)}
-          className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-2.5 px-4 rounded-lg font-medium transition"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2.5 font-medium text-white transition hover:bg-blue-600"
         >
           <Pencil size={18} />
           Editar
         </button>
         <button
           onClick={() => onDelete(publication.id)}
-          className="inline-flex items-center justify-center gap-2 bg-red-500 hover:bg-red-600 text-white py-2.5 px-4 rounded-lg font-medium transition"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-500 px-4 py-2.5 font-medium text-white transition hover:bg-red-600"
           aria-label="Eliminar publicación"
         >
           <Trash2 size={18} />

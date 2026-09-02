@@ -5,57 +5,29 @@
 
 'use client'
 
-
 import { useState } from 'react'
 import { ListingsTable } from '@/app/inventory/listings/components/ListingsTable'
 import { AddListingModal } from '@/app/inventory/listings/components/AddListingModal'
+import { InventoryPageShell } from '@/app/inventory/components/inventory-page-shell'
 
 export default function ListingsPage() {
-
   const [openModal, setOpenModal] = useState(false)
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 p-3 sm:p-6">
-
-      <div className="
-        bg-white shadow-xl rounded-2xl p-4 sm:p-6 w-full max-w-6xl border border-gray-200
-        flex flex-col
-        transition-all duration-300
-        hover:-translate-y-1 hover:shadow-2xl
-      ">
-
-        {/* Titulo y boton */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-            Mis Productos
-          </h1>
-
-          <button
-            onClick={() => setOpenModal(true)}
-            className="
-            bg-blue-600 hover:bg-blue-700 
-            text-white font-semibold 
-            px-4 py-2.5 rounded-lg 
-            shadow-md hover:shadow-lg 
-            transition-all duration-200
-            cursor-pointer
-            w-full sm:w-auto
-            "
-          >
-            Añadir producto
-          </button>
-        </div>
-        
-
-        <p className="text-gray-600 mb-6 sm:mb-8 text-sm sm:text-base">
-          Gestiona y visualiza tus productos. Marca como vendido para registrar la venta sin borrar el anuncio en las tiendas.
-        </p>
-
-        <ListingsTable />
-        <AddListingModal open={openModal} onClose={() => setOpenModal(false)} />
-      </div>
-
-
-    </main>
+    <InventoryPageShell
+      title="Mis Productos"
+      description="Gestiona y visualiza tus productos. Marca como vendido para registrar la venta sin borrar el anuncio en las tiendas."
+      action={
+        <button
+          onClick={() => setOpenModal(true)}
+          className="w-full cursor-pointer rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white shadow-md transition-all duration-200 hover:bg-blue-700 hover:shadow-lg sm:w-auto"
+        >
+          Añadir producto
+        </button>
+      }
+    >
+      <ListingsTable />
+      <AddListingModal open={openModal} onClose={() => setOpenModal(false)} />
+    </InventoryPageShell>
   )
 }
