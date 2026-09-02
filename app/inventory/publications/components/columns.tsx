@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Publication } from '../types';
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, RefreshCw } from "lucide-react";
 import {
   formatPublicationStatus,
   formatSyncStatus,
@@ -13,7 +13,8 @@ import { PlatformLogos } from "@/app/inventory/components/platform-logos";
 
 export const createColumns = (
   onDelete: (id: string) => void,
-  onEdit: (id: string) => void
+  onEdit: (id: string) => void,
+  onReupload: (id: string) => void
 ): ColumnDef<Publication>[] => [
 
     {
@@ -189,33 +190,52 @@ export const createColumns = (
     },
 
     {
-      id: "actions",
-      header: "",
-      meta: {
-        headerClassName: 'w-24',
-        cellClassName: 'w-24',
-      },
-      cell: ({ row, isHovered }: { row: { original: Publication }; isHovered?: boolean }) => {
-        return (
-          <div className="flex justify-end">
-            <div className={`flex gap-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 ${isHovered ? 'md:opacity-100' : ''}`}>
-              <button
-                onClick={() => onEdit(row.original.id)}
-                className="rounded-lg bg-blue-500 p-2 text-white shadow transition hover:bg-blue-600"
-                title="Editar publicación"
-              >
-                <Pencil size={16} />
-              </button>
-              <button
-                onClick={() => onDelete(row.original.id)}
-                className="rounded-lg bg-red-500 p-2 text-white shadow transition hover:bg-red-600"
-                title="Eliminar publicación"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-          </div>
-        );
-      },
-    },
+  id: "actions",
+  header: "",
+  meta: {
+    headerClassName: "w-32",
+    cellClassName: "w-32",
+  },
+  cell: ({
+    row,
+    isHovered,
+  }: {
+    row: { original: Publication };
+    isHovered?: boolean;
+  }) => {
+    return (
+      <div className="flex justify-end">
+        <div
+          className={`flex gap-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 ${
+            isHovered ? "md:opacity-100" : ""
+          }`}
+        >
+          <button
+            onClick={() => onReupload(row.original.id)}
+            className="rounded-lg bg-emerald-500 p-2 text-white shadow transition hover:bg-emerald-600"
+            title="Resubir publicación"
+          >
+            <RefreshCw size={16} />
+          </button>
+
+          <button
+            onClick={() => onEdit(row.original.id)}
+            className="rounded-lg bg-blue-500 p-2 text-white shadow transition hover:bg-blue-600"
+            title="Editar publicación"
+          >
+            <Pencil size={16} />
+          </button>
+
+          <button
+            onClick={() => onDelete(row.original.id)}
+            className="rounded-lg bg-red-500 p-2 text-white shadow transition hover:bg-red-600"
+            title="Eliminar publicación"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+    );
+  },
+},
   ];

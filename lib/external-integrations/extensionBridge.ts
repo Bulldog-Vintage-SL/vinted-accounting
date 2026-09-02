@@ -1,8 +1,7 @@
 /*
-  Interfaz de funciones para Vinted y Wallapop que hacen uso de la extension.
-  Tiene cada una de las funcionalidades. TODO: Subir producto a Wallapop.
+  Interfaz de funciones para las plataformas que hacen uso de la extension.
+  Tiene cada una de las funcionalidades.
 */
-
 
 "use client"
 

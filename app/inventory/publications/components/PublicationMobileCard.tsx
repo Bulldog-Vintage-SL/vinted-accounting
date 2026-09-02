@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, RefreshCw } from "lucide-react";
 import type { Publication } from "../types";
 import {
   formatPublicationStatus,
@@ -16,6 +16,7 @@ interface Props {
   onSelect: (id: string, checked: boolean) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onReupload: (id: string) => void;
 }
 
 export function PublicationMobileCard({
@@ -24,6 +25,7 @@ export function PublicationMobileCard({
   onSelect,
   onEdit,
   onDelete,
+  onReupload,
 }: Props) {
   const listing = publication.listing;
   const photo = listing?.photo_url?.[0];
@@ -52,12 +54,12 @@ export function PublicationMobileCard({
 
         <div className="min-w-0 flex-1">
           {publication.publication_url ? (
-            <a
+            <a>
               href={publication.publication_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="line-clamp-2 font-semibold text-blue-600 hover:underline"
-            >
+              className="font-semibold text-blue-600 hover:underline line-clamp-2"
+            
               {title}
             </a>
           ) : (
@@ -89,6 +91,13 @@ export function PublicationMobileCard({
         >
           <Pencil size={18} />
           Editar
+        </button>
+        <button
+          onClick={() => onReupload(publication.id)}
+          className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 px-4 rounded-lg font-medium transition"
+          aria-label="Resubir publicación"
+        >
+          <RefreshCw size={18} />
         </button>
         <button
           onClick={() => onDelete(publication.id)}
