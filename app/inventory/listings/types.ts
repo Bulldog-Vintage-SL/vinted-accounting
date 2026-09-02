@@ -21,7 +21,7 @@ export type Listing = {
   gender: 'hombre' | 'mujer' | 'unisex' | null
   item_type: string | null
   stock: number
-  platforms: string[]
+  platforms?: string[]
 }
 
 export type ListingForm = {
