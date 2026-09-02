@@ -27,7 +27,7 @@ const PLATFORM_NAMES: Record<string, string> = {
 };
 
 // Resubida solo soportada para Vinted y Wallapop por ahora.
-const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop"]);
+const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
 
 export function ReuploadPublicationModal({
     open,
