@@ -199,7 +199,7 @@ export async function POST(req: Request) {
       session.markModified("state");
 
       await session.save();
-
+      
       if (!nextStep) {
         const finalState = session.state;
 

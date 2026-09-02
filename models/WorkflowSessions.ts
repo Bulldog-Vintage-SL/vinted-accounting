@@ -35,6 +35,7 @@ const workflowSessionSchema = new mongoose.Schema(
     },
     {
         timestamps: true,
+        collection: "workflow_sessions"
     }
 );
 
