@@ -9,13 +9,19 @@ import { DeletePublicationModal } from './DeletePublicationModal'
 import { BulkDeletePublicationModal } from './BulkDeletePublicationModal'
 import { EditPublicationModal } from './EditPublicationModal'
 import DeletePublicationProgressModal from './DeletePublicationProgressModal'
+import { ReuploadPublicationModal } from './ReuploadPublicationModal'
+import ReuploadPublicationProgressModal from './ReuploadPublicationProgressModal'
+import { isUploadFailure } from '@/lib/external-integrations/validators'
 import { useToast } from '@/components/toast'
 import { useQueue } from '@/hooks/useQueue'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem } from '@/lib/external-integrations/'
+import { reuploadVintedItem } from '@/lib/external-integrations/'
+import { MissingFieldsError } from '@/lib/external-integrations/validators'
 import { PublicationMobileCard } from './PublicationMobileCard'
 import type { Job } from '@/lib/queue/types'
+import type { Listing } from '../../listings/types'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json()).then(res => res.data)
 
@@ -66,6 +72,33 @@ async function deletePublication(publication: Publication): Promise<void> {
     }
 }
 
+async function reuploadPublication(publication: Publication): Promise<void> {
+
+    const res = await fetch(`/api/listings/${publication.listing_id}`);
+    if (!res.ok) {
+        throw new Error('No se pudo cargar el producto para la resubida');
+    }
+    const listing: Listing = await res.json();
+
+    if (publication.platform === 'vinted') {
+        const result = await reuploadVintedItem(
+            publication.account_id,
+            listing,
+            publication.external_id,
+            publication.id
+        );
+        if (isUploadFailure(result)) {
+            if (result.missingFields?.length) {
+                const labels = result.missingFields.map(f => f.label).join(', ');
+                throw new Error(`Faltan campos: ${labels}`);
+            }
+            throw new Error(result.message);
+        }
+    } else {
+        throw new Error(`Resubida no soportada para la plataforma "${publication.platform}"`);
+    }
+}
+
 export function PublicationsTable() {
     const { data, error, isLoading, mutate } = useSWR('/api/publications', fetcher, {
         revalidateOnFocus: true,
@@ -95,14 +128,18 @@ export function PublicationsTable() {
     const [showQueue, setShowQueue] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+    const [isSingleReuploading, setIsSingleReuploading] = useState(false)
 
     // Modal de progreso bloqueante para borrado masivo
     const [deletePhase, setDeletePhase] = useState<'idle' | 'deleting' | 'done'>('idle')
-    // Flag local: solo es "nuestro" borrado si lo hemos iniciado nosotros.
-    // Evita que estado residual en la cola global (singleton, sobrevive a
-    // montajes/desmontajes) reabra el modal al volver a esta pestaña.
     const [bulkDeleteActive, setBulkDeleteActive] = useState(false)
     const deleteJobsRef = useRef<Job<'deletePublication', Publication>[]>([])
+
+    // Modal de progreso bloqueante para resubida masiva
+    const [reuploadPhase, setReuploadPhase] = useState<'idle' | 'reuploading' | 'done'>('idle')
+    const [bulkReuploadActive, setBulkReuploadActive] = useState(false)
+    const reuploadJobsRef = useRef<Job<'reuploadPublication', Publication>[]>([])
+
     const [, forceTick] = useState(0)
 
     useEffect(() => {
@@ -119,6 +156,19 @@ export function PublicationsTable() {
     }, [stats, deletePhase, bulkDeleteActive])
 
     useEffect(() => {
+        if (!bulkReuploadActive) return
+
+        const allDone = stats.total > 0
+            && stats.pending === 0
+            && stats.processing === 0
+            && stats.retrying === 0
+
+        if (allDone && reuploadPhase !== 'idle') {
+            setReuploadPhase('done')
+        }
+    }, [stats, reuploadPhase, bulkReuploadActive])
+
+    useEffect(() => {
         return onDrained(() => {
             tableRef.current?.resetSelection()
             setSelectedIds([])
@@ -126,22 +176,23 @@ export function PublicationsTable() {
             setDeletePhase('idle')
             setBulkDeleteActive(false)
             deleteJobsRef.current = []
-            clear() // limpia la cola real: si no, los jobs completados quedan
-            // en el singleton y el modal reaparece "completado" al
-            // volver a montar el componente
+            setReuploadPhase('idle')
+            setBulkReuploadActive(false)
+            reuploadJobsRef.current = []
+            clear()
         })
     }, [onDrained, clear])
 
     // Suscripción a eventos para forzar re-render del modal
     useEffect(() => {
-        if (deletePhase === 'idle') return
+        if (deletePhase === 'idle' && reuploadPhase === 'idle') return
 
         const unsubscribe = onEvent(() => {
             forceTick(t => t + 1)
         })
 
         return unsubscribe
-    }, [deletePhase, onEvent])
+    }, [deletePhase, reuploadPhase, onEvent])
 
     const [deleteModalOpen, setDeleteModalOpen] = useState(false)
     const [publicationToDelete, setPublicationToDelete] = useState<Publication | null>(null)
@@ -149,6 +200,10 @@ export function PublicationsTable() {
     const [publicationsToDelete, setPublicationsToDelete] = useState<Publication[]>([])
     const [editModalOpen, setEditModalOpen] = useState(false)
     const [publicationToEdit, setPublicationToEdit] = useState<Publication | null>(null)
+
+    // Modal de confirmación de resubida individual
+    const [reuploadModalOpen, setReuploadModalOpen] = useState(false)
+    const [publicationToReupload, setPublicationToReupload] = useState<Publication | null>(null)
 
     const handleDeleteClick = useCallback((id: string) => {
         const publication = (data ?? []).find((p: Publication) => p.id === id)
@@ -165,6 +220,41 @@ export function PublicationsTable() {
             setEditModalOpen(true)
         }
     }, [data])
+
+    const handleReuploadClick = useCallback((id: string) => {
+        const publication = (data ?? []).find((p: Publication) => p.id === id)
+        if (publication) {
+            setPublicationToReupload(publication)
+            setReuploadModalOpen(true)
+        }
+    }, [data])
+
+    const handleConfirmReupload = useCallback(async () => {
+        if (!publicationToReupload) return
+
+        setIsSingleReuploading(true)
+
+        try {
+            await reuploadPublication(publicationToReupload)
+            mutate()
+            pushToast({
+                message: 'Publicación resubida',
+                description: `"${publicationToReupload.listing?.title || 'Publicación'}" resubida correctamente.`,
+                type: 'success',
+            })
+            setReuploadModalOpen(false)
+        } catch (error: any) {
+            console.error(error)
+            pushToast({
+                message: 'Error al resubir',
+                description: error.message || 'No se pudo resubir la publicación.',
+                type: 'error',
+            })
+        } finally {
+            setIsSingleReuploading(false)
+            setPublicationToReupload(null)
+        }
+    }, [publicationToReupload, mutate, pushToast])
 
     const handleConfirmDelete = useCallback(async () => {
         if (!publicationToDelete) return
@@ -233,7 +323,30 @@ export function PublicationsTable() {
         setIsBulkDeleting(false)
     }, [publicationsToDelete, mutate, enqueue, clear])
 
+    const handleBulkReuploadClick = useCallback(() => {
+        const selected: Publication[] = (data ?? []).filter((p: Publication) => selectedIds.includes(p.id))
+        if (selected.length === 0) return
+
+        clear()
+        setSelectedIds([])
+        tableRef.current?.resetSelection()
+
+        const jobs = enqueue('reuploadPublication', selected, {}, (p: Publication) => p.listing?.title || 'Publicación')
+        reuploadJobsRef.current = jobs
+        setBulkReuploadActive(true)
+        setReuploadPhase('reuploading')
+        setShowQueue(true)
+    }, [selectedIds, data, enqueue, clear])
+
     const handleRetryJob = useCallback((job: Job<'deletePublication', Publication>) => {
+        if (retryJob) {
+            retryJob(job)
+        } else {
+            retryFailed()
+        }
+    }, [retryJob, retryFailed])
+
+    const handleRetryReuploadJob = useCallback((job: Job<'reuploadPublication', Publication>) => {
         if (retryJob) {
             retryJob(job)
         } else {
@@ -250,9 +363,17 @@ export function PublicationsTable() {
         // parciales, no dejar jobs viejos colgados en la cola global
     }, [clear])
 
+    const handleCloseReuploadProgress = useCallback(() => {
+        setReuploadPhase('idle')
+        setBulkReuploadActive(false)
+        reuploadJobsRef.current = []
+        setShowQueue(false)
+        clear()
+    }, [clear])
+
     const columns = useMemo(
-        () => createColumns(handleDeleteClick, handleEditClick),
-        [handleDeleteClick, handleEditClick]
+        () => createColumns(handleDeleteClick, handleEditClick, handleReuploadClick),
+        [handleDeleteClick, handleEditClick, handleReuploadClick]
     )
 
     const handleMobileSelect = useCallback((id: string, checked: boolean) => {
@@ -291,6 +412,7 @@ export function PublicationsTable() {
                             onSelect={handleMobileSelect}
                             onEdit={handleEditClick}
                             onDelete={handleDeleteClick}
+                            onReupload={handleReuploadClick}
                         />
                     ))
                 )}
@@ -299,14 +421,26 @@ export function PublicationsTable() {
             {selectedIds.length > 0 && (
                 <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">
                     <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
-                    <LoadingButton
-                        onClick={handleBulkDeleteClick}
-                        loading={isBulkDeleting}
-                        loadingText="Eliminando..."
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
-                    >
-                        Eliminar seleccionados
-                    </LoadingButton>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <LoadingButton
+                            onClick={handleBulkReuploadClick}
+                            loading={bulkReuploadActive}
+                            loadingText="Resubiendo..."
+                            disabled={deletePhase !== 'idle'}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
+                        >
+                            Resubir seleccionados
+                        </LoadingButton>
+                        <LoadingButton
+                            onClick={handleBulkDeleteClick}
+                            loading={isBulkDeleting}
+                            loadingText="Eliminando..."
+                            disabled={reuploadPhase !== 'idle'}
+                            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
+                        >
+                            Eliminar seleccionados
+                        </LoadingButton>
+                    </div>
                 </div>
             )}
 
@@ -321,6 +455,19 @@ export function PublicationsTable() {
                 platform={publicationToDelete?.platform}
                 isLoading={isDeleting}
                 accountId={publicationToDelete?.account_id}
+            />
+
+            <ReuploadPublicationModal
+                open={reuploadModalOpen}
+                onClose={() => {
+                    setReuploadModalOpen(false)
+                    setPublicationToReupload(null)
+                }}
+                onConfirm={handleConfirmReupload}
+                publicationTitle={publicationToReupload?.listing?.title}
+                platform={publicationToReupload?.platform}
+                isLoading={isSingleReuploading}
+                accountId={publicationToReupload?.account_id}
             />
 
             <BulkDeletePublicationModal
@@ -342,6 +489,15 @@ export function PublicationsTable() {
                 onClose={handleCloseDeleteProgress}
                 title="Eliminando publicaciones..."
                 onRetryJob={handleRetryJob}
+            />
+
+            <ReuploadPublicationProgressModal
+                open={reuploadPhase !== 'idle'}
+                jobs={reuploadJobsRef.current}
+                isBusy={reuploadPhase === 'reuploading'}
+                onClose={handleCloseReuploadProgress}
+                title="Resubiendo publicaciones..."
+                onRetryJob={handleRetryReuploadJob}
             />
 
             <EditPublicationModal

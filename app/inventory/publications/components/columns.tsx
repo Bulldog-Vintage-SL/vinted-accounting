@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Publication } from '../types';
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, RefreshCw } from "lucide-react";
 import {
   formatPublicationStatus,
   formatSyncStatus,
@@ -24,13 +24,14 @@ const PLATFORM_ICONS: Record<string, string> = {
   wallapop: "/icons/wallapop.svg",
   vestiaire: "/icons/vestiaire.jpeg",
   ebay: "/icons/ebay.svg",
-  depop:  "/icons/depop.jpeg",
+  depop: "/icons/depop.jpeg",
   shopify: "/icons/shopify.svg",
 };
 
 export const createColumns = (
   onDelete: (id: string) => void,
-  onEdit: (id: string) => void
+  onEdit: (id: string) => void,
+  onReupload: (id: string) => void
 ): ColumnDef<Publication>[] => [
 
     {
@@ -227,31 +228,33 @@ export const createColumns = (
     {
       id: "actions",
       header: "",
-      meta: {
-        headerClassName: 'w-24',
-        cellClassName: 'w-24',
-      },
-      cell: ({ row, isHovered }: any) => {
-        return (
-          <div className="flex justify-end">
-            <div className={`flex gap-1.5 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 ${isHovered ? 'md:opacity-100' : ''}`}>
-              <button
-                onClick={() => onEdit(row.original.id)}
-                className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg shadow transition"
-                title="Editar publicación"
-              >
-                <Pencil size={16} />
-              </button>
-              <button
-                onClick={() => onDelete(row.original.id)}
-                className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow transition"
-                title="Eliminar publicación"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
+      meta: { headerClassName: 'w-32', cellClassName: 'w-32' },
+      cell: ({ row, isHovered }: any) => (
+        <div className="flex justify-end">
+          <div className={`flex gap-1.5 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 ${isHovered ? 'md:opacity-100' : ''}`}>
+            <button
+              onClick={() => onReupload(row.original.id)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white p-2 rounded-lg shadow transition"
+              title="Resubir publicación"
+            >
+              <RefreshCw size={16} />
+            </button>
+            <button
+              onClick={() => onEdit(row.original.id)}
+              className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg shadow transition"
+              title="Editar publicación"
+            >
+              <Pencil size={16} />
+            </button>
+            <button
+              onClick={() => onDelete(row.original.id)}
+              className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg shadow transition"
+              title="Eliminar publicación"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
-        );
-      },
+        </div>
+      ),
     },
   ];

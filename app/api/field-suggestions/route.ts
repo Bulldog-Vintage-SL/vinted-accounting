@@ -179,6 +179,7 @@ async function generateSizeAndCondition(
           "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
           "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
           "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
+          "Si no hay una foto en la que ponga explicitamente la talla de la prenda, NO REFLEJAR LA TALLA EN LA DESCRIPCION" +
           "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
           "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
           "NUNCA pongas más de 5 hashtags en la descripción" +

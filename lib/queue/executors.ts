@@ -11,7 +11,8 @@ import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadEbayItem,
-  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem
+  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
+  reuploadVintedItem
 } from '@/lib/external-integrations'
 
 // Entidad para upload
@@ -27,9 +28,6 @@ interface ImportEntity {
 
 const FETCH_TIMEOUT_MS = 15000
 
-// fetch con timeout para las llamadas a nuestros propios endpoints (Shopify),
-// evita que un job se quede colgado en 'processing' para siempre y bloquee
-// el lane de esa plataforma indefinidamente.
 // eslint-disable-next-line no-undef
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController()
@@ -227,6 +225,42 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
   return { deleted: true }
 }
 
+const reuploadPublicationExecutor: Executor<Publication> = async (job) => {
+  const publication = job.entity
+
+  if (!publication.listing_id) {
+    throw new Error('No se encontró el producto asociado a esta publicación')
+  }
+  if (!publication.account_id) {
+    throw new Error('Publicación sin cuenta asociada')
+  }
+
+  const resListing = await fetchWithTimeout(`/api/listings/${publication.listing_id}`, { method: 'GET' })
+  if (!resListing.ok) {
+    throw new Error('No se pudo cargar el producto para la resubida')
+  }
+  const listing: Listing = await resListing.json()
+
+  if (publication.platform === 'vinted') {
+    const result = await reuploadVintedItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+    
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Vinted')
+    }
+    return { reuploaded: true, platform: 'vinted', data: result.data }
+  }
+  else {
+    throw new Error(`Resubida no soportada para "${publication.platform}"`)
+  }
+}
+
+
 // Delete de un listing
 const deleteExecutor: Executor<Listing> = async (job) => {
   await deleteListing(job.entity.id)
@@ -239,4 +273,5 @@ export const executors: Record<JobAction, Executor<any>> = {
   delete: deleteExecutor,
   import: importExecutor,
   deletePublication: deletePublicationExecutor,
+  reuploadPublication: reuploadPublicationExecutor,
 }

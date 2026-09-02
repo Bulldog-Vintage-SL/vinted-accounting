@@ -1,5 +1,8 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
 import { runFlow } from './extensionBridge'
+import { uploadPhoto } from '@/utils/uploadPhoto'
+import { transformListingImages } from '../images/processListingImages'
+import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 
 // Subir producto a Vinted
@@ -56,6 +59,105 @@ export async function uploadItem(listing: any, accountId: string): Promise<Uploa
       ok: false,
       message: err?.message || "Error inesperado",
     }
+  }
+
+}
+
+export async function reuploadVintedItem(
+  accountId: string, listing: Listing, itemExternalId: string, publicationId: string
+): Promise<UploadResult> {
+
+  try {
+
+    const missing = validateListingRequiredFields(listing, 'vinted')
+    if (missing.length > 0) throw new MissingFieldsError(missing)
+
+    // Borrar la publicacion
+    const resDelete = await deleteVintedItem(itemExternalId, publicationId);
+
+    if (!resDelete.ok) {
+      return {
+        ok: false,
+        message: `No se pudo eliminar la publicación anterior: ${resDelete.message}`,
+      };
+    }
+
+    console.log("Borrado")
+    console.log(resDelete)
+
+    // Modificar las imagenes
+    const transformedImages = await transformListingImages(listing)
+
+    const uploadedUrls = await Promise.all(
+      transformedImages.map((blob, i) =>
+        uploadPhoto(new File([blob], `${listing.id}_${i}.jpg`, { type: "image/jpeg" }))
+      )
+    );
+
+    console.log("Imagenes")
+    console.log(uploadedUrls)
+
+    // Modificar el titulo y la descripcion
+    const resModTexts = await fetch("/api/modify-texts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: listing.title,
+        description: listing.description,
+      }),
+    });
+
+    if (!resModTexts.ok) {
+      throw new Error("Error modificando título y descripción");
+    }
+
+    const { title: newTitle, description: newDescription } = await resModTexts.json();
+
+    console.log("Textos")
+    console.log(newTitle)
+
+    // Crear un producto temporal con los campos del producto
+    const modifiedListing: Listing = {
+      ...listing,
+      photo_url: uploadedUrls,
+      title: newTitle,
+      description: newDescription,
+    };
+
+    // Resubir el producto y crear la nueva publicacion
+    const uploadResult = await uploadItem(
+      modifiedListing,
+      accountId
+    );
+
+    if (!uploadResult.ok) {
+      return {
+        ok: false,
+        message: `Error al resubir el producto: ${uploadResult.message}`,
+      };
+    }
+
+    return {
+      ok: true,
+      message: "Publicación resubida correctamente en Vinted",
+      data: {
+        listingId: listing.id,
+        newTitle,
+        newDescription,
+        publication: uploadResult.data,
+      },
+    };
+
+  } catch (err: any) {
+    if (err instanceof MissingFieldsError) {
+      return { ok: false, message: err.message, missingFields: err.fields }
+    }
+    return {
+      ok: false,
+      message: err?.message || 'Error inesperado',
+    };
   }
 
 }
@@ -177,9 +279,6 @@ export async function importWardrobe(userId: string) {
 
       const items = result.result.state.items;
 
-      // Nos quedamos solo con los campos que usa el endpoint de import:
-      // el JSON completo de Vinted (thumbnails, perfil de usuario, etc.)
-      // supera el límite de 4.5MB de body de Vercel (413) con armarios grandes.
       const slimItems = items.map((item: any) => ({
         id: item.id,
         title: item.title,
@@ -251,64 +350,6 @@ export async function importWardrobe(userId: string) {
 
 }
 
-export async function importVestiaireWardrobe(accountId: string) {
-  try {
-
-    // Primero obtenemos el id de la cuenta de vinted correspondiente a userId
-    const resAcc = await fetch(`/api/accounts/${accountId}`);
-    const account = await resAcc.json();
-    const externalId = (account.external_id ?? account.externalId)?.toString();
-
-    const result = await runFlow('IMPORT_VESTIAIRE_WARDROBE', { externalId })
-    console.log(result)
-
-    const items = result?.result?.state?.items ?? result?.result?.result?.items
-    if (!items) {
-      return { ok: false, message: 'No se pudieron obtener los artículos' }
-    }
-
-    const slimItems = items.map((item: any) => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      brand: item.brand ? { name: item.brand.name } : null,
-      pictures: item.pictures ?? [],
-      price: item.price?.cents != null ? { cents: item.price.cents } : item.price,
-      colors: item.colors,
-      size: item.size ? { label: item.size.label } : null,
-      link: item.link,
-      universeId: item.universeId,
-    }))
-
-    const BATCH_SIZE = 25
-    let lastData: any = null
-
-    for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
-      const batch = slimItems.slice(i, i + BATCH_SIZE)
-
-      const res = await fetch('/api/listings/import/vestiaire', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId: accountId,
-          wardrobe: batch,
-          timestamp: Date.now()
-        })
-      })
-
-      const data = await res.json()
-      if (!res.ok || data.status !== 'success') {
-        return { ok: false, message: data.message || 'Error guardando artículos' }
-      }
-      lastData = data
-    }
-
-    return { ok: true, message: lastData?.message ?? 'Armario importado correctamente', data: lastData }
-
-  } catch (err: any) {
-    return { ok: false, message: err?.message || 'Error inesperado' }
-  }
-}
 
 export async function deleteVintedItem(itemExternalId: string, publicationId: string) {
   try {
@@ -419,5 +460,3 @@ export async function updateVintedItem(
     };
   }
 }
-
-
