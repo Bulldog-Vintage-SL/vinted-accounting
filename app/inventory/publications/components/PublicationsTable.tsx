@@ -181,8 +181,11 @@ export function PublicationsTable() {
     const deleteJobsRef = useRef<Job<'deletePublication', Publication>[]>([])
 
     // Modal de progreso bloqueante para resubida masiva
+    // (bulkReuploadModalOpen controla el modal en AMBAS fases: sincronización previa y progreso)
     const [reuploadPhase, setReuploadPhase] = useState<'idle' | 'reuploading' | 'done'>('idle')
     const [bulkReuploadActive, setBulkReuploadActive] = useState(false)
+    const [bulkReuploadModalOpen, setBulkReuploadModalOpen] = useState(false)
+    const [publicationsToReupload, setPublicationsToReupload] = useState<Publication[]>([])
     const reuploadJobsRef = useRef<Job<'reuploadPublication', Publication>[]>([])
 
     const [, forceTick] = useState(0)
@@ -223,6 +226,7 @@ export function PublicationsTable() {
             deleteJobsRef.current = []
             setReuploadPhase('idle')
             setBulkReuploadActive(false)
+            setBulkReuploadModalOpen(false)
             reuploadJobsRef.current = []
             clear()
         })
@@ -368,20 +372,31 @@ export function PublicationsTable() {
         setIsBulkDeleting(false)
     }, [publicationsToDelete, mutate, enqueue, clear])
 
+    // Solo abre el modal (fase de sincronización de cuentas); no encola nada todavía
     const handleBulkReuploadClick = useCallback(() => {
         const selected: Publication[] = (data ?? []).filter((p: Publication) => selectedIds.includes(p.id))
         if (selected.length === 0) return
+        setPublicationsToReupload(selected)
+        setBulkReuploadModalOpen(true)
+    }, [selectedIds, data])
 
-        clear()
+    // Se dispara desde onConfirm del modal, una vez las cuentas están sincronizadas
+    const handleConfirmBulkReupload = useCallback(() => {
+        if (publicationsToReupload.length === 0) return
+
         setSelectedIds([])
         tableRef.current?.resetSelection()
 
-        const jobs = enqueue('reuploadPublication', selected, {}, (p: Publication) => p.listing?.title || 'Publicación')
+        clear()
+
+        const jobs = enqueue('reuploadPublication', publicationsToReupload, {}, (p: Publication) => p.listing?.title || 'Publicación')
         reuploadJobsRef.current = jobs
         setBulkReuploadActive(true)
         setReuploadPhase('reuploading')
         setShowQueue(true)
-    }, [selectedIds, data, enqueue, clear])
+
+        setPublicationsToReupload([])
+    }, [publicationsToReupload, enqueue, clear])
 
     const handleRetryJob = useCallback((job: Job<'deletePublication', Publication>) => {
         if (retryJob) {
@@ -408,10 +423,14 @@ export function PublicationsTable() {
         // parciales, no dejar jobs viejos colgados en la cola global
     }, [clear])
 
+    // Cierra el modal tanto si el usuario cancela en la fase de sincronización
+    // como si cierra tras terminar (o fallar) la resubida
     const handleCloseReuploadProgress = useCallback(() => {
         setReuploadPhase('idle')
         setBulkReuploadActive(false)
         reuploadJobsRef.current = []
+        setPublicationsToReupload([])
+        setBulkReuploadModalOpen(false)
         setShowQueue(false)
         clear()
     }, [clear])
@@ -505,7 +524,7 @@ export function PublicationsTable() {
                             onClick={handleBulkDeleteClick}
                             loading={isBulkDeleting}
                             loadingText="Eliminando..."
-                            disabled={reuploadPhase !== 'idle'}
+                            disabled={reuploadPhase !== 'idle' || bulkReuploadModalOpen}
                             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
                         >
                             Eliminar seleccionados
@@ -562,10 +581,12 @@ export function PublicationsTable() {
             />
 
             <ReuploadPublicationProgressModal
-                open={reuploadPhase !== 'idle'}
+                open={bulkReuploadModalOpen}
+                publications={publicationsToReupload}
                 jobs={reuploadJobsRef.current}
                 isBusy={reuploadPhase === 'reuploading'}
                 onClose={handleCloseReuploadProgress}
+                onConfirm={handleConfirmBulkReupload}
                 title="Resubiendo publicaciones..."
                 onRetryJob={handleRetryReuploadJob}
             />
