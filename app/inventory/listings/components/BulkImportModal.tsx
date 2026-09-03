@@ -14,6 +14,7 @@ import CategorySelect from "@/app/inventory/listings/new_listing/components/Cate
 import { useToast } from "@/components/toast";
 import type { Job } from "@/lib/queue/types";
 import { useRef } from "react";
+import { mutate } from "swr";
 
 type Phase = "upload" | "group" | "publish-choice" | "generating" | "review" | "publishing";
 
@@ -77,6 +78,8 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const [selectedAccounts, setSelectedAccounts] = useState<SelectedAccount[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const autoPublishAccountsRef = useRef<SelectedAccount[] | null>(null);
+    const [previewDraftId, setPreviewDraftId] = useState<string | null>(null);
+    const [previewIndex, setPreviewIndex] = useState(0);
 
 
     const [autoPublish, setAutoPublish] = useState(false);
@@ -219,7 +222,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
 
                 const generatedData: Partial<ListingForm> = {
                     title: suggestion.title ?? "",
-                    description: suggestion.description ?? "",
+                    description: (suggestion.description ?? "").replace(/\\n/g, "\n"),
                     price: typeof suggestion.price === "number" ? suggestion.price : 0,
                     gender: suggestion.gender,
                     colors: Array.isArray(suggestion.colors) ? suggestion.colors : [],
@@ -316,6 +319,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                     message: "Productos guardados",
                     description: `${createdListings.length} producto(s) creado(s) correctamente.`,
                 });
+                mutate("/api/listings");
                 reset();
                 onClose();
                 return;
@@ -357,6 +361,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     }, [phase, drafts]);
 
     const handleClosePublishModal = () => {
+        mutate("/api/listings");
         reset();
         onClose();
     };
@@ -582,7 +587,18 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                             <div className="flex flex-col gap-3 mt-4 max-h-[65vh] overflow-y-auto pr-1">
                                 {drafts.map(draft => (
                                     <div key={draft.id} className="flex gap-4 border border-gray-200 rounded-xl p-4">
-                                        <img src={draft.photos[0]} className="h-20 w-20 rounded-md object-cover flex-shrink-0" />
+                                        <button
+                                            type="button"
+                                            onClick={() => { setPreviewDraftId(draft.id); setPreviewIndex(0); }}
+                                            className="h-20 w-20 rounded-md overflow-hidden flex-shrink-0 relative group cursor-zoom-in"
+                                        >
+                                            <img src={draft.photos[0]} className="h-full w-full object-cover" />
+                                            {draft.photos.length > 1 && (
+                                                <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-[10px] font-medium px-1 rounded">
+                                                    +{draft.photos.length - 1}
+                                                </span>
+                                            )}
+                                        </button>
 
                                         <div className="flex-1">
                                             {draft.status === "pending" && <p className="text-sm text-gray-400">En cola...</p>}
@@ -603,6 +619,15 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                         onChange={e => updateDraft(draft.id, { title: e.target.value })}
                                                         disabled={autoPublish}
                                                         className="w-full font-medium border border-gray-200 rounded p-1.5 text-sm disabled:opacity-60"
+                                                    />
+
+                                                    <textarea
+                                                        value={draft.data.description ?? ""}
+                                                        onChange={e => updateDraft(draft.id, { description: e.target.value })}
+                                                        disabled={autoPublish}
+                                                        rows={3}
+                                                        placeholder="Descripción del producto..."
+                                                        className="w-full border border-gray-200 rounded p-1.5 text-sm resize-none disabled:opacity-60"
                                                     />
 
                                                     <div className="grid grid-cols-2 gap-2">
@@ -683,6 +708,63 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {previewDraftId && (() => {
+                const draft = drafts.find(d => d.id === previewDraftId);
+                if (!draft) return null;
+                const photos = draft.photos;
+
+                const goPrev = () => setPreviewIndex(i => (i - 1 + photos.length) % photos.length);
+                const goNext = () => setPreviewIndex(i => (i + 1) % photos.length);
+
+                return (
+                    <Dialog open={true} onOpenChange={(next) => { if (!next) setPreviewDraftId(null); }}>
+                        <DialogContent
+                            className="!max-w-4xl w-full p-0 bg-black/95 border-none flex flex-col items-center justify-center"
+                            showCloseButton
+                        >
+                            <div className="relative w-full flex items-center justify-center h-[75vh]">
+                                <img
+                                    src={photos[previewIndex]}
+                                    className="max-h-full max-w-full object-contain"
+                                />
+
+                                {photos.length > 1 && (
+                                    <>
+                                        <button
+                                            onClick={goPrev}
+                                            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full h-10 w-10 flex items-center justify-center"
+                                        >
+                                            ‹
+                                        </button>
+                                        <button
+                                            onClick={goNext}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full h-10 w-10 flex items-center justify-center"
+                                        >
+                                            ›
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+
+                            {photos.length > 1 && (
+                                <div className="flex gap-2 pb-4 px-4 overflow-x-auto max-w-full">
+                                    {photos.map((url, i) => (
+                                        <button
+                                            key={i}
+                                            onClick={() => setPreviewIndex(i)}
+                                            className={`h-14 w-14 rounded-md overflow-hidden flex-shrink-0 ring-2 transition ${i === previewIndex ? "ring-purple-500" : "ring-transparent opacity-60 hover:opacity-100"
+                                                }`}
+                                        >
+                                            <img src={url} className="h-full w-full object-cover" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </DialogContent>
+                    </Dialog>
+                );
+            })()}
 
             {/* FASE 5: publicación — solo aparece si se eligieron cuentas; reutiliza
                 el mismo modal de progreso que ListingsTable */}
