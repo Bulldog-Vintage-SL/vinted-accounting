@@ -75,6 +75,7 @@ export async function createListingsFromBulk(data: ListingForm): Promise<Listing
     price: data.price === "" ? null : data.price,
     photoUrl: data.photo_url,
     colors: data.colors,
+    sku: data.sku ?? "",
     attributes: data.attributes,
     gender: data.gender,
     itemType: data.item_type,

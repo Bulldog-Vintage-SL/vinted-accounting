@@ -641,6 +641,7 @@ function listingToForm(listing: Listing): ListingForm {
     price: listing.price,
     photo_url: listing.photo_url,
     colors: listing.colors,
+    sku: listing.sku,
     attributes: {
       brand: listing.attributes?.brand ?? '',
       size: listing.attributes?.size ?? '',

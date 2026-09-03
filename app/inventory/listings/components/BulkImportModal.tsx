@@ -304,6 +304,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                     photo_url: draft.photos,
                     stock: 1,
                     item_type: suggestion.category?.title ?? "",
+                    sku: draft.manual.sku || "",
                     attributes: {
                         brand: suggestion.brand ?? "Sin marca",
                         categoryPath: suggestion.category?.path ?? "",
