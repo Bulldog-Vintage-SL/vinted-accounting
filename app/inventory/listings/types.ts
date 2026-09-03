@@ -32,11 +32,26 @@ export type ListingForm = {
   photo_url: string[]
   colors: string[]
   attributes: {
-    brand: string
-    size: string
-    categoryPath: string
-    vintedCategoryId: number | null
-  }
+    brand: string;
+    size: string;
+    categoryPath: string;
+    vintedCategoryId: number | null;
+    garmentType?: "arriba" | "abajo" | null;
+    medidas?: {
+      // arriba
+      axilaAxila?: string;
+      hombroHombro?: string;
+      largo?: string;
+      manga?: string;
+      // abajo
+      anchoCintura?: string;
+      caderaEntrepierna?: string;
+      anchoTobillo?: string;
+    } | null;
+    desperfectos?: ("Sin desperfectos" | "Mancha" | "Agujero" | "Descosido")[];
+    sku?: string;
+    costeInicial?: number | null;
+  };
   gender: 'hombre' | 'mujer' | 'unisex' | null
   item_type: string | null
   stock: number | null
