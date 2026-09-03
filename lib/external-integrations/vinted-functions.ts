@@ -4,6 +4,7 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
+import { sleep } from '../utils'
 
 // Subir producto a Vinted
 export async function uploadItem(listing: any, accountId: string): Promise<UploadResult> {
@@ -125,6 +126,8 @@ export async function reuploadVintedItem(
       title: newTitle,
       description: newDescription,
     };
+
+    await sleep(60_000);
 
     // Resubir el producto y crear la nueva publicacion
     const uploadResult = await uploadItem(
@@ -460,3 +463,5 @@ export async function updateVintedItem(
     };
   }
 }
+
+
