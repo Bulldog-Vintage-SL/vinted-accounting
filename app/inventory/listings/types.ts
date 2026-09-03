@@ -31,7 +31,7 @@ export type ListingForm = {
   price: number | ""
   photo_url: string[]
   colors: string[]
-  sku: string
+  sku?: string
   attributes: {
     brand: string;
     size: string;
