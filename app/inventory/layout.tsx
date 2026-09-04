@@ -4,6 +4,7 @@ import { auth } from "@/libs/next-auth";
 import config from "@/config";
 import AuthenticatedLayout from "@/components/AuthenticatedLayout";
 import InventorySubnav from "@/components/InventorySubnav";
+import { ScheduledJobsRunner } from "@/components/ScheduledJobsRunner";
 
 export default async function InventoryLayout({
   children,
@@ -18,6 +19,7 @@ export default async function InventoryLayout({
 
   return (
     <AuthenticatedLayout>
+      <ScheduledJobsRunner />
       <InventorySubnav />
       {children}
     </AuthenticatedLayout>

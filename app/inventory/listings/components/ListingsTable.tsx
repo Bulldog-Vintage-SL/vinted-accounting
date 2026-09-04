@@ -18,6 +18,7 @@ import { SelectedAccount, useAccountSelector } from '@/hooks/useAccountSelector'
 import { useQueue } from '@/hooks/useQueue'
 import { QueueStatusBar } from '@/components/QueueStatusBar'
 import { PublishProgressModal } from './PublishProgressModal'
+import { ScheduleUploadModal } from './ScheduleUploadModal'
 import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
@@ -32,6 +33,11 @@ const fetcher = (url: string) => fetch(url).then(res => res.json())
 type UploadJob = {
   listing: Listing
   account: SelectedAccount
+}
+
+type ScheduleTarget = {
+  listings: Listing[]
+  accounts: SelectedAccount[]
 }
 
 type PublishPhase = 'idle' | 'publishing' | 'done'
@@ -61,6 +67,11 @@ export function ListingsTable() {
 
   const [isBulkPublishing, setIsBulkPublishing] = useState(false)
   const [publishingListingId, setPublishingListingId] = useState<string | null>(null)
+
+  // Programación de publicaciones (fecha/hora futura)
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
+  const [isScheduling, setIsScheduling] = useState(false)
+  const scheduleTargetRef = useRef<ScheduleTarget | null>(null)
 
   const { pushToast } = useToast()
 
@@ -132,11 +143,6 @@ export function ListingsTable() {
     return unsubscribe
   }, [publishPhase, onEvent])
 
-  // Mientras el borrado masivo esta en curso: escucha la cola y no
-  // desbloquea el modal hasta que TODOS los jobs de delete han terminado
-  // (completed o failed). Si alguno falla, se restaura ese producto en
-  // la tabla (el borrado optimista se deshace solo para los que fallaron)
-  // y se resincroniza con el servidor por seguridad.
   useEffect(() => {
     if (!isBulkDeleting) return
 
@@ -277,6 +283,86 @@ export function ListingsTable() {
     setPublishPhase('idle')
     publishJobsRef.current = []
   }, [])
+
+  const handleBulkSchedule = useCallback(() => {
+    const selected: Listing[] = (data ?? []).filter(
+      (l: Listing) => selectedIds.includes(l.id) && l.status !== 'sold'
+    )
+    if (selected.length === 0) {
+      pushToast({
+        message: 'Nada que programar',
+        description: 'Los productos seleccionados ya están vendidos o no hay selección válida.',
+        type: 'error',
+      })
+      return
+    }
+
+    openSelector((accounts) => {
+      if (accounts.length === 0) return
+
+      scheduleTargetRef.current = { listings: selected, accounts }
+      setScheduleModalOpen(true)
+    })
+  }, [data, selectedIds, openSelector, pushToast])
+
+  const handleConfirmSchedule = useCallback(async (scheduledAt: Date) => {
+    const target = scheduleTargetRef.current
+    if (!target) return
+
+    setIsScheduling(true)
+
+    try {
+      const results = await Promise.allSettled(
+        target.listings.map((listing) =>
+          fetch('/api/upload-jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              listingId: listing.id,
+              accounts: target.accounts.map((a) => ({
+                accountId: a.accountId,
+                platform: a.platform,
+              })),
+              scheduledAt: scheduledAt.toISOString(),
+            }),
+          }).then((res) => {
+            if (!res.ok) throw new Error(`Fallo al programar "${listing.title}"`)
+            return res.json()
+          })
+        )
+      )
+
+      const failedCount = results.filter((r) => r.status === 'rejected').length
+      const okCount = results.length - failedCount
+
+      if (failedCount === 0) {
+        pushToast({
+          message: 'Publicación programada',
+          description: `${okCount} ${okCount === 1 ? 'producto programado' : 'productos programados'} para ${scheduledAt.toLocaleString('es-ES')}.`,
+          type: 'success',
+        })
+      } else if (okCount === 0) {
+        pushToast({
+          message: 'No se pudo programar',
+          description: 'Ninguno de los productos se pudo programar. Inténtalo de nuevo.',
+          type: 'error',
+        })
+      } else {
+        pushToast({
+          message: 'Programación parcial',
+          description: `${okCount} programados, ${failedCount} fallaron.`,
+          type: 'error',
+        })
+      }
+
+      setScheduleModalOpen(false)
+      scheduleTargetRef.current = null
+      setSelectedIds([])
+      tableRef.current?.resetSelection()
+    } finally {
+      setIsScheduling(false)
+    }
+  }, [pushToast])
 
   const handleBulkDeleteClick = useCallback(() => {
     const selected: Listing[] = (data ?? []).filter((l: Listing) => selectedIds.includes(l.id))
@@ -522,6 +608,13 @@ export function ListingsTable() {
               Publicar seleccionados
             </LoadingButton>
             <LoadingButton
+              onClick={handleBulkSchedule}
+              loading={false}
+              className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
+            >
+              Programar publicación
+            </LoadingButton>
+            <LoadingButton
               onClick={handleBulkDeleteClick}
               loading={isBulkDeleting}
               loadingText="Eliminando..."
@@ -588,6 +681,19 @@ export function ListingsTable() {
             })
           }
         }}
+      />
+
+      <ScheduleUploadModal
+        open={scheduleModalOpen}
+        itemsCount={scheduleTargetRef.current?.listings.length ?? 0}
+        accountsCount={scheduleTargetRef.current?.accounts.length ?? 0}
+        isLoading={isScheduling}
+        onClose={() => {
+          if (isScheduling) return
+          setScheduleModalOpen(false)
+          scheduleTargetRef.current = null
+        }}
+        onConfirm={handleConfirmSchedule}
       />
 
       <DeleteListingModal
