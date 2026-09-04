@@ -75,7 +75,6 @@ const uploadJobSchema = new mongoose.Schema(
   }
 );
 
-
 uploadJobSchema.index({ status: 1, scheduledAt: 1 });
 uploadJobSchema.index({ userId: 1, status: 1 });
 

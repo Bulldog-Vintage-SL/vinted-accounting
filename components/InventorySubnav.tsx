@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const tabs = [
   { name: "Productos", href: "/inventory/listings" },
   { name: "Publicaciones", href: "/inventory/publications" },
+  { name: "Subidas Programadas", href: "/inventory/scheduled" },
 ];
 
 export default function InventorySubnav() {

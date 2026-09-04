@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 interface UploadJobPatchBody {
   status?: string;
   error?: string | null;
+  scheduledAt?: string;
 }
 
 const VALID_STATUSES = ["pending", "processing", "completed", "failed"];
@@ -30,16 +31,39 @@ export async function PATCH(
 
     const body: UploadJobPatchBody = await req.json();
 
-    if (!body.status || !VALID_STATUSES.includes(body.status)) {
+    if (body.status === undefined && body.scheduledAt === undefined) {
+      return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
+    }
+
+    if (body.status !== undefined && !VALID_STATUSES.includes(body.status)) {
       return NextResponse.json(
         { error: `status debe ser uno de: ${VALID_STATUSES.join(", ")}` },
         { status: 400 }
       );
     }
 
+    let newScheduledAt: Date | null = null;
+    if (body.scheduledAt !== undefined) {
+      newScheduledAt = new Date(body.scheduledAt);
+      if (Number.isNaN(newScheduledAt.getTime())) {
+        return NextResponse.json(
+          { error: "scheduledAt no es una fecha válida" },
+          { status: 400 }
+        );
+      }
+      if (newScheduledAt.getTime() <= Date.now()) {
+        return NextResponse.json(
+          { error: "scheduledAt debe ser una fecha futura" },
+          { status: 400 }
+        );
+      }
+    }
+
     await connectMongo();
 
-    const update: Record<string, unknown> = { status: body.status };
+    const update: Record<string, unknown> = {};
+    if (body.status !== undefined) update.status = body.status;
+    if (newScheduledAt) update.scheduledAt = newScheduledAt;
 
     if (body.status === "completed" || body.status === "failed") {
       update.executedAt = new Date();
@@ -53,16 +77,19 @@ export async function PATCH(
 
     const filter: Record<string, unknown> = { _id: id, userId };
     if (body.status === "processing") {
+      // Lock optimista pending -> processing (usado por GET ?due=true)
+      filter.status = "pending";
+    }
+    if (newScheduledAt && body.status === undefined) {
+      // Reprogramar solo tiene sentido sobre jobs aún no procesados.
       filter.status = "pending";
     }
 
-    const job = await UploadJob.findOneAndUpdate(filter, update, {
-      new: true,
-    });
+    const job = await UploadJob.findOneAndUpdate(filter, update, { new: true });
 
     if (!job) {
       return NextResponse.json(
-        { error: "Job no encontrado o ya estaba siendo procesado" },
+        { error: "Job no encontrado, ya procesado, o ya estaba siendo procesado" },
         { status: 409 }
       );
     }
