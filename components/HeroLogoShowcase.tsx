@@ -78,12 +78,12 @@ export function HeroLogoShowcase() {
         <FloatingPlatformIcon key={icon.src} {...icon} />
       ))}
 
-      <div className="relative z-20 flex aspect-square w-[72%] max-w-[320px] items-center justify-center rounded-full bg-brand-black p-6 shadow-2xl ring-4 ring-primary sm:p-8">
+      <div className="relative z-20 flex aspect-square w-[72%] max-w-[320px] items-center justify-center overflow-hidden rounded-full bg-brand-black shadow-2xl ring-4 ring-primary">
         <Image
           src={logo}
           alt={`${config.appName} logo`}
           priority
-          className="h-full w-full object-contain"
+          className="h-full w-full rounded-full object-cover"
         />
       </div>
     </div>
