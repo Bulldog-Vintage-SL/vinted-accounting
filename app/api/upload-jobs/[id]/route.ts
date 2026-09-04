@@ -15,7 +15,7 @@ const VALID_STATUSES = ["pending", "processing", "completed", "failed"];
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getAuthenticatedUserId();
@@ -23,7 +23,7 @@ export async function PATCH(
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: "id no válido" }, { status: 400 });
     }
@@ -48,13 +48,9 @@ export async function PATCH(
       update.error = body.error ?? "Error desconocido";
     }
     if (body.status === "pending" || body.status === "processing") {
-      // Reintento manual: limpia el error previo.
       update.error = null;
     }
 
-    // El $ne evita que dos pestañas marquen "processing" a la vez sobre
-    // el mismo job: la segunda petición encontrará status ya distinto
-    // de "pending" y no hará match si intenta pasar de pending->processing.
     const filter: Record<string, unknown> = { _id: id, userId };
     if (body.status === "processing") {
       filter.status = "pending";
@@ -83,7 +79,7 @@ export async function PATCH(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getAuthenticatedUserId();
@@ -91,7 +87,7 @@ export async function DELETE(
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: "id no válido" }, { status: 400 });
     }
