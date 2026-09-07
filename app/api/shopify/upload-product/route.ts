@@ -4,6 +4,7 @@ import Listing from "@/models/Listing";
 import Account from "@/models/Account";
 import Publication from "@/models/Publication";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
+import { applyListingPublishOverrides } from "@/libs/listings/overrides";
 
 const CREATE_PRODUCT_MUTATION = `
   mutation CreateProduct($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
@@ -80,7 +81,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { listingId, accountId } = await req.json();
+  const { listingId, accountId, listingOverrides } = await req.json();
   if (!listingId || !accountId) {
     return NextResponse.json({ error: "faltan parámetros" }, { status: 400 });
   }
@@ -91,6 +92,8 @@ export async function POST(req: NextRequest) {
   if (!listing) {
     return NextResponse.json({ error: "listing no encontrado" }, { status: 404 });
   }
+
+  applyListingPublishOverrides(listing, listingOverrides);
 
   const account = await Account.findOne({
     _id: accountId,

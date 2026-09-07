@@ -7,27 +7,37 @@ import { prepareListingForReupload } from "./prepare-reupload";
 import type { Listing } from "@/app/inventory/listings/types";
 import type { ListingPublishOverrides } from "@/libs/listings/overrides";
 
-const EBAY_UPLOAD_TIMEOUT_MS = 120000;
+const SHOPIFY_UPLOAD_TIMEOUT_MS = 120000;
 
-async function fetchEbayJson(
+interface ShopifyListingInput {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  price?: number | null;
+  photo_url?: string[];
+}
+
+async function fetchShopifyJson(
   url: string,
   body: Record<string, unknown>,
-  timeoutMs = EBAY_UPLOAD_TIMEOUT_MS
-): Promise<Response> {
+  timeoutMs = SHOPIFY_UPLOAD_TIMEOUT_MS
+): Promise<{ res: Response; data: Record<string, unknown> }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
+    const data = (await res.json()) as Record<string, unknown>;
+    return { res, data };
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       throw new Error(
-        `La petición a eBay superó el tiempo límite (${timeoutMs}ms)`
+        `La petición a Shopify superó el tiempo límite (${timeoutMs}ms)`
       );
     }
     throw err;
@@ -36,43 +46,25 @@ async function fetchEbayJson(
   }
 }
 
-async function fetchEbayUpload(
-  listingId: string,
-  accountId: string,
-  listingOverrides?: ListingPublishOverrides
-): Promise<Response> {
-  return fetchEbayJson("/api/ebay/upload-product", {
-    listingId,
-    accountId,
-    ...(listingOverrides ? { listingOverrides } : {}),
-  });
-}
-
-export async function uploadEbayItem(
-  listing: {
-    id: string
-    title?: string | null
-    description?: string | null
-    price?: number | null
-    photo_url?: string[]
-  },
+export async function uploadShopifyItem(
+  listing: ShopifyListingInput,
   accountId: string,
   listingOverrides?: ListingPublishOverrides
 ): Promise<UploadResult> {
   try {
-    const missing = validateListingRequiredFields(listing, "ebay");
+    const missing = validateListingRequiredFields(listing, "shopify");
     if (missing.length > 0) throw new MissingFieldsError(missing);
 
-    const res = await fetchEbayUpload(listing.id, accountId, listingOverrides);
-    const data = await res.json();
+    const { res, data } = await fetchShopifyJson("/api/shopify/upload-product", {
+      listingId: listing.id,
+      accountId,
+      ...(listingOverrides ? { listingOverrides } : {}),
+    });
 
     if (!res.ok || !data?.ok) {
-      if (Array.isArray(data?.missingFields) && data.missingFields.length > 0) {
-        throw new MissingFieldsError(data.missingFields);
-      }
       return {
         ok: false,
-        message: data?.error || "Error desconocido",
+        message: (data?.error as string) || "Error desconocido",
       };
     }
 
@@ -91,27 +83,26 @@ export async function uploadEbayItem(
   }
 }
 
-export async function deleteEbayItem(
+export async function deleteShopifyItem(
   publicationId: string
 ): Promise<UploadResult> {
   try {
-    const res = await fetchEbayJson(
-      "/api/ebay/delete-product",
+    const { res, data } = await fetchShopifyJson(
+      "/api/shopify/delete-product",
       { publicationId },
-      60000
+      30000
     );
-    const data = await res.json();
 
     if (!res.ok || !data?.ok) {
       return {
         ok: false,
-        message: data?.error || "Error al eliminar en eBay",
+        message: (data?.error as string) || "Error al eliminar en Shopify",
       };
     }
 
     return {
       ok: true,
-      message: "Publicación eliminada correctamente de eBay y de la BD",
+      message: "Publicación eliminada correctamente de Shopify y de la BD",
     };
   } catch (err: unknown) {
     return {
@@ -121,16 +112,16 @@ export async function deleteEbayItem(
   }
 }
 
-export async function reuploadEbayItem(
+export async function reuploadShopifyItem(
   accountId: string,
   listing: Listing,
   publicationId: string
 ): Promise<UploadResult> {
   try {
-    const missing = validateListingRequiredFields(listing, "ebay");
+    const missing = validateListingRequiredFields(listing, "shopify");
     if (missing.length > 0) throw new MissingFieldsError(missing);
 
-    const resDelete = await deleteEbayItem(publicationId);
+    const resDelete = await deleteShopifyItem(publicationId);
     if (!resDelete.ok) {
       return {
         ok: false,
@@ -141,7 +132,7 @@ export async function reuploadEbayItem(
     const { modifiedListing, newTitle, newDescription } =
       await prepareListingForReupload(listing);
 
-    const uploadResult = await uploadEbayItem(modifiedListing, accountId, {
+    const uploadResult = await uploadShopifyItem(modifiedListing, accountId, {
       title: modifiedListing.title,
       description: modifiedListing.description,
       photoUrl: modifiedListing.photo_url,
@@ -155,7 +146,7 @@ export async function reuploadEbayItem(
 
     return {
       ok: true,
-      message: "Publicación resubida correctamente en eBay",
+      message: "Publicación resubida correctamente en Shopify",
       data: {
         listingId: listing.id,
         newTitle,
@@ -172,41 +163,4 @@ export async function reuploadEbayItem(
       message: err instanceof Error ? err.message : "Error inesperado",
     };
   }
-}
-
-export async function syncEbayAccount(accountId: string) {
-  const syncRes = await fetch("/api/ebay/sync", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accountId }),
-  });
-  const syncData = await syncRes.json();
-
-  if (!syncRes.ok || !syncData?.ok) {
-    return {
-      ok: false,
-      message: syncData?.message ?? syncData?.error ?? "Error desconocido",
-    };
-  }
-
-  const policiesRes = await fetch("/api/ebay/setup-policies", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ accountId }),
-  });
-  const policiesData = await policiesRes.json();
-
-  if (!policiesRes.ok || !policiesData?.ok) {
-    return {
-      ok: false,
-      message:
-        policiesData?.error ??
-        "Cuenta conectada, pero faltan permisos de políticas. Elimínala y vuelve a conectar eBay.",
-    };
-  }
-
-  return {
-    ok: true,
-    message: "Cuenta de eBay y políticas de venta listas",
-  };
 }

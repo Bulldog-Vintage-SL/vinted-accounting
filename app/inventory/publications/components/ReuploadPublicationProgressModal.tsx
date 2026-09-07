@@ -13,7 +13,8 @@ const PLATFORM_NAMES: Record<string, string> = {
   wallapop: "Wallapop",
   vestiaire: "Vestiaire Collective",
   shopify: "Shopify",
-  depop: "Depop"
+  depop: "Depop",
+  ebay: "eBay",
 }
 
 const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"])

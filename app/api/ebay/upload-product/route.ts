@@ -14,6 +14,7 @@ import { buildEbayListingUrl } from "@/libs/ebay/mappers";
 import { getEbayMarketplaceId } from "@/libs/ebay/client";
 import { EbayApiError, getEbayUserFacingErrorMessage } from "@/libs/ebay/api";
 import { validateListingRequiredFields } from "@/lib/external-integrations/validators";
+import { applyListingPublishOverrides } from "@/libs/listings/overrides";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no autenticado" }, { status: 401 });
   }
 
-  const { listingId, accountId } = await req.json();
+  const { listingId, accountId, listingOverrides } = await req.json();
   if (!listingId || !accountId) {
     return NextResponse.json({ error: "faltan parámetros" }, { status: 400 });
   }
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
   if (!listing) {
     return NextResponse.json({ error: "listing no encontrado" }, { status: 404 });
   }
+
+  applyListingPublishOverrides(listing, listingOverrides);
 
   const missing = validateListingRequiredFields(listing, "ebay");
   if (missing.length) {
