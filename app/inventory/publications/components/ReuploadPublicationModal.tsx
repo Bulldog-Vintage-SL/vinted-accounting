@@ -26,8 +26,12 @@ const PLATFORM_NAMES: Record<string, string> = {
     ebay: "eBay",
 };
 
-// Resubida solo soportada para Vinted y Wallapop por ahora.
-const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
+// Resubida soportada en Vinted, Wallapop, Vestiaire, Depop, Shopify y eBay.
+const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop", "shopify", "ebay"]);
+
+// Plataformas cuya auth es server-side (OAuth) y no requieren sincronización
+// manual mediante la extensión antes de poder resubir.
+const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
 
 export function ReuploadPublicationModal({
     open,
@@ -48,13 +52,14 @@ export function ReuploadPublicationModal({
 
     const platformLabel = platform ? (PLATFORM_NAMES[platform] || platform) : "el marketplace";
     const isSupported = platform ? REUPLOAD_SUPPORTED.has(platform) : false;
+    const skipSync = platform ? NO_SYNC_REQUIRED.has(platform) : false;
 
     useEffect(() => {
         if (!open) return;
 
         setAccount(null);
         setIsSyncing(false);
-        setIsSynced(false);
+        setIsSynced(skipSync);
 
         if (!platform || !accountId || !isSupported) return;
 
@@ -69,7 +74,7 @@ export function ReuploadPublicationModal({
                 console.error(`Error cargando cuenta de ${platform}:`, e);
             })
             .finally(() => setLoadingAccount(false));
-    }, [open, platform, accountId, isSupported]);
+    }, [open, platform, accountId, isSupported, skipSync]);
 
     const runSync = (acc: any) => {
         if (acc.platform === "vinted") return syncVintedAccount(acc.external_id);
@@ -79,7 +84,7 @@ export function ReuploadPublicationModal({
     };
 
     const handleSync = async () => {
-        if (!account) return;
+        if (!account || skipSync) return;
         setIsSyncing(true);
 
         const resSync = await runSync(account);
@@ -157,7 +162,7 @@ export function ReuploadPublicationModal({
                         </div>
                     )}
 
-                    {isSupported && (
+                    {isSupported && !skipSync && (
                         <div className={`rounded-xl p-4 flex items-center gap-3 border ${
                             isSynced ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
                         }`}>

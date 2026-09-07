@@ -12,7 +12,8 @@ import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
-  reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem
+  reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
+  reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
 
 // Entidad para upload
@@ -293,6 +294,30 @@ const reuploadPublicationExecutor: Executor<Publication> = async (job) => {
       throw new Error(result.message || 'Error en Depop')
     }
     return { reuploaded: true, platform: 'depop', data: result.data }
+  } else if (publication.platform === 'shopify') {
+    const result = await reuploadShopifyItem(
+      publication.account_id,
+      listing,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Shopify')
+    }
+    return { reuploaded: true, platform: 'shopify', data: result.data }
+  } else if (publication.platform === 'ebay') {
+    const result = await reuploadEbayItem(
+      publication.account_id,
+      listing,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en eBay')
+    }
+    return { reuploaded: true, platform: 'ebay', data: result.data }
   }
   else {
     throw new Error(`Resubida no soportada para "${publication.platform}"`)
