@@ -58,6 +58,9 @@ export async function GET(
         platform: p.platform,
         status: p.status ?? "active",
         price: p.price ?? listing.price ?? 0,
+        account_id: p.accountId?.toString?.() ?? "",
+        external_id: p.externalId ?? "",
+        publication_url: p.publicationUrl ?? null,
       })),
       alreadySold: listing.status === "sold",
     });

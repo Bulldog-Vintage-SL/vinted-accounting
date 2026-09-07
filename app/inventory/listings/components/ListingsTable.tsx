@@ -22,7 +22,7 @@ import { ScheduleUploadModal } from './ScheduleUploadModal'
 import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
 import { DeleteListingModal } from './DeleteListingModal'
-import { MarkSoldModal } from './MarkSoldModal'
+import { MarkSoldModal, type MarkSoldPayload } from './MarkSoldModal'
 import { ListingMobileCard } from './ListingMobileCard'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { INVENTORY_PAGE_SIZE, useClientPagination } from '@/hooks/useClientPagination'
@@ -441,14 +441,8 @@ export function ListingsTable() {
     setMarkSoldOpen(true)
   }, [])
 
-  const handleConfirmMarkSold = useCallback(async (payload: {
-    publicationId: string | null
-    platform: string
-    salePrice: number
-    saleDate: string
-    purchasePrice: number
-  }) => {
-    if (!listingToMarkSold) return
+  const handleConfirmMarkSold = useCallback(async (payload: MarkSoldPayload): Promise<boolean> => {
+    if (!listingToMarkSold) return false
     setIsMarkingSold(true)
 
     try {
@@ -464,7 +458,7 @@ export function ListingsTable() {
           description: data?.error || 'Inténtalo de nuevo.',
           type: 'error',
         })
-        return
+        return false
       }
 
       mutate()
@@ -475,6 +469,7 @@ export function ListingsTable() {
       })
       setMarkSoldOpen(false)
       setListingToMarkSold(null)
+      return true
     } catch (err) {
       console.error('Error marcando como vendido:', err)
       pushToast({
@@ -482,6 +477,7 @@ export function ListingsTable() {
         description: 'No se pudo conectar con el servidor.',
         type: 'error',
       })
+      return false
     } finally {
       setIsMarkingSold(false)
     }
