@@ -10,7 +10,7 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { PageLoader } from '@/components/ui/page-loader'
 import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
 import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
-import { MarkSoldModal } from '../components/MarkSoldModal'
+import { MarkSoldModal, type MarkSoldPayload } from '../components/MarkSoldModal'
 import { formatListingStatus } from '@/libs/inventory/display'
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
@@ -221,13 +221,7 @@ export function ListingDetailForm({ listingId }: Props) {
     }
   }
 
-  const handleConfirmMarkSold = async (payload: {
-    publicationId: string | null
-    platform: string
-    salePrice: number
-    saleDate: string
-    purchasePrice: number
-  }) => {
+  const handleConfirmMarkSold = async (payload: MarkSoldPayload): Promise<boolean> => {
     setIsMarkingSold(true)
     try {
       const res = await fetch(`/api/listings/${listingId}/mark-sold`, {
@@ -242,7 +236,7 @@ export function ListingDetailForm({ listingId }: Props) {
           description: result?.error || 'Inténtalo de nuevo.',
           type: 'error',
         })
-        return
+        return false
       }
       await mutate()
       pushToast({
@@ -251,12 +245,14 @@ export function ListingDetailForm({ listingId }: Props) {
         type: 'success',
       })
       setMarkSoldOpen(false)
+      return true
     } catch {
       pushToast({
         message: 'Error al guardar',
         description: 'No se pudo conectar con el servidor.',
         type: 'error',
       })
+      return false
     } finally {
       setIsMarkingSold(false)
     }

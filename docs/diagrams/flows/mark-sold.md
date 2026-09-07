@@ -1,6 +1,6 @@
 # Ventas enlazadas al inventario
 
-Tres caminos llegan al mismo resultado: una `Sale` con `listingId`, el listing en `sold` y las publicaciones cerradas en Relist.
+Tres caminos llegan al mismo resultado: una `Sale` con `listingId`, el listing en `sold` y las publicaciones cerradas en Relist. Desde el modal manual se puede, además, retirar en las tiendas los anuncios de las otras plataformas.
 
 ## 1. Manual desde inventario
 
@@ -9,14 +9,22 @@ flowchart TD
   User[Inventario: Marcar vendido] --> Modal[MarkSoldModal]
   Modal --> GET[GET /api/listings/id/mark-sold]
   GET --> Pubs[Publicaciones del listing]
-  Modal --> POST[POST mark-sold]
+  Pubs --> Other{¿Hay anuncios en otras plataformas?}
+  Other -->|sí| Select[Marcar las que se borran o marcar todas]
+  Select --> Token[Sincronizar cuentas: token de las marcadas o de todas]
+  Other -->|no| POST
+  Token --> POST[POST mark-sold]
   POST --> Lib[markListingAsSold]
   Lib --> Check{¿Ya vendido?}
   Check -->|sí| Err409[409]
   Check -->|no| Sale[Sale.create listingId + platform]
   Sale --> Listing[Listing status sold stock 0]
   Listing --> Close[Publication.updateMany status closed]
-  Close --> UI[Toast + filtro Vendidos + aparece en Ventas]
+  Close --> Delete{¿Borrar otras plataformas?}
+  Delete -->|no| UI[Toast + filtro Vendidos + aparece en Ventas]
+  Delete -->|sí| Queue[Cola deletePublication]
+  Queue --> Market[Borrado real en Vinted / Wallapop / Vestiaire / Depop / eBay / Shopify]
+  Market --> UI
 ```
 
 ## 2. Sync automático (Dashboard → Sincronizar)
@@ -43,8 +51,11 @@ flowchart TD
 
 ### Manual
 1. El modal carga publicaciones del listing.
-2. POST crea una venta `isManual` con `listingId` y `platform`.
-3. Listing a `sold`, stock 0, publicaciones `closed` en Relist (no se retiran en las tiendas).
+2. Si hay anuncios en otras plataformas, se pueden marcar uno a uno o todos para borrarlos en las tiendas.
+3. Vinted, Wallapop, Vestiaire y Depop exigen sincronizar la cuenta (token fresco) de las marcadas, o sincronizar todas, antes de borrar.
+4. POST crea una venta `isManual` con `listingId` y `platform`.
+5. Listing a `sold`, stock 0, publicaciones `closed` en Relist.
+6. Si el usuario eligió borrar las otras, se encolan jobs `deletePublication` y se retiran esos anuncios en los marketplaces. La publicación donde se vendió no se borra en tienda.
 
 ### Gmail / Vinted
 1. El sync guarda ventas de correos con `platform: "vinted"`.
@@ -76,14 +87,16 @@ flowchart TD
 - `app/api/shopify/install/route.ts` — scope `read_orders`
 - `models/Sale.ts`
 - `app/inventory/listings/components/MarkSoldModal.tsx`
+- `lib/queue/executors.ts` — `deletePublication`
 
 ## Important Decisions
 
 - Un listing solo puede tener una venta (`índice unique sparse` en `listingId`).
 - El match por título solo aplica si el candidato es **único**; no se adivina.
 - Gmail no pisa `listingId` ya enlazado: el `$set` no incluye ese campo.
-- No se despublica en marketplaces (igual que al borrar un listing).
-- Shopify conectado antes de este cambio no tiene `read_orders` hasta reconectar.
+- El sync automático sigue sin despublicar en marketplaces.
+- En el marcado manual, borrar otras plataformas es opt-in (activado por defecto si hay anuncios que retirar) y ocurre en cliente tras el POST, porque Vinted/Wallapop/Vestiaire/Depop necesitan el token de la extensión.
+- eBay y Shopify no piden sincronización manual: su auth es server-side.
 - El filtro de inventario por defecto oculta vendidos (`Disponibles`).
 
 ## External Dependencies
@@ -92,3 +105,4 @@ flowchart TD
 - Gmail API (ventas Vinted)
 - eBay Sell Fulfillment API (`sell.fulfillment`)
 - Shopify Admin GraphQL (`read_orders`)
+- Extensión del navegador (token de Vinted, Wallapop, Vestiaire, Depop)
