@@ -15,6 +15,7 @@ interface Props {
     publicationUrl?: string;
     accountId?: string;
     isLoading?: boolean;
+    isSuccess?: boolean;
 }
 
 const PLATFORM_NAMES: Record<string, string> = {
@@ -42,6 +43,7 @@ export function ReuploadPublicationModal({
     publicationUrl,
     accountId,
     isLoading = false,
+    isSuccess = false,
 }: Props) {
     const { pushToast } = useToast();
 
@@ -113,11 +115,59 @@ export function ReuploadPublicationModal({
         setIsSyncing(false);
     };
 
-    const canReupload = isSupported && isSynced && !isLoading;
+    const canReupload = isSupported && isSynced && !isLoading && !isSuccess;
+    const isBusy = isLoading || isSuccess;
+
+    useEffect(() => {
+        if (!open || !isSuccess) return;
+        const timeout = window.setTimeout(() => onClose(), 1400);
+        return () => window.clearTimeout(timeout);
+    }, [open, isSuccess, onClose]);
+
+    const handleOpenChange = (nextOpen: boolean) => {
+        if (!nextOpen && isBusy) return;
+        if (!nextOpen) onClose();
+    };
 
     return (
-        <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="!max-w-[520px] w-full p-0 rounded-2xl overflow-hidden">
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+            <DialogContent
+                className="!max-w-[520px] w-full p-0 rounded-2xl overflow-hidden"
+                showCloseButton={!isBusy}
+                onPointerDownOutside={(event) => {
+                    if (isBusy) event.preventDefault();
+                }}
+                onEscapeKeyDown={(event) => {
+                    if (isBusy) event.preventDefault();
+                }}
+            >
+                {isBusy ? (
+                    <div className="p-10 flex flex-col items-center text-center gap-4">
+                        <div className={`p-3 rounded-full ${isSuccess ? 'bg-emerald-100 text-emerald-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {isSuccess ? (
+                                <CheckCircle2 size={36} />
+                            ) : (
+                                <Loader2 size={36} className="animate-spin" />
+                            )}
+                        </div>
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold text-gray-800">
+                                {isSuccess ? 'Publicación resubida' : 'Resubiendo publicación…'}
+                            </DialogTitle>
+                        </DialogHeader>
+                        {publicationTitle && (
+                            <p className="text-sm text-gray-600">
+                                &ldquo;{publicationTitle}&rdquo;
+                            </p>
+                        )}
+                        <p className="text-sm text-gray-500 leading-relaxed max-w-sm">
+                            {isSuccess
+                                ? `El anuncio se ha vuelto a publicar en ${platformLabel}.`
+                                : `Eliminando el anuncio anterior y publicándolo de nuevo en ${platformLabel}. No cierres esta ventana.`}
+                        </p>
+                    </div>
+                ) : (
+                    <>
                 <div className="p-6 border-b border-gray-200">
                     <DialogHeader>
                         <div className="flex items-center gap-3">
@@ -225,8 +275,7 @@ export function ReuploadPublicationModal({
                 <div className="px-6 pb-6 flex justify-end gap-3">
                     <button
                         onClick={onClose}
-                        disabled={isLoading}
-                        className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 text-sm"
                     >
                         Cancelar
                     </button>
@@ -236,10 +285,11 @@ export function ReuploadPublicationModal({
                         title={!isSupported ? "Plataforma no soportada" : !isSynced ? "Sincroniza la cuenta antes de resubir" : undefined}
                         className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {isLoading && <Loader2 className="animate-spin h-4 w-4" />}
-                        {isLoading ? 'Resubiendo...' : 'Resubir publicación'}
+                        Resubir publicación
                     </button>
                 </div>
+                    </>
+                )}
             </DialogContent>
         </Dialog>
     );

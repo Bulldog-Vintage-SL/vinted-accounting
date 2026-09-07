@@ -279,6 +279,7 @@ export function PublicationsTable() {
     // Modal de confirmación de resubida individual
     const [reuploadModalOpen, setReuploadModalOpen] = useState(false)
     const [publicationToReupload, setPublicationToReupload] = useState<Publication | null>(null)
+    const [reuploadSucceeded, setReuploadSucceeded] = useState(false)
 
     const handleDeleteClick = useCallback((id: string) => {
         const publication = (data ?? []).find((p: Publication) => p.id === id)
@@ -299,15 +300,24 @@ export function PublicationsTable() {
     const handleReuploadClick = useCallback((id: string) => {
         const publication = (data ?? []).find((p: Publication) => p.id === id)
         if (publication) {
+            setReuploadSucceeded(false)
             setPublicationToReupload(publication)
             setReuploadModalOpen(true)
         }
     }, [data])
 
+    const handleCloseReuploadModal = useCallback(() => {
+        if (isSingleReuploading) return
+        setReuploadModalOpen(false)
+        setPublicationToReupload(null)
+        setReuploadSucceeded(false)
+    }, [isSingleReuploading])
+
     const handleConfirmReupload = useCallback(async () => {
-        if (!publicationToReupload) return
+        if (!publicationToReupload || isSingleReuploading || reuploadSucceeded) return
 
         setIsSingleReuploading(true)
+        setReuploadSucceeded(false)
 
         try {
             await reuploadPublication(publicationToReupload)
@@ -317,19 +327,18 @@ export function PublicationsTable() {
                 description: `"${publicationToReupload.listing?.title || 'Publicación'}" resubida correctamente.`,
                 type: 'success',
             })
-            setReuploadModalOpen(false)
-        } catch (error: any) {
+            setReuploadSucceeded(true)
+        } catch (error: unknown) {
             console.error(error)
             pushToast({
                 message: 'Error al resubir',
-                description: error.message || 'No se pudo resubir la publicación.',
+                description: error instanceof Error ? error.message : 'No se pudo resubir la publicación.',
                 type: 'error',
             })
         } finally {
             setIsSingleReuploading(false)
-            setPublicationToReupload(null)
         }
-    }, [publicationToReupload, mutate, pushToast])
+    }, [publicationToReupload, isSingleReuploading, reuploadSucceeded, mutate, pushToast])
 
     const handleConfirmDelete = useCallback(async () => {
         if (!publicationToDelete) return
@@ -574,14 +583,12 @@ export function PublicationsTable() {
 
             <ReuploadPublicationModal
                 open={reuploadModalOpen}
-                onClose={() => {
-                    setReuploadModalOpen(false)
-                    setPublicationToReupload(null)
-                }}
+                onClose={handleCloseReuploadModal}
                 onConfirm={handleConfirmReupload}
                 publicationTitle={publicationToReupload?.listing?.title}
                 platform={publicationToReupload?.platform}
                 isLoading={isSingleReuploading}
+                isSuccess={reuploadSucceeded}
                 accountId={publicationToReupload?.account_id}
             />
 
