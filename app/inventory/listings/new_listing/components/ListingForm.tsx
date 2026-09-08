@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition, type ChangeEvent } from "react";
-import { Loader2, Sparkles } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import { prepareImageForUpload } from "@/utils/client/compressImage";
 import BrandSelect from "./BrandSelector";
 import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
+import { useState, useTransition, type ChangeEvent } from "react";
+import { Loader2, Sparkles, ChevronDown } from "lucide-react";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -76,6 +76,8 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
   const [aiSelectedPhotos, setAiSelectedPhotos] = useState<string[]>([]);
   const [suggestSizeCondition, setSuggestSizeCondition] = useState(false);
+
+  const [showManualContext, setShowManualContext] = useState(false);
 
   // Contexto manual para la IA
   const [manual, setManual] = useState<ManualDetails>(emptyManualDetails());
@@ -456,148 +458,162 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
       </div>
 
       {/* Contexto manual para la IA */}
-      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
-        <p className="text-sm font-medium text-gray-700">
-          Contexto para la IA <span className="text-xs font-normal text-gray-400">(opcional, mejora la precisión de las sugerencias)</span>
-        </p>
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowManualContext(prev => !prev)}
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 transition"
+        >
+          <span className="text-sm font-medium text-gray-700">
+            Contexto para la IA <span className="text-xs font-normal text-gray-400">(opcional)</span>
+          </span>
+          <ChevronDown
+            size={16}
+            className={`text-gray-400 transition-transform duration-200 ${showManualContext ? "rotate-180" : ""}`}
+          />
+        </button>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs font-medium text-gray-500">Talla</label>
-            <select
-              value={manual.talla}
-              onChange={e => updateManual({ talla: e.target.value })}
-              className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
-            >
-              <option value="">Selecciona una talla</option>
-              {SIZE_OPTIONS.map(size => (
-                <option key={size} value={size}>{size}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500">SKU</label>
-            <input
-              value={manual.sku}
-              onChange={e => updateManual({ sku: e.target.value })}
-              placeholder="Ej. AB123"
-              className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-gray-500">Tipo de prenda</label>
-          <div className="flex gap-2 mt-1">
-            <button
-              type="button"
-              onClick={() => updateManual({ garmentType: "arriba" })}
-              className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "arriba" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
-            >
-              Arriba
-            </button>
-            <button
-              type="button"
-              onClick={() => updateManual({ garmentType: "abajo" })}
-              className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "abajo" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
-            >
-              Abajo
-            </button>
-          </div>
-        </div>
-
-        {manual.garmentType === "arriba" && (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              placeholder="Axila a axila"
-              value={manual.medidasArriba.axilaAxila}
-              onChange={e => updateMedidasArriba({ axilaAxila: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Hombro a hombro"
-              value={manual.medidasArriba.hombroHombro}
-              onChange={e => updateMedidasArriba({ hombroHombro: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Largo"
-              value={manual.medidasArriba.largo}
-              onChange={e => updateMedidasArriba({ largo: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Manga"
-              value={manual.medidasArriba.manga}
-              onChange={e => updateMedidasArriba({ manga: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-          </div>
-        )}
-
-        {manual.garmentType === "abajo" && (
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              placeholder="Ancho cintura"
-              value={manual.medidasAbajo.anchoCintura}
-              onChange={e => updateMedidasAbajo({ anchoCintura: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Largo"
-              value={manual.medidasAbajo.largo}
-              onChange={e => updateMedidasAbajo({ largo: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Cadera a entrepierna"
-              value={manual.medidasAbajo.caderaEntrepierna}
-              onChange={e => updateMedidasAbajo({ caderaEntrepierna: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-            <input
-              placeholder="Ancho tobillo"
-              value={manual.medidasAbajo.anchoTobillo}
-              onChange={e => updateMedidasAbajo({ anchoTobillo: e.target.value })}
-              className="border border-gray-200 rounded p-1.5 text-sm"
-            />
-          </div>
-        )}
-
-        <div>
-          <label className="text-xs font-medium text-gray-500">Desperfectos</label>
-          <div className="flex flex-wrap gap-2 mt-1">
-            {DESPERFECTO_OPTIONS.map(option => {
-              const active = manual.desperfectos.includes(option);
-              return (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => toggleDesperfecto(option)}
-                  className={`px-2.5 py-1 rounded-full text-xs border ${active ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+        {showManualContext && (
+          <div className="p-4 pt-0 space-y-3 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-500">Talla</label>
+                <select
+                  value={manual.talla}
+                  onChange={e => updateManual({ talla: e.target.value })}
+                  className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
                 >
-                  {option}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  <option value="">Selecciona una talla</option>
+                  {SIZE_OPTIONS.map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+              </div>
 
-        <div className="w-28">
-          <label className="text-xs font-medium text-gray-500">Coste inicial</label>
-          <div className="relative">
-            <input
-              type="number"
-              value={manual.costeInicial}
-              onChange={e => updateManual({ costeInicial: e.target.value })}
-              className="w-full border border-gray-200 rounded p-1.5 pr-6 text-sm mt-0.5"
-            />
-            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none text-sm">
-              €
-            </span>
+              <div>
+                <label className="text-xs font-medium text-gray-500">SKU</label>
+                <input
+                  value={manual.sku}
+                  onChange={e => updateManual({ sku: e.target.value })}
+                  placeholder="Ej. AB123"
+                  className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-gray-500">Tipo de prenda</label>
+              <div className="flex gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => updateManual({ garmentType: "arriba" })}
+                  className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "arriba" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+                >
+                  Arriba
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateManual({ garmentType: "abajo" })}
+                  className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "abajo" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+                >
+                  Abajo
+                </button>
+              </div>
+            </div>
+
+            {manual.garmentType === "arriba" && (
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="Axila a axila"
+                  value={manual.medidasArriba.axilaAxila}
+                  onChange={e => updateMedidasArriba({ axilaAxila: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Hombro a hombro"
+                  value={manual.medidasArriba.hombroHombro}
+                  onChange={e => updateMedidasArriba({ hombroHombro: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Largo"
+                  value={manual.medidasArriba.largo}
+                  onChange={e => updateMedidasArriba({ largo: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Manga"
+                  value={manual.medidasArriba.manga}
+                  onChange={e => updateMedidasArriba({ manga: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+              </div>
+            )}
+
+            {manual.garmentType === "abajo" && (
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  placeholder="Ancho cintura"
+                  value={manual.medidasAbajo.anchoCintura}
+                  onChange={e => updateMedidasAbajo({ anchoCintura: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Largo"
+                  value={manual.medidasAbajo.largo}
+                  onChange={e => updateMedidasAbajo({ largo: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Cadera a entrepierna"
+                  value={manual.medidasAbajo.caderaEntrepierna}
+                  onChange={e => updateMedidasAbajo({ caderaEntrepierna: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+                <input
+                  placeholder="Ancho tobillo"
+                  value={manual.medidasAbajo.anchoTobillo}
+                  onChange={e => updateMedidasAbajo({ anchoTobillo: e.target.value })}
+                  className="border border-gray-200 rounded p-1.5 text-sm"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="text-xs font-medium text-gray-500">Desperfectos</label>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {DESPERFECTO_OPTIONS.map(option => {
+                  const active = manual.desperfectos.includes(option);
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => toggleDesperfecto(option)}
+                      className={`px-2.5 py-1 rounded-full text-xs border ${active ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="w-28">
+              <label className="text-xs font-medium text-gray-500">Coste inicial</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  value={manual.costeInicial}
+                  onChange={e => updateManual({ costeInicial: e.target.value })}
+                  className="w-full border border-gray-200 rounded p-1.5 pr-6 text-sm mt-0.5"
+                />
+                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none text-sm">
+                  €
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Titulo */}
