@@ -101,13 +101,13 @@ export default function AccountCard({ account }: Props) {
           <span className="text-xs mt-1 text-amber-700">
             {ebayNeedsReconnect
               ? "Faltan permisos de políticas — pulsa Reconectar"
-              : "Políticas de venta pendientes — pulsa Verificar"}
+              : "Políticas de venta pendientes — pulsa Verificar políticas"}
           </span>
         )}
       </div>
 
       <div className="flex items-center gap-2 shrink-0 ml-3">
-        {isEbay && (
+        {isEbay && ebayNeedsReconnect && (
           <a
             href="/api/ebay/install"
             className="px-3 py-1.5 text-sm rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 transition"
@@ -115,14 +115,18 @@ export default function AccountCard({ account }: Props) {
             Reconectar
           </a>
         )}
-        {!isShopify && (
+        {!isShopify && !(isEbay && ebayNeedsReconnect) && (
           <button
             onClick={handleSync}
             disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Sincronizando..." : isEbay ? "Verificar" : "Sincronizar"}
+            {syncing
+              ? "Sincronizando..."
+              : isEbay && ebayNeedsPolicies
+                ? "Verificar políticas"
+                : "Sincronizar"}
           </button>
         )}
 

@@ -9,8 +9,9 @@ import {
 } from "@/libs/ebay/policies";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
-/** Intenta resolver y cachear políticas de eBay tras reconectar la cuenta. */
+/** Crea o reutiliza las políticas de vendedor de eBay (envío, pago, devoluciones). */
 export async function POST(req: Request) {
   const userId = await getAuthenticatedUserId();
   if (!userId) {

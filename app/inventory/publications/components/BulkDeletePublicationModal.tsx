@@ -195,10 +195,10 @@ export function BulkDeletePublicationModal({
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="!max-w-[560px] w-full p-0 rounded-2xl overflow-hidden">
-                <div className="p-6 border-b border-gray-200">
+            <DialogContent className="!max-w-[560px] w-full p-0 rounded-2xl overflow-hidden max-h-[90vh] flex flex-col gap-0">
+                <div className="p-6 border-b border-gray-200 shrink-0">
                     <DialogHeader>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 pr-8">
                             <div className="bg-red-100 text-red-600 p-2.5 rounded-xl">
                                 <AlertTriangle size={22} />
                             </div>
@@ -209,7 +209,7 @@ export function BulkDeletePublicationModal({
                     </DialogHeader>
                 </div>
 
-                <div className="p-6 flex flex-col gap-4">
+                <div className="flex-1 min-h-0 overflow-y-auto modal-scroll p-6 flex flex-col gap-4">
                     {loadingAccounts && (
                         <div className="flex items-center justify-center py-4 text-gray-500 text-sm gap-2">
                             <Loader2 className="animate-spin h-4 w-4" />
@@ -218,8 +218,8 @@ export function BulkDeletePublicationModal({
                     )}
 
                     {!loadingAccounts && accountGroups.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                            <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2 min-h-0">
+                            <div className="flex items-center justify-between shrink-0">
                                 <p className="text-sm font-medium text-gray-600">
                                     {pendingCount > 0
                                         ? `${pendingCount} de ${accountGroups.length} cuenta(s) por sincronizar`
@@ -240,7 +240,7 @@ export function BulkDeletePublicationModal({
                                 {accountGroups.map((group) => (
                                     <div
                                         key={group.key}
-                                        className={`flex items-center justify-between px-4 py-3 ${group.isSynced ? 'bg-green-50/50' : 'bg-yellow-50/50'
+                                        className={`flex items-center justify-between gap-3 px-4 py-3 ${group.isSynced ? 'bg-green-50/50' : 'bg-yellow-50/50'
                                             }`}
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
@@ -311,7 +311,7 @@ export function BulkDeletePublicationModal({
                     </div>
                 </div>
 
-                <div className="px-6 pb-6 flex justify-end gap-3">
+                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/90 flex justify-end gap-3 shrink-0">
                     <button
                         onClick={onClose}
                         disabled={isLoading || syncingAll}

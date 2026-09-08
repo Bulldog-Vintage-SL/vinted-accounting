@@ -473,8 +473,8 @@ async function withBusinessPolicyOptIn<T>(
       console.warn("eBay Business Policies opt-in failed:", optErr);
     }
 
-    for (let attempt = 0; attempt < 4; attempt++) {
-      await sleep(3000);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await sleep(2000);
       try {
         return await action();
       } catch (retryErr) {
@@ -594,6 +594,23 @@ export async function ensureEbayListingPolicies(
     Boolean(cachedMarketplace) && cachedMarketplace !== marketplaceId;
 
   assertEbayPolicyAccess(account, marketplaceId);
+
+  const hasCachedPolicies = Boolean(
+    account.ebayMerchantLocationKey &&
+      account.ebayFulfillmentPolicyId &&
+      account.ebayPaymentPolicyId &&
+      account.ebayReturnPolicyId
+  );
+
+  // Cuentas nuevas: activar Business Policies antes de listar/crear, para
+  // no esperar el error 20403 y los reintentos largos.
+  if (!hasCachedPolicies || options.skipCache) {
+    try {
+      await optInToSellingPolicyManagement(accessToken);
+    } catch {
+      // Ya estaba adherida, o el marketplace aún no lo permite: se reintenta abajo.
+    }
+  }
 
   if (
     !skipCache &&
