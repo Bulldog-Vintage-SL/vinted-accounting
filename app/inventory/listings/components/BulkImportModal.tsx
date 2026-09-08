@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Loader2, Scissors, Sparkles, X, XCircle, Rocket, Save } from "lucide-react";
 import { uploadPhoto } from "@/utils/uploadPhoto";
+import { prepareImageForUpload } from "@/utils/client/compressImage";
 import type { Listing, ListingForm } from "@/app/inventory/listings/types";
 import { useAccountSelector, SelectedAccount } from "@/hooks/useAccountSelector";
 import { useQueue } from "@/hooks/useQueue";
@@ -115,6 +116,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const [photos, setPhotos] = useState<string[]>([]);
     const [boundaries, setBoundaries] = useState<Set<number>>(new Set());
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
     const [drafts, setDrafts] = useState<DraftListing[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<SelectedAccount[]>([]);
     const [isSaving, setIsSaving] = useState(false);
@@ -139,6 +141,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         setSelectedAccounts([]);
         setPublishJobs([]);
         setAutoPublish(false);
+        setUploadError(null);
     };
 
     const handleClose = () => {
@@ -150,9 +153,35 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const handleFilesSelected = async (files: File[]) => {
         if (files.length === 0) return;
         setIsUploading(true);
+        setUploadError(null);
+
         try {
-            const urls = await Promise.all(files.map(uploadPhoto));
-            setPhotos(prev => [...prev, ...urls]);
+            const results = await Promise.allSettled(
+                files.map(async (file) => {
+                    const prepared = await prepareImageForUpload(file);
+                    return uploadPhoto(prepared);
+                })
+            );
+
+            const successUrls = results
+                .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+                .map(r => r.value);
+
+            const failedMessages = results
+                .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+                .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
+
+            if (failedMessages.length > 0) {
+                setUploadError(
+                    failedMessages.length === files.length
+                        ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
+                        : failedMessages.join(" · ")
+                );
+            }
+
+            if (successUrls.length > 0) {
+                setPhotos(prev => [...prev, ...successUrls]);
+            }
         } finally {
             setIsUploading(false);
         }
@@ -466,6 +495,10 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                 </p>
                             </DialogHeader>
 
+                            {uploadError && (
+                                <p className="text-sm text-red-600 mt-2" role="alert">{uploadError}</p>
+                            )}
+
                             <div className="grid grid-cols-6 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-1">
                                 {photos.map((url, i) => (
                                     <div key={i} className="relative group">
@@ -483,7 +516,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                     {isUploading ? <Loader2 size={22} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-3xl">+</span>}
                                     <input
                                         type="file"
-                                        accept="image/*"
+                                        accept="image/*,.heic,.heif"
                                         multiple
                                         className="hidden"
                                         disabled={isUploading}
