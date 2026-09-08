@@ -1,13 +1,13 @@
 "use client";
 
+import { useState, useTransition, type ChangeEvent } from "react";
+import { Loader2, Sparkles, ChevronDown } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import { prepareImageForUpload } from "@/utils/client/compressImage";
 import BrandSelect from "./BrandSelector";
 import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
-import { useState, useTransition, type ChangeEvent } from "react";
-import { Loader2, Sparkles, ChevronDown } from "lucide-react";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -21,8 +21,6 @@ const GENDER_OPTIONS: { label: string; value: "hombre" | "mujer" | "unisex" }[] 
   { label: "Mujer", value: "mujer" },
   { label: "Unisex", value: "unisex" },
 ];
-
-const MAX_AI_PHOTOS = 3;
 
 // --- Contexto manual para la IA (mismo modelo que BulkImportModal) ---
 const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"];
@@ -74,13 +72,9 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
-  const [aiSelectedPhotos, setAiSelectedPhotos] = useState<string[]>([]);
-  const [suggestSizeCondition, setSuggestSizeCondition] = useState(false);
-
-  const [showManualContext, setShowManualContext] = useState(false);
-
   // Contexto manual para la IA
   const [manual, setManual] = useState<ManualDetails>(emptyManualDetails());
+  const [showManualContext, setShowManualContext] = useState(false);
 
   const updateManual = (patch: Partial<ManualDetails>) => {
     setManual(prev => ({ ...prev, ...patch }));
@@ -129,38 +123,20 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [selectedColor, setSelectedColor] = useState("");
 
   const COLOR_OPTIONS = [
-    "Negro",
-    "Blanco",
-    "Rojo",
-    "Azul",
-    "Verde",
-    "Amarillo",
-    "Gris",
-    "Rosa",
-    "Naranja",
-    "Marrón"
+    "Negro", "Blanco", "Rojo", "Azul", "Verde", "Amarillo", "Gris", "Rosa", "Naranja", "Marrón"
   ];
 
   const addColor = () => {
     if (!selectedColor) return;
-
     setForm(prev => {
       if (prev.colors.includes(selectedColor)) return prev;
-
-      return {
-        ...prev,
-        colors: [...prev.colors, selectedColor],
-      };
+      return { ...prev, colors: [...prev.colors, selectedColor] };
     });
-
     setSelectedColor("");
   };
 
   const removeColor = (color: string) => {
-    setForm(prev => ({
-      ...prev,
-      colors: prev.colors.filter(c => c !== color),
-    }));
+    setForm(prev => ({ ...prev, colors: prev.colors.filter(c => c !== color) }));
   };
 
   const formatPriceForDisplay = (value: number): string => {
@@ -169,20 +145,15 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   };
 
   const parsePriceFromInput = (value: string): number => {
-
     if (value === "") return 0;
-
     const normalized = value.replace(",", ".");
-
     const parts = normalized.split(".");
     if (parts.length > 2) {
-
       const firstPart = parts[0];
       const rest = parts.slice(1).join("");
       const cleaned = `${firstPart}.${rest}`;
       return Number(cleaned);
     }
-
     return Number(normalized);
   };
 
@@ -192,56 +163,34 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
   const handlePriceChange = (e: ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
-
     const filtered = rawValue.replace(/[^0-9,.]/g, "");
-
     const commaCount = (filtered.match(/,/g) || []).length;
     const dotCount = (filtered.match(/\./g) || []).length;
-
-    if (commaCount > 1 || dotCount > 1) {
-      return;
-    }
-
-    if (commaCount > 0 && dotCount > 0) {
-      return;
-    }
-
+    if (commaCount > 1 || dotCount > 1) return;
+    if (commaCount > 0 && dotCount > 0) return;
     setPriceInput(filtered);
-
     const numericValue = parsePriceFromInput(filtered);
     update("price", numericValue);
   };
 
   const handleStockChange = (e: ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value;
-
     if (rawValue === "") {
       update("stock", 0);
       return;
     }
-
     const parsed = parseInt(rawValue, 10);
     if (Number.isNaN(parsed) || parsed < 0) return;
-
     update("stock", parsed);
-  };
-
-  const toggleAiPhoto = (url: string) => {
-    setAiSelectedPhotos(prev => {
-      if (prev.includes(url)) return prev.filter(u => u !== url);
-      if (prev.length >= MAX_AI_PHOTOS) return prev;
-      return [...prev, url];
-    });
   };
 
   const removePhoto = (url: string) => {
     update("photo_url", form.photo_url.filter(u => u !== url));
-    setAiSelectedPhotos(prev => prev.filter(u => u !== url));
   };
 
   const handleGenerateSuggestions = async () => {
-    const orderedSelection = form.photo_url.filter(url => aiSelectedPhotos.includes(url));
-    if (orderedSelection.length === 0) return;
+    const imgUrl = form.photo_url[0];
+    if (!imgUrl) return;
 
     setIsGeneratingSuggestions(true);
     setSuggestionsError(null);
@@ -257,8 +206,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          imgUrls: orderedSelection,
-          suggestSizeCondition,
+          imgUrl,
           talla: manual.talla || null,
           garmentType: manual.garmentType,
           medidas,
@@ -333,7 +281,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           <button
             type="button"
             onClick={handleGenerateSuggestions}
-            disabled={aiSelectedPhotos.length === 0 || isGeneratingSuggestions}
+            disabled={form.photo_url.length === 0 || isGeneratingSuggestions}
             className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 px-3 py-1.5 rounded-md hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {isGeneratingSuggestions ? (
@@ -348,49 +296,33 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         {suggestionsError && (
           <p className="text-sm text-red-600 mt-1" role="alert">{suggestionsError}</p>
         )}
-
         {uploadError && (
           <p className="text-sm text-red-600 mt-1" role="alert">{uploadError}</p>
         )}
 
         <p className="text-xs text-gray-500 mt-1">
-          Selecciona hasta {MAX_AI_PHOTOS} fotos para la IA ({aiSelectedPhotos.length}/{MAX_AI_PHOTOS}). La primera seleccionada se usa para el título.
+          La primera foto se usa para generar los datos con IA.
         </p>
 
         <div className="grid grid-cols-3 gap-3 mt-2">
-          {form.photo_url?.map((url, i) => {
-            const isSelected = aiSelectedPhotos.includes(url);
-            const selectionOrder = aiSelectedPhotos.indexOf(url);
-            const isDisabled = !isSelected && aiSelectedPhotos.length >= MAX_AI_PHOTOS;
+          {form.photo_url?.map((url, i) => (
+            <div key={i} className="relative group">
+              <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
 
-            return (
-              <div key={i} className="relative group">
-                <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
+              <button
+                onClick={() => removePhoto(url)}
+                className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+              >
+                X
+              </button>
 
-                <button
-                  onClick={() => removePhoto(url)}
-                  className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
-                >
-                  X
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => toggleAiPhoto(url)}
-                  disabled={isDisabled}
-                  className={`absolute bottom-1 left-1 flex items-center justify-center h-6 w-6 rounded-full text-xs font-medium border transition
-              ${isSelected
-                      ? "bg-purple-600 text-white border-purple-600"
-                      : "bg-white/90 text-gray-600 border-gray-300"}
-              ${isDisabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:border-purple-400"}
-            `}
-                  title={isSelected ? "Quitar de selección IA" : "Enviar a la IA"}
-                >
-                  {isSelected ? selectionOrder + 1 : "IA"}
-                </button>
-              </div>
-            );
-          })}
+              {i === 0 && (
+                <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+                  IA
+                </span>
+              )}
+            </div>
+          ))}
 
           {/* Boton para anyadir fotos */}
           <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -424,12 +356,15 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
                     .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
                     .map(r => r.value);
 
-                  const failedCount = results.filter(r => r.status === "rejected").length;
-                  if (failedCount > 0) {
+                  const failedMessages = results
+                    .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+                    .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
+
+                  if (failedMessages.length > 0) {
                     setUploadError(
-                      failedCount === files.length
+                      failedMessages.length === files.length
                         ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
-                        : `${failedCount} foto(s) no se pudieron subir.`
+                        : failedMessages.join(" · ")
                     );
                   }
 
@@ -444,17 +379,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
             />
           </label>
         </div>
-
-        {/* Checkbox talla/condición */}
-        <label className="flex items-center gap-2 mt-3 text-sm text-gray-700 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={suggestSizeCondition}
-            onChange={e => setSuggestSizeCondition(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          Sugerir también talla y estado (recomendado: incluye una foto de la etiqueta)
-        </label>
       </div>
 
       {/* Contexto manual para la IA */}
@@ -691,7 +615,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         <div>
           <label className="block text-sm font-medium">Colores</label>
 
-          {/* Select + botón */}
           <div className="flex gap-2 mt-2">
             <select
               value={selectedColor}
@@ -715,7 +638,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
             </button>
           </div>
 
-          {/* Etiquetas que van mostrando los colores */}
           <div className="flex flex-wrap gap-2 mt-3">
             {form.colors.map(color => (
               <div

@@ -1031,7 +1031,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                 );
             })()}
 
-            {/* FASE 5: publicación — solo aparece si se eligieron cuentas; reutiliza
+            {/* FASE 5: publicacion — solo aparece si se eligieron cuentas; reutiliza
                 el mismo modal de progreso que ListingsTable */}
             <PublishProgressModal
                 open={phase === "publishing"}
