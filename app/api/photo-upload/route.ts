@@ -19,7 +19,12 @@ export async function POST(req: Request) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const key = `listings/${userId}/${randomUUID()}.webp`;
-  const url = await uploadImageFromBuffer(buffer, key);
 
-  return NextResponse.json({ url });
+  try {
+    const url = await uploadImageFromBuffer(buffer, key, file.type);
+    return NextResponse.json({ url });
+  } catch (err) {
+    console.error("Error procesando imagen:", file.name, file.type, err);
+    return NextResponse.json({ error: "No se pudo procesar la imagen" }, { status: 422 });
+  }
 }

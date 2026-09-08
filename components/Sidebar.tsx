@@ -16,6 +16,7 @@ import {
   Menu,
   X,
   ShoppingCart,
+  MessageSquare
 } from "lucide-react";
 import { Popover, Transition } from "@headlessui/react";
 import config from "@/config";
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { name: "Ventas", href: "/sales", icon: TrendingUp },
   { name: "Gastos", href: "/expenses", icon: DollarSign },
   { name: "Inventario", href: "/inventory", icon: Package },
+  { name: "Chats", href: "/chats", icon: MessageSquare },
   { name: "Compras", href: "/purchases", icon: ShoppingCart },
 ];
 
