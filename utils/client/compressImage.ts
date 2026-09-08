@@ -36,30 +36,37 @@ async function resizeBlob(blob: Blob): Promise<Blob> {
 }
 
 export async function prepareImageForUpload(file: File): Promise<File> {
+  console.log("→ Empezando a procesar:", file.name, file.size, file.type);
+
   let blob: Blob = file;
 
-  if (await isHeic(file)) {
+  const heic = await isHeic(file);
+  console.log("→ ¿Es HEIC?", heic);
+
+  if (heic) {
     try {
+      console.log("→ Convirtiendo con heic-to...");
       const jpeg = await heicTo({
         blob: file,
         type: "image/jpeg",
         quality: JPEG_QUALITY,
       });
+      console.log("→ Conversión OK, tamaño resultante:", jpeg.size);
       blob = jpeg;
     } catch (err) {
-      console.error("Fallo al convertir HEIC con heic-to:", file.name, file.size, err);
-      throw new Error(
-        `No se pudo convertir "${file.name}" (HEIC). Prueba a exportarla como JPEG desde el iPhone antes de subirla.`
-      );
+      console.error("→ FALLO en heic-to:", err);
+      throw new Error(`No se pudo convertir "${file.name}" (HEIC).`);
     }
   }
 
   try {
+    console.log("→ Redimensionando...");
     const resized = await resizeBlob(blob);
+    console.log("→ Redimensionado OK, tamaño final:", resized.size);
     const name = file.name.replace(/\.(heic|heif)$/i, ".jpg");
     return new File([resized], name, { type: "image/jpeg" });
   } catch (err) {
-    console.error("Fallo al redimensionar imagen:", file.name, err);
+    console.error("→ FALLO al redimensionar:", err);
     throw new Error(`No se pudo procesar "${file.name}" en el navegador.`);
   }
 }
