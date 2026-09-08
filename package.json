@@ -30,6 +30,7 @@
     "fuse.js": "^7.5.0",
     "gcp-metadata": "^5.3.0",
     "googleapis": "^166.0.0",
+    "heic-convert": "^2.1.0",
     "lucide-react": "^0.555.0",
     "mongodb": "^6.21.0",
     "mongoose": "^8.17.1",
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.11",
     "@types/bcryptjs": "^2.4.6",
+    "@types/heic-convert": "^2.1.1",
     "@types/jest": "^29.5.12",
     "@types/mdx": "^2.0.12",
     "@types/node": "^24.2.0",
