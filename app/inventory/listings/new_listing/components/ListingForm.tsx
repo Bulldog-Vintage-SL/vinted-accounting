@@ -24,6 +24,42 @@ const GENDER_OPTIONS: { label: string; value: "hombre" | "mujer" | "unisex" }[] 
 
 const MAX_AI_PHOTOS = 3;
 
+// --- Contexto manual para la IA (mismo modelo que BulkImportModal) ---
+const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"];
+const DESPERFECTO_OPTIONS = ["Sin desperfectos", "Mancha", "Agujero", "Descosido"] as const;
+type Desperfecto = typeof DESPERFECTO_OPTIONS[number];
+type GarmentType = "arriba" | "abajo";
+
+interface MedidasArriba {
+  axilaAxila: string;
+  hombroHombro: string;
+  largo: string;
+  manga: string;
+}
+interface MedidasAbajo {
+  anchoCintura: string;
+  largo: string;
+  caderaEntrepierna: string;
+  anchoTobillo: string;
+}
+interface ManualDetails {
+  talla: string;
+  garmentType: GarmentType | null;
+  medidasArriba: MedidasArriba;
+  medidasAbajo: MedidasAbajo;
+  desperfectos: Desperfecto[];
+  sku: string;
+  costeInicial: string;
+}
+const emptyManualDetails = (): ManualDetails => ({
+  talla: "",
+  garmentType: null,
+  medidasArriba: { axilaAxila: "", hombroHombro: "", largo: "", manga: "" },
+  medidasAbajo: { anchoCintura: "", largo: "", caderaEntrepierna: "", anchoTobillo: "" },
+  desperfectos: [],
+  sku: "",
+  costeInicial: "",
+});
 
 export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [form, setForm] = useState<ListingForm>({
@@ -35,12 +71,38 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
 
-
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   const [aiSelectedPhotos, setAiSelectedPhotos] = useState<string[]>([]);
   const [suggestSizeCondition, setSuggestSizeCondition] = useState(false);
+
+  // Contexto manual para la IA
+  const [manual, setManual] = useState<ManualDetails>(emptyManualDetails());
+
+  const updateManual = (patch: Partial<ManualDetails>) => {
+    setManual(prev => ({ ...prev, ...patch }));
+  };
+  const updateMedidasArriba = (patch: Partial<MedidasArriba>) => {
+    setManual(prev => ({ ...prev, medidasArriba: { ...prev.medidasArriba, ...patch } }));
+  };
+  const updateMedidasAbajo = (patch: Partial<MedidasAbajo>) => {
+    setManual(prev => ({ ...prev, medidasAbajo: { ...prev.medidasAbajo, ...patch } }));
+  };
+  const toggleDesperfecto = (option: Desperfecto) => {
+    setManual(prev => {
+      let next: Desperfecto[];
+      if (option === "Sin desperfectos") {
+        next = prev.desperfectos.includes("Sin desperfectos") ? [] : ["Sin desperfectos"];
+      } else {
+        const withoutNone = prev.desperfectos.filter(o => o !== "Sin desperfectos");
+        next = withoutNone.includes(option)
+          ? withoutNone.filter(o => o !== option)
+          : [...withoutNone, option];
+      }
+      return { ...prev, desperfectos: next };
+    });
+  };
 
   const update = <K extends keyof ListingForm>(
     field: K,
@@ -182,6 +244,12 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     setIsGeneratingSuggestions(true);
     setSuggestionsError(null);
 
+    const medidas = manual.garmentType === "arriba"
+      ? manual.medidasArriba
+      : manual.garmentType === "abajo"
+        ? manual.medidasAbajo
+        : null;
+
     try {
       const res = await fetch("/api/field-suggestions", {
         method: "POST",
@@ -189,6 +257,12 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         body: JSON.stringify({
           imgUrls: orderedSelection,
           suggestSizeCondition,
+          talla: manual.talla || null,
+          garmentType: manual.garmentType,
+          medidas,
+          desperfectos: manual.desperfectos,
+          sku: manual.sku || "",
+          costeInicial: manual.costeInicial ? Number(manual.costeInicial) : null,
           k: 5,
         }),
       });
@@ -222,8 +296,22 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         updateAttribute("vintedCategoryId", data.category.id);
       }
 
-      if (data.size) updateAttribute("size", data.size);
+      // La talla manual tiene prioridad sobre la que sugiera la IA
+      if (manual.talla) {
+        updateAttribute("size", manual.talla);
+      } else if (data.size) {
+        updateAttribute("size", data.size);
+      }
+
       if (data.condition) update("condition", data.condition);
+
+      // Contexto manual que no depende de la IA, se aplica directamente
+      updateAttribute("garmentType", manual.garmentType);
+      updateAttribute("medidas", medidas);
+      updateAttribute("desperfectos", manual.desperfectos);
+      updateAttribute("sku", manual.sku || "");
+      updateAttribute("costeInicial", manual.costeInicial ? Number(manual.costeInicial) : null);
+      update("sku", manual.sku || "");
 
     } catch (err) {
       setSuggestionsError(err instanceof Error ? err.message : "Error desconocido");
@@ -266,7 +354,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         <p className="text-xs text-gray-500 mt-1">
           Selecciona hasta {MAX_AI_PHOTOS} fotos para la IA ({aiSelectedPhotos.length}/{MAX_AI_PHOTOS}). La primera seleccionada se usa para el título.
         </p>
-
 
         <div className="grid grid-cols-3 gap-3 mt-2">
           {form.photo_url?.map((url, i) => {
@@ -368,6 +455,151 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         </label>
       </div>
 
+      {/* Contexto manual para la IA */}
+      <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+        <p className="text-sm font-medium text-gray-700">
+          Contexto para la IA <span className="text-xs font-normal text-gray-400">(opcional, mejora la precisión de las sugerencias)</span>
+        </p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs font-medium text-gray-500">Talla</label>
+            <select
+              value={manual.talla}
+              onChange={e => updateManual({ talla: e.target.value })}
+              className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
+            >
+              <option value="">Selecciona una talla</option>
+              {SIZE_OPTIONS.map(size => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-gray-500">SKU</label>
+            <input
+              value={manual.sku}
+              onChange={e => updateManual({ sku: e.target.value })}
+              placeholder="Ej. AB123"
+              className="w-full border border-gray-200 rounded p-1.5 text-sm mt-0.5"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Tipo de prenda</label>
+          <div className="flex gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => updateManual({ garmentType: "arriba" })}
+              className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "arriba" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+            >
+              Arriba
+            </button>
+            <button
+              type="button"
+              onClick={() => updateManual({ garmentType: "abajo" })}
+              className={`px-3 py-1.5 rounded-lg text-sm border ${manual.garmentType === "abajo" ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+            >
+              Abajo
+            </button>
+          </div>
+        </div>
+
+        {manual.garmentType === "arriba" && (
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              placeholder="Axila a axila"
+              value={manual.medidasArriba.axilaAxila}
+              onChange={e => updateMedidasArriba({ axilaAxila: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Hombro a hombro"
+              value={manual.medidasArriba.hombroHombro}
+              onChange={e => updateMedidasArriba({ hombroHombro: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Largo"
+              value={manual.medidasArriba.largo}
+              onChange={e => updateMedidasArriba({ largo: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Manga"
+              value={manual.medidasArriba.manga}
+              onChange={e => updateMedidasArriba({ manga: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+          </div>
+        )}
+
+        {manual.garmentType === "abajo" && (
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              placeholder="Ancho cintura"
+              value={manual.medidasAbajo.anchoCintura}
+              onChange={e => updateMedidasAbajo({ anchoCintura: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Largo"
+              value={manual.medidasAbajo.largo}
+              onChange={e => updateMedidasAbajo({ largo: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Cadera a entrepierna"
+              value={manual.medidasAbajo.caderaEntrepierna}
+              onChange={e => updateMedidasAbajo({ caderaEntrepierna: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+            <input
+              placeholder="Ancho tobillo"
+              value={manual.medidasAbajo.anchoTobillo}
+              onChange={e => updateMedidasAbajo({ anchoTobillo: e.target.value })}
+              className="border border-gray-200 rounded p-1.5 text-sm"
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="text-xs font-medium text-gray-500">Desperfectos</label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {DESPERFECTO_OPTIONS.map(option => {
+              const active = manual.desperfectos.includes(option);
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => toggleDesperfecto(option)}
+                  className={`px-2.5 py-1 rounded-full text-xs border ${active ? "bg-purple-600 text-white border-purple-600" : "border-gray-300 text-gray-600"}`}
+                >
+                  {option}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="w-28">
+          <label className="text-xs font-medium text-gray-500">Coste inicial</label>
+          <div className="relative">
+            <input
+              type="number"
+              value={manual.costeInicial}
+              onChange={e => updateManual({ costeInicial: e.target.value })}
+              className="w-full border border-gray-200 rounded p-1.5 pr-6 text-sm mt-0.5"
+            />
+            <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none text-sm">
+              €
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Titulo */}
       <div>
         <label className="block text-sm font-medium">Título</label>
@@ -388,8 +620,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           className="mt-1 w-full rounded-md border border-gray-300 p-2 h-32"
         />
       </div>
-
-      {/* resto del formulario sin cambios ... */}
 
       {/* Grid de 2 columnas */}
       <div className="grid grid-cols-2 gap-4">
