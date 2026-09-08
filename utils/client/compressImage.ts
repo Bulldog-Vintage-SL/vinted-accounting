@@ -1,16 +1,16 @@
-import heic2any from "heic2any";
+import { heicTo, isHeic as isHeicFile } from "heic-to";
 
 const MAX_DIMENSION = 1600;
 const JPEG_QUALITY = 0.85;
 
-function isHeic(file: File): boolean {
-  const type = file.type.toLowerCase();
-  return (
-    type === "image/heic" ||
-    type === "image/heif" ||
-    file.name.toLowerCase().endsWith(".heic") ||
-    file.name.toLowerCase().endsWith(".heif")
-  );
+async function isHeic(file: File): Promise<boolean> {
+  // heic-to comprueba la firma real del archivo, no solo el mimetype/extensión,
+  // así que detecta también HEIC mal etiquetados por el navegador/OS
+  try {
+    return await isHeicFile(file);
+  } catch {
+    return false;
+  }
 }
 
 async function resizeBlob(blob: Blob): Promise<Blob> {
@@ -24,10 +24,11 @@ async function resizeBlob(blob: Blob): Promise<Blob> {
   canvas.height = height;
   const ctx = canvas.getContext("2d")!;
   ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (result) => (result ? resolve(result) : reject(new Error("No se pudo generar el blob"))),
+      (result) => (result ? resolve(result) : reject(new Error("No se pudo generar el blob del canvas"))),
       "image/jpeg",
       JPEG_QUALITY
     );
@@ -37,16 +38,28 @@ async function resizeBlob(blob: Blob): Promise<Blob> {
 export async function prepareImageForUpload(file: File): Promise<File> {
   let blob: Blob = file;
 
-  if (isHeic(file)) {
-    const converted = await heic2any({
-      blob: file,
-      toType: "image/jpeg",
-      quality: JPEG_QUALITY,
-    });
-    blob = Array.isArray(converted) ? converted[0] : converted;
+  if (await isHeic(file)) {
+    try {
+      const jpeg = await heicTo({
+        blob: file,
+        type: "image/jpeg",
+        quality: JPEG_QUALITY,
+      });
+      blob = jpeg;
+    } catch (err) {
+      console.error("Fallo al convertir HEIC con heic-to:", file.name, file.size, err);
+      throw new Error(
+        `No se pudo convertir "${file.name}" (HEIC). Prueba a exportarla como JPEG desde el iPhone antes de subirla.`
+      );
+    }
   }
 
-  const resized = await resizeBlob(blob);
-  const name = file.name.replace(/\.(heic|heif)$/i, ".jpg");
-  return new File([resized], name, { type: "image/jpeg" });
+  try {
+    const resized = await resizeBlob(blob);
+    const name = file.name.replace(/\.(heic|heif)$/i, ".jpg");
+    return new File([resized], name, { type: "image/jpeg" });
+  } catch (err) {
+    console.error("Fallo al redimensionar imagen:", file.name, err);
+    throw new Error(`No se pudo procesar "${file.name}" en el navegador.`);
+  }
 }
