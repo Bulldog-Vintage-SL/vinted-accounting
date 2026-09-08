@@ -4,6 +4,7 @@ import { useState, useTransition, type ChangeEvent } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { ListingForm } from '@/app/inventory/listings/types';
 import { uploadPhoto } from "@/utils/uploadPhoto";
+import { prepareImageForUpload } from "@/utils/client/compressImage";
 import BrandSelect from "./BrandSelector";
 import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
@@ -30,8 +31,10 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     stock: initialData.stock ?? 1,
   });
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
+
 
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
@@ -256,9 +259,14 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           <p className="text-sm text-red-600 mt-1" role="alert">{suggestionsError}</p>
         )}
 
+        {uploadError && (
+          <p className="text-sm text-red-600 mt-1" role="alert">{uploadError}</p>
+        )}
+
         <p className="text-xs text-gray-500 mt-1">
           Selecciona hasta {MAX_AI_PHOTOS} fotos para la IA ({aiSelectedPhotos.length}/{MAX_AI_PHOTOS}). La primera seleccionada se usa para el título.
         </p>
+
 
         <div className="grid grid-cols-3 gap-3 mt-2">
           {form.photo_url?.map((url, i) => {
@@ -304,7 +312,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
             )}
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,.heic,.heif"
               multiple
               className="hidden"
               disabled={isUploading}
@@ -313,9 +321,32 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
                 if (files.length === 0) return;
 
                 setIsUploading(true);
+                setUploadError(null);
+
                 try {
-                  const urls = await Promise.all(files.map(uploadPhoto));
-                  update("photo_url", [...form.photo_url, ...urls]);
+                  const results = await Promise.allSettled(
+                    files.map(async (file) => {
+                      const prepared = await prepareImageForUpload(file);
+                      return uploadPhoto(prepared);
+                    })
+                  );
+
+                  const successUrls = results
+                    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+                    .map(r => r.value);
+
+                  const failedCount = results.filter(r => r.status === "rejected").length;
+                  if (failedCount > 0) {
+                    setUploadError(
+                      failedCount === files.length
+                        ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
+                        : `${failedCount} foto(s) no se pudieron subir.`
+                    );
+                  }
+
+                  if (successUrls.length > 0) {
+                    update("photo_url", [...form.photo_url, ...successUrls]);
+                  }
                 } finally {
                   setIsUploading(false);
                   e.target.value = "";
