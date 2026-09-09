@@ -36,6 +36,27 @@ const SPANISH_CONDITION_HINTS: Record<string, string[]> = {
   aceptable: ['fair', 'satisfactory'],
 }
 
+// Keywords para resolver el campo "subcategory" cuando este representa un
+// corte/tipo de prenda (pantalones, vaqueros...) en vez de un tipo de bolso.
+// Se comparan contra item_type/title normalizados y contra displayName de
+// las opciones del form (ej. "Slim", "Bootcut", "Recto", "Boyfriend"...).
+const CUT_KEYWORD_HINTS: Record<string, string[]> = {
+  slim: ['slim'],
+  skinny: ['slim'],
+  pitillo: ['slim'],
+  recto: ['recto', 'straight'],
+  straight: ['recto', 'straight'],
+  bootcut: ['bootcut'],
+  campana: ['bootcut', 'flare'],
+  flare: ['bootcut', 'flare'],
+  boyfriend: ['boyfriend'],
+  ancho: ['boyfriend', 'wide'],
+  wide: ['boyfriend', 'wide'],
+  corto: ['corto', 'short'],
+  short: ['corto', 'short'],
+  largo: ['largo', 'long'],
+}
+
 function normalize(s: string | undefined | null): string {
   return (s ?? '')
     .toLowerCase()
@@ -73,6 +94,13 @@ export function hasFormField(opts: any, mnemonic: string): boolean {
   return Boolean(findField(opts, mnemonic))
 }
 
+// Detecta si el listing es un bolso usando SOLO señales del propio producto
+// (item_type/title/categoría ya resuelta). Antes también se consideraba bolso
+// cualquier prenda cuyo formulario tuviera "subcategory" + "model" a la vez,
+// pero esa combinación de campos también aparece en pantalones/vaqueros
+// (subcategory = corte, model = modelo de la marca), lo que hacía que unos
+// vaqueros se trataran como bolso: se saltaba la talla real y se rellenaban
+// dimensiones de bolso en los campos de "anchura"/"largo" de la pernera.
 export function isBagListing(listing: any, opts: any, state?: WorkflowState): boolean {
   const itemType = normalize(listing?.item_type)
   const title = normalize(listing?.title)
@@ -82,21 +110,47 @@ export function isBagListing(listing: any, opts: any, state?: WorkflowState): bo
     itemType.includes('bag') ||
     itemType.includes('mochila') ||
     itemType.includes('handbag') ||
+    itemType.includes('bandolera') ||
+    itemType.includes('clutch') ||
     title.includes('bolso') ||
     title.includes('handbag')
   ) {
     return true
   }
 
-  if (state?.vestSubcategoryId === '59' || state?.vestCategoryId === '5') {
+  // Ids de categoría "Bags" según el catálogo de Vestiaire:
+  // "5" = Bags (Womenswear), "141" = Bags (Menswear)
+  if (state?.vestCategoryId === '5' || state?.vestCategoryId === '141') {
     return true
   }
 
-  if (hasFormField(opts, 'subcategory') && hasFormField(opts, 'model')) {
+  return false
+}
+
+// Detecta si el listing es un pantalón/vaquero (para resolver bien "subcategory"
+// como corte, y no como tipo de bolso).
+function isTrouserListing(listing: any, state?: WorkflowState): boolean {
+  const itemType = normalize(listing?.item_type)
+  const title = normalize(listing?.title)
+
+  if (
+    itemType.includes('pantalon') ||
+    itemType.includes('vaquero') ||
+    itemType.includes('jean') ||
+    title.includes('pantalon') ||
+    title.includes('vaquero') ||
+    title.includes('jean')
+  ) {
     return true
   }
 
-  return getAllFields(opts).some((field) => /^dimension_\d+$/.test(field.mnemonic ?? ''))
+  // Ids de categoría "Trousers/Jeans" habituales en el catálogo de Vestiaire
+  const trouserCategoryIds = ['18', '35', '23', '34']
+  if (state?.vestCategoryId && trouserCategoryIds.includes(String(state.vestCategoryId))) {
+    return true
+  }
+
+  return false
 }
 
 function resolveDisplayNameId(opts: any, mnemonic: string, displayName: string | undefined): string | null {
@@ -149,23 +203,52 @@ function resolveConditionId(opts: any, condition: string | undefined): string {
   return fallback[target] ?? '4'
 }
 
-function resolveSubcategoryId(opts: any, listing: any, pageName?: string): string | null {
+// Extrae, a partir del título/item_type del listing, qué keyword de corte de
+// pantalón aplica (slim, recto, bootcut...), para poder matchearlo luego
+// contra los displayName reales de las opciones del form.
+function extractCutHints(listing: any): string[] {
+  const haystack = normalize(`${listing?.title ?? ''} ${listing?.item_type ?? ''} ${listing?.description ?? ''}`)
+  const hints: string[] = []
+
+  for (const [keyword, mappedNames] of Object.entries(CUT_KEYWORD_HINTS)) {
+    if (haystack.includes(keyword)) {
+      hints.push(...mappedNames)
+    }
+  }
+
+  return Array.from(new Set(hints))
+}
+
+function resolveSubcategoryId(opts: any, listing: any, state: WorkflowState | undefined, pageName?: string): string | null {
   const field = findField(opts, 'subcategory')
   const values: any[] = field?.values ?? []
   if (!values.length) return null
 
-  const candidates = [
-    listing?.item_type,
-    listing?.title,
-    pageName,
-    "women's handbag",
-    'handbag',
-    'handbags',
-    'bolso',
-  ].filter(Boolean) as string[]
+  const isBag = isBagListing(listing, opts, state)
+  const isTrouser = isTrouserListing(listing, state)
+
+  let candidates: string[] = []
+
+  if (isTrouser) {
+    // Para pantalones, "subcategory" es el corte (Slim/Recto/Bootcut/Boyfriend...)
+    candidates = extractCutHints(listing)
+  } else if (isBag) {
+    candidates = [
+      listing?.item_type,
+      listing?.title,
+      pageName,
+      "women's handbag",
+      'handbag',
+      'handbags',
+      'bolso',
+    ].filter(Boolean) as string[]
+  } else {
+    candidates = [listing?.item_type, listing?.title, pageName].filter(Boolean) as string[]
+  }
 
   for (const candidate of candidates) {
     const target = normalize(candidate)
+    if (!target) continue
     const match = values.find((v: any) => {
       const name = normalize(v.displayName)
       return name === target || name.includes(target) || target.includes(name)
@@ -173,7 +256,14 @@ function resolveSubcategoryId(opts: any, listing: any, pageName?: string): strin
     if (match) return String(match.id)
   }
 
-  // Never use catalog page id (e.g. 59) — pick first formOptions value
+  // Si no hay match, preferimos una opción "Otro(s)" explícita antes que
+  // asumir a ciegas la primera opción de la lista.
+  const other = values.find((v: any) => {
+    const name = normalize(v.displayName)
+    return name === 'otro' || name === 'otros' || name === 'other' || name === 'others'
+  })
+  if (other) return String(other.id)
+
   return String(values[0].id)
 }
 
@@ -229,20 +319,41 @@ function resolveSizeIds(opts: any, sizeStr: string | undefined): { size_unit: st
   const sizeSection = findInformationSection(opts, 'size')
   const unitField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size_unit')
   const sizeField = sizeSection?.fields?.find((f: any) => f.mnemonic === 'size')
-
-  const unitId = unitField?.values?.[0]?.id
-  if (!unitId || !sizeField?.values) return null
+  if (!sizeField?.values?.length) return null
 
   const target = normalize(sizeStr)
-  const match = sizeField.values.find((v: any) => {
-    const name = normalize(v.displayName)
-    const dependsOnUnit = v.dependsOn?.some(
-      (d: any) => d.field === 'size_unit' && d.values.includes(unitId)
-    )
-    return dependsOnUnit && (name === target || name.includes(target) || target.includes(name))
-  })
+  const isNumeric = /^\d+(\.\d+)?$/.test(target)
+  const units: any[] = unitField?.values ?? [{ id: null }] // por si no hay size_unit (prendas sin unidades)
 
-  return match ? { size_unit: String(unitId), size: String(match.id) } : null
+  // Probamos cada unidad en el orden en que las lista Vestiaire (para ES,
+  // "FR" suele ir primero y es la que corresponde a la talla que guardamos,
+  // pero no lo asumimos como garantía: iteramos todas y nos quedamos con
+  // la primera que dé un match exacto).
+  for (const unit of units) {
+    const unitId = unit.id
+    const candidates = sizeField.values.filter((v: any) => {
+      if (unitId == null) return true
+      return v.dependsOn?.some((d: any) => d.field === 'size_unit' && d.values.includes(unitId))
+    })
+
+    // Match exacto siempre primero (crítico para números: evita que "3"
+    // matchee "34" por un includes() suelto)
+    const exact = candidates.find((v: any) => normalize(v.displayName) === target)
+    if (exact) return { size_unit: String(unitId ?? candidates[0]?.id ?? ''), size: String(exact.id) }
+
+    // Para tallas no numéricas (S/M/L/XL...) sí permitimos fuzzy match,
+    // porque el listing origen puede traer "extra large" en vez de "XL"
+    if (!isNumeric) {
+      const fuzzy = candidates.find((v: any) => {
+        const name = normalize(v.displayName)
+        return name.includes(target) || target.includes(name)
+      })
+      if (fuzzy) return { size_unit: String(unitId ?? candidates[0]?.id ?? ''), size: String(fuzzy.id) }
+    }
+  }
+
+  console.warn(`[Vestiaire] No se pudo resolver talla "${sizeStr}" en ninguna unidad disponible`)
+  return null
 }
 
 function resolveCurrencyId(opts: any): string {
@@ -280,8 +391,12 @@ export function buildVestiaireFieldEntries(s: WorkflowState): Array<{ key: strin
   const isBag = isBagListing(l, opts, s)
   const pageName = s.vestFormOptions?.pageName ?? "women's Handbag"
 
-  if (isBag && hasFormField(opts, 'subcategory')) {
-    const subcategoryId = resolveSubcategoryId(opts, l, pageName)
+  // "subcategory" se rellena siempre que el campo exista en el formulario,
+  // sea bolso, pantalón o cualquier otra categoría que lo use — antes solo
+  // se rellenaba dentro del bloque "isBag", así que en pantalones se perdía
+  // (aunque required:true) salvo que isBagListing (mal) devolviera true.
+  if (hasFormField(opts, 'subcategory')) {
+    const subcategoryId = resolveSubcategoryId(opts, l, s, pageName)
     if (subcategoryId) entries.push({ key: 'preduct_subcategory', value: subcategoryId })
   }
 
@@ -302,7 +417,11 @@ export function buildVestiaireFieldEntries(s: WorkflowState): Array<{ key: strin
   const patternId = resolvePatternId(opts, l?.attributes?.pattern)
   if (patternId) entries.push({ key: 'preduct_pattern', value: patternId })
 
-  if (!isBag) {
+  // La talla es un campo real de la prenda, no exclusivo de "no bolso" por
+  // definición — simplemente los bolsos no la tienen en el formulario. Al
+  // comprobar hasFormField en vez de depender de isBag, esto también queda
+  // protegido si algún día un bolso sí trajera talla.
+  if (!isBag && hasFormField(opts, 'size')) {
     const sizeIds = resolveSizeIds(opts, l?.attributes?.size)
     if (sizeIds) {
       entries.push({ key: 'preduct_size_unit', value: sizeIds.size_unit })
