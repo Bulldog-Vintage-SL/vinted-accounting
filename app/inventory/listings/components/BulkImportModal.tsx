@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Scissors, Sparkles, X, XCircle, Rocket, Save } from "lucide-react";
+import { Loader2, Scissors, Sparkles, XCircle, Rocket, Save } from "lucide-react";
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import { prepareImageForUpload } from "@/utils/client/compressImage";
 import type { Listing, ListingForm } from "@/app/inventory/listings/types";
+import { PhotoCarousel, PhotoLightbox, SortablePhotoGrid } from "@/app/inventory/listings/components/ListingPhotos";
 import { useAccountSelector, SelectedAccount } from "@/hooks/useAccountSelector";
 import { useQueue } from "@/hooks/useQueue";
 import { PublishProgressModal } from "@/app/inventory/listings/components/PublishProgressModal";
@@ -142,6 +143,8 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         setPublishJobs([]);
         setAutoPublish(false);
         setUploadError(null);
+        setPreviewDraftId(null);
+        setPreviewIndex(0);
     };
 
     const handleClose = () => {
@@ -185,6 +188,32 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const reorderPhotos = (nextPhotos: string[]) => {
+        const cutAfterByUrl = new Map(photos.map((url, i) => [url, boundaries.has(i)]));
+        const nextBoundaries = new Set<number>();
+        nextPhotos.forEach((url, i) => {
+            if (cutAfterByUrl.get(url)) nextBoundaries.add(i);
+        });
+        setPhotos(nextPhotos);
+        setBoundaries(nextBoundaries);
+    };
+
+    const removePhoto = (index: number) => {
+        setPhotos(prev => prev.filter((_, idx) => idx !== index));
+        setBoundaries(prev => {
+            const next = new Set<number>();
+            prev.forEach((b) => {
+                if (b === index) return;
+                next.add(b > index ? b - 1 : b);
+            });
+            return next;
+        });
+    };
+
+    const reorderDraftPhotos = (id: string, nextPhotos: string[]) => {
+        setDrafts(prev => prev.map(d => d.id === id ? { ...d, photos: nextPhotos } : d));
     };
 
     const toggleBoundary = (index: number) => {
@@ -491,7 +520,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                     Sube todas las fotos
                                 </DialogTitle>
                                 <p className="text-gray-600 text-sm mt-1">
-                                    Mezcla las fotos de todos los productos que quieras dar de alta, luego las agrupamos.
+                                    Mezcla las fotos de todos los productos que quieras dar de alta, luego las agrupamos. Arrastra las fotos o usa las flechas para cambiar el orden.
                                 </p>
                             </DialogHeader>
 
@@ -499,30 +528,27 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                 <p className="text-sm text-red-600 mt-2" role="alert">{uploadError}</p>
                             )}
 
-                            <div className="grid grid-cols-6 gap-3 mt-4 max-h-[60vh] overflow-y-auto pr-1">
-                                {photos.map((url, i) => (
-                                    <div key={i} className="relative group">
-                                        <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
-                                        <button
-                                            onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}
-                                            className="absolute top-1 right-1 bg-black/60 text-white rounded p-0.5 opacity-0 group-hover:opacity-100 transition"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                ))}
-
-                                <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? "opacity-50 pointer-events-none" : ""}`}>
-                                    {isUploading ? <Loader2 size={22} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-3xl">+</span>}
-                                    <input
-                                        type="file"
-                                        accept="image/*,.heic,.heif"
-                                        multiple
-                                        className="hidden"
-                                        disabled={isUploading}
-                                        onChange={e => { handleFilesSelected(Array.from(e.target.files || [])); e.target.value = ""; }}
-                                    />
-                                </label>
+                            <div className="mt-4 max-h-[60vh] overflow-y-auto pr-1">
+                                <SortablePhotoGrid
+                                    photos={photos}
+                                    onChange={reorderPhotos}
+                                    onRemove={removePhoto}
+                                    showPrincipalBadge={false}
+                                    gridClassName="grid grid-cols-6 gap-3"
+                                    trailing={
+                                        <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                                            {isUploading ? <Loader2 size={22} className="animate-spin text-gray-400" /> : <span className="text-gray-400 text-3xl">+</span>}
+                                            <input
+                                                type="file"
+                                                accept="image/*,.heic,.heif"
+                                                multiple
+                                                className="hidden"
+                                                disabled={isUploading}
+                                                onChange={e => { handleFilesSelected(Array.from(e.target.files || [])); e.target.value = ""; }}
+                                            />
+                                        </label>
+                                    }
+                                />
                             </div>
 
                             <button
@@ -616,14 +642,18 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                     Añade los detalles de cada prenda
                                 </DialogTitle>
                                 <p className="text-gray-600 text-sm mt-1">
-                                    Estos datos se usarán junto a la primera foto de cada prenda para generar el título, descripción y precio.
+                                    Pulsa una foto para ampliarla y recorre el carrusel. La primera foto de cada prenda se usará junto a estos datos para generar título, descripción y precio.
                                 </p>
                             </DialogHeader>
 
                             <div className="flex flex-col gap-4 mt-4 max-h-[65vh] overflow-y-auto pr-1">
                                 {drafts.map(draft => (
-                                    <div key={draft.id} className="flex gap-4 border border-gray-200 rounded-xl p-4">
-                                        <img src={draft.photos[0]} className="h-24 w-24 rounded-md object-cover flex-shrink-0" />
+                                    <div key={draft.id} className="flex flex-col sm:flex-row gap-4 border border-gray-200 rounded-xl p-4">
+                                        <PhotoCarousel
+                                            photos={draft.photos}
+                                            onReorder={(next) => reorderDraftPhotos(draft.id, next)}
+                                            onZoom={(i) => { setPreviewDraftId(draft.id); setPreviewIndex(i); }}
+                                        />
 
                                         <div className="flex-1 space-y-3">
                                             <div className="grid grid-cols-2 gap-2">
@@ -977,57 +1007,14 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
             {previewDraftId && (() => {
                 const draft = drafts.find(d => d.id === previewDraftId);
                 if (!draft) return null;
-                const photos = draft.photos;
-
-                const goPrev = () => setPreviewIndex(i => (i - 1 + photos.length) % photos.length);
-                const goNext = () => setPreviewIndex(i => (i + 1) % photos.length);
 
                 return (
-                    <Dialog open={true} onOpenChange={(next) => { if (!next) setPreviewDraftId(null); }}>
-                        <DialogContent
-                            className="!max-w-4xl w-full p-0 bg-black/95 border-none flex flex-col items-center justify-center"
-                            showCloseButton
-                        >
-                            <div className="relative w-full flex items-center justify-center h-[75vh]">
-                                <img
-                                    src={photos[previewIndex]}
-                                    className="max-h-full max-w-full object-contain"
-                                />
-
-                                {photos.length > 1 && (
-                                    <>
-                                        <button
-                                            onClick={goPrev}
-                                            className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full h-10 w-10 flex items-center justify-center"
-                                        >
-                                            ‹
-                                        </button>
-                                        <button
-                                            onClick={goNext}
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/20 text-white rounded-full h-10 w-10 flex items-center justify-center"
-                                        >
-                                            ›
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-
-                            {photos.length > 1 && (
-                                <div className="flex gap-2 pb-4 px-4 overflow-x-auto max-w-full">
-                                    {photos.map((url, i) => (
-                                        <button
-                                            key={i}
-                                            onClick={() => setPreviewIndex(i)}
-                                            className={`h-14 w-14 rounded-md overflow-hidden flex-shrink-0 ring-2 transition ${i === previewIndex ? "ring-purple-500" : "ring-transparent opacity-60 hover:opacity-100"
-                                                }`}
-                                        >
-                                            <img src={url} className="h-full w-full object-cover" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </DialogContent>
-                    </Dialog>
+                    <PhotoLightbox
+                        photos={draft.photos}
+                        index={previewIndex}
+                        onIndexChange={setPreviewIndex}
+                        onClose={() => setPreviewDraftId(null)}
+                    />
                 );
             })()}
 

@@ -8,6 +8,7 @@ import { prepareImageForUpload } from "@/utils/client/compressImage";
 import BrandSelect from "./BrandSelector";
 import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
+import { SortablePhotoGrid } from "@/app/inventory/listings/components/ListingPhotos";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -188,6 +189,10 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     update("photo_url", form.photo_url.filter(u => u !== url));
   };
 
+  const reorderPhotos = (nextPhotos: string[]) => {
+    update("photo_url", nextPhotos);
+  };
+
   const handleGenerateSuggestions = async () => {
     const imgUrl = form.photo_url[0];
     if (!imgUrl) return;
@@ -301,84 +306,75 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         )}
 
         <p className="text-xs text-gray-500 mt-1">
-          La primera foto se usa para generar los datos con IA.
+          Arrastra las fotos para reordenarlas. La primera se usa para generar los datos con IA.
         </p>
 
-        <div className="grid grid-cols-3 gap-3 mt-2">
-          {form.photo_url?.map((url, i) => (
-            <div key={i} className="relative group">
-              <img src={url} className="rounded-md shadow-sm object-cover h-32 w-full" />
-
-              <button
-                onClick={() => removePhoto(url)}
-                className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
-              >
-                X
-              </button>
-
-              {i === 0 && (
-                <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                  IA
-                </span>
+        <SortablePhotoGrid
+          photos={form.photo_url ?? []}
+          onChange={reorderPhotos}
+          onRemove={(i) => removePhoto(form.photo_url[i])}
+          gridClassName="grid grid-cols-3 gap-3 mt-2"
+          renderOverlay={(_url, i) => i === 0 ? (
+            <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+              IA
+            </span>
+          ) : null}
+          trailing={
+            <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+              {isUploading ? (
+                <Loader2 size={24} className="animate-spin text-gray-400" />
+              ) : (
+                <span className="text-gray-400 text-3xl">+</span>
               )}
-            </div>
-          ))}
+              <input
+                type="file"
+                accept="image/*,.heic,.heif"
+                multiple
+                className="hidden"
+                disabled={isUploading}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length === 0) return;
 
-          {/* Boton para anyadir fotos */}
-          <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-            {isUploading ? (
-              <Loader2 size={24} className="animate-spin text-gray-400" />
-            ) : (
-              <span className="text-gray-400 text-3xl">+</span>
-            )}
-            <input
-              type="file"
-              accept="image/*,.heic,.heif"
-              multiple
-              className="hidden"
-              disabled={isUploading}
-              onChange={async (e) => {
-                const files = Array.from(e.target.files || []);
-                if (files.length === 0) return;
+                  setIsUploading(true);
+                  setUploadError(null);
 
-                setIsUploading(true);
-                setUploadError(null);
-
-                try {
-                  const results = await Promise.allSettled(
-                    files.map(async (file) => {
-                      const prepared = await prepareImageForUpload(file);
-                      return uploadPhoto(prepared);
-                    })
-                  );
-
-                  const successUrls = results
-                    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
-                    .map(r => r.value);
-
-                  const failedMessages = results
-                    .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-                    .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
-
-                  if (failedMessages.length > 0) {
-                    setUploadError(
-                      failedMessages.length === files.length
-                        ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
-                        : failedMessages.join(" · ")
+                  try {
+                    const results = await Promise.allSettled(
+                      files.map(async (file) => {
+                        const prepared = await prepareImageForUpload(file);
+                        return uploadPhoto(prepared);
+                      })
                     );
-                  }
 
-                  if (successUrls.length > 0) {
-                    update("photo_url", [...form.photo_url, ...successUrls]);
+                    const successUrls = results
+                      .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+                      .map(r => r.value);
+
+                    const failedMessages = results
+                      .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+                      .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
+
+                    if (failedMessages.length > 0) {
+                      setUploadError(
+                        failedMessages.length === files.length
+                          ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
+                          : failedMessages.join(" · ")
+                      );
+                    }
+
+                    if (successUrls.length > 0) {
+                      update("photo_url", [...form.photo_url, ...successUrls]);
+                    }
+                  } finally {
+                    setIsUploading(false);
+                    e.target.value = "";
                   }
-                } finally {
-                  setIsUploading(false);
-                  e.target.value = "";
-                }
-              }}
-            />
-          </label>
-        </div>
+                }}
+              />
+            </label>
+          }
+        />
       </div>
 
       {/* Contexto manual para la IA */}
