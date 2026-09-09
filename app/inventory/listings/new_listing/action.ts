@@ -28,10 +28,10 @@ export async function createListingFromForm(data: ListingForm) {
     gender: data.gender,
     itemType: data.item_type,
     stock: data.stock ?? 1,
+    photoSelection: data.photoSelection ?? {},
     status: "active",
     lastUpdate: new Date(),
   });
 
   redirect("/inventory/listings");
 }
- 

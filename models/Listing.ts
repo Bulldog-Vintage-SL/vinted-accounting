@@ -17,6 +17,10 @@ export interface IListing {
   sku?: string | null;
   tags?: string[];
   stock?: number;
+  // Mascara por plataforma: { depop: ["url1", "url2", ...], vinted: [...] }.
+  // Si una plataforma no aparece aqui, se asume que se suben las primeras
+  // N fotos de photoUrl segun el limite de esa plataforma.
+  photoSelection?: Record<string, string[]>;
   lastUpdate?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -43,6 +47,7 @@ const listingSchema = new mongoose.Schema(
     sku: { type: String, default: null },
     tags: { type: [String], default: [] },
     stock: { type: Number, default: 1 },
+    photoSelection: { type: mongoose.Schema.Types.Mixed, default: {} },
     lastUpdate: { type: Date, default: null },
   },
   {

@@ -55,6 +55,7 @@ function toListingType(doc: any): ListingType {
     item_type: doc.itemType ?? null,
     stock: doc.stock ?? 1,
     platforms: [],
+    photoSelection: doc.photoSelection ?? {},
   };
 }
 
@@ -80,6 +81,7 @@ export async function createListingsFromBulk(data: ListingForm): Promise<Listing
     gender: data.gender,
     itemType: data.item_type,
     stock: data.stock ?? 1,
+    photoSelection: data.photoSelection ?? {},
     status: "active",
     lastUpdate: new Date(),
   });

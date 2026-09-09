@@ -1,6 +1,7 @@
 import type { WorkflowStep } from '../types'
 
 const BASE = 'https://webapi.depop.com'
+const DEPOP_PHOTO_LIMIT = 4
 
 export function buildDepopUploadSteps(listing: any): WorkflowStep[] {
   const steps: WorkflowStep[] = []
@@ -64,9 +65,16 @@ export function buildDepopUploadSteps(listing: any): WorkflowStep[] {
       url: `${BASE}/presentation/api/v1/listing/banned-hashtags/`,
       method: 'GET',
     },
-  })
+  }) 
 
-  for (let i = 0; i < listing.photo_url.length; i++) {
+  const depopPhotos: string[] =
+    listing.photoSelection?.["depop"]?.length
+      ? listing.photoSelection["depop"]
+      : (listing.photo_url ?? []).slice(0, DEPOP_PHOTO_LIMIT);
+
+  const cappedDepopPhotos = depopPhotos.slice(0, DEPOP_PHOTO_LIMIT);
+
+  for (let i = 0; i < cappedDepopPhotos.length; i++) {
     steps.push({
       id: crypto.randomUUID(),
       platform: 'depop',
@@ -74,7 +82,7 @@ export function buildDepopUploadSteps(listing: any): WorkflowStep[] {
       request: {
         url: `${BASE}/presentation/api/v1/pictures/`,
         method: 'POST',
-        photoUrl: listing.photo_url[i],
+        photoUrl: cappedDepopPhotos[i],
         photoIndex: i + 1,
         isPictureUpload: true,
         body: {

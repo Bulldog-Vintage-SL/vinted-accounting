@@ -4,7 +4,13 @@ import useSWR from 'swr'
 import Link from 'next/link'
 import { useEffect, useState, type ChangeEvent } from 'react'
 import { ArrowLeft, Loader2, Plus, X, ImagePlus, BadgeCheck } from 'lucide-react'
-import { Listing, ListingForm } from '../types'
+import {
+  Listing,
+  ListingForm,
+  PlatformKey,
+  PLATFORM_PHOTO_LIMITS,
+  PLATFORM_LABELS,
+} from '../types'
 import { useToast } from '@/components/toast'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { PageLoader } from '@/components/ui/page-loader'
@@ -90,6 +96,10 @@ export function ListingDetailForm({ listingId }: Props) {
   const [markSoldOpen, setMarkSoldOpen] = useState(false)
   const [isMarkingSold, setIsMarkingSold] = useState(false)
 
+  // --- Mascara de fotos por plataforma ---
+  const [photoSelection, setPhotoSelection] = useState<Partial<Record<PlatformKey, string[]>>>({})
+  const [activeMaskPlatform, setActiveMaskPlatform] = useState<PlatformKey | null>(null)
+
   useEffect(() => {
     if (!data) return
     setForm({
@@ -111,6 +121,7 @@ export function ListingDetailForm({ listingId }: Props) {
     })
     setPriceInput(data.price ? formatPriceForDisplay(data.price) : '')
     setActivePhotoIdx(0)
+    setPhotoSelection(data.photoSelection ?? {})
   }, [data])
 
   const handleChange = <K extends keyof ListingForm>(field: K, value: ListingForm[K]) => {
@@ -184,9 +195,51 @@ export function ListingDetailForm({ listingId }: Props) {
     }
   }
 
+  // --- Helpers de mascara por plataforma (mismo modelo que ItemForm) ---
+
+  // Seleccion efectiva para una plataforma: la personalizada si existe
+  // (filtrada por si alguna foto fue borrada), si no las primeras N.
+  const getSelectedForPlatform = (platform: PlatformKey): string[] => {
+    const custom = photoSelection[platform]
+    if (custom) return custom.filter(url => form.photo_url.includes(url))
+    return form.photo_url.slice(0, PLATFORM_PHOTO_LIMITS[platform])
+  }
+
+  const togglePhotoForPlatform = (platform: PlatformKey, url: string) => {
+    setPhotoSelection(prev => {
+      const current = prev[platform] ?? getSelectedForPlatform(platform)
+      const limit = PLATFORM_PHOTO_LIMITS[platform]
+      const isSelected = current.includes(url)
+
+      if (isSelected) {
+        return { ...prev, [platform]: current.filter(u => u !== url) }
+      }
+      if (current.length >= limit) return prev // no se puede superar el limite
+      return { ...prev, [platform]: [...current, url] }
+    })
+  }
+
+  const overflowingPlatforms = (Object.keys(PLATFORM_PHOTO_LIMITS) as PlatformKey[]).filter(
+    platform => form.photo_url.length > PLATFORM_PHOTO_LIMITS[platform]
+  )
+
+  const buildPhotoSelectionForSubmit = (): Partial<Record<PlatformKey, string[]>> =>
+    (Object.keys(PLATFORM_PHOTO_LIMITS) as PlatformKey[]).reduce((acc, platform) => {
+      acc[platform] = getSelectedForPlatform(platform)
+      return acc
+    }, {} as Partial<Record<PlatformKey, string[]>>)
+
   const removePhoto = (idx: number) => {
+    const url = form.photo_url[idx]
     setForm(prev => ({ ...prev, photo_url: prev.photo_url.filter((_, i) => i !== idx) }))
     setActivePhotoIdx(prev => (prev >= idx && prev > 0 ? prev - 1 : prev))
+    setPhotoSelection(prev => {
+      const next: Partial<Record<PlatformKey, string[]>> = {}
+      ;(Object.keys(prev) as PlatformKey[]).forEach(platform => {
+        next[platform] = (prev[platform] ?? []).filter(u => u !== url)
+      })
+      return next
+    })
   }
 
   const handleSave = async () => {
@@ -195,7 +248,10 @@ export function ListingDetailForm({ listingId }: Props) {
       const res = await fetch(`/api/listings/${listingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          photoSelection: buildPhotoSelectionForSubmit(),
+        }),
       })
 
       if (!res.ok) {
@@ -267,6 +323,8 @@ export function ListingDetailForm({ listingId }: Props) {
   }
 
   const activePhoto = form.photo_url[activePhotoIdx]
+  const isMasking = activeMaskPlatform !== null
+  const selectedForActiveMask = isMasking ? getSelectedForPlatform(activeMaskPlatform!) : []
 
   return (
     <div className="flex flex-col gap-6">
@@ -324,22 +382,56 @@ export function ListingDetailForm({ listingId }: Props) {
 
           {/* Miniaturas */}
           <div className="grid grid-cols-5 gap-2">
-            {form.photo_url.map((url, idx) => (
-              <div
-                key={url + idx}
-                onClick={() => setActivePhotoIdx(idx)}
-                className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition group ${idx === activePhotoIdx ? 'border-blue-500' : 'border-transparent hover:border-gray-200'
+            {form.photo_url.map((url, idx) => {
+              const isSelectedForMask = isMasking && selectedForActiveMask.includes(url)
+
+              return (
+                <div
+                  key={url + idx}
+                  onClick={() => {
+                    if (isMasking) {
+                      togglePhotoForPlatform(activeMaskPlatform!, url)
+                    } else {
+                      setActivePhotoIdx(idx)
+                    }
+                  }}
+                  className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition group ${
+                    isMasking
+                      ? 'border-transparent'
+                      : idx === activePhotoIdx
+                        ? 'border-blue-500'
+                        : 'border-transparent hover:border-gray-200'
                   }`}
-              >
-                <img src={url} alt="" className="w-full h-full object-cover" />
-                <button
-                  onClick={(e) => { e.stopPropagation(); removePhoto(idx) }}
-                  className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
                 >
-                  <X size={10} />
-                </button>
-              </div>
-            ))}
+                  <img
+                    src={url}
+                    alt=""
+                    className={`w-full h-full object-cover transition-opacity ${
+                      isMasking && !isSelectedForMask ? 'opacity-40' : ''
+                    }`}
+                  />
+
+                  {isMasking ? (
+                    <span
+                      className={`absolute top-0.5 right-0.5 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 transition ${
+                        isSelectedForMask
+                          ? 'bg-amber-600 border-amber-600 text-white'
+                          : 'bg-white/80 border-gray-300 text-gray-400'
+                      }`}
+                    >
+                      {isSelectedForMask ? '✓' : ''}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removePhoto(idx) }}
+                      className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
 
             <label className="aspect-square flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition">
               {isUploading ? (
@@ -357,6 +449,45 @@ export function ListingDetailForm({ listingId }: Props) {
               />
             </label>
           </div>
+
+          {/* Aviso de limites por plataforma + selector de mascara */}
+          {overflowingPlatforms.length > 0 && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+              <p className="font-medium mb-2">
+                Estas plataformas tienen límite de fotos — toca una para elegir cuáles se suben:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {overflowingPlatforms.map(platform => {
+                  const count = getSelectedForPlatform(platform).length
+                  const limit = PLATFORM_PHOTO_LIMITS[platform]
+                  const active = activeMaskPlatform === platform
+                  return (
+                    <button
+                      key={platform}
+                      type="button"
+                      onClick={() => setActiveMaskPlatform(active ? null : platform)}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition ${
+                        active
+                          ? 'bg-amber-600 text-white border-amber-600'
+                          : 'bg-white border-amber-300 text-amber-800 hover:bg-amber-100'
+                      }`}
+                    >
+                      {PLATFORM_LABELS[platform]}: {count}/{limit}
+                    </button>
+                  )
+                })}
+                {activeMaskPlatform && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveMaskPlatform(null)}
+                    className="px-2.5 py-1 rounded-full text-xs border border-gray-300 text-gray-600 hover:bg-gray-100"
+                  >
+                    Listo
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Columna derecha: campos */}

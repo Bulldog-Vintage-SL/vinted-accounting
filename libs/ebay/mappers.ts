@@ -5,6 +5,7 @@ import {
   isEbayProduction,
 } from "@/libs/ebay/client";
 import { ebayApiRequest } from "@/libs/ebay/api";
+import { PLATFORM_PHOTO_LIMITS } from "@/app/inventory/listings/types";
 
 /**
  * Condiciones de nuestra app / Vinted → enum preferido de Inventory API.
@@ -641,6 +642,19 @@ export async function resolveEbayProductAspects(
   return aspects;
 }
 
+function getEbayPhotos(listing: IListing): string[] {
+  const photoSelection = (listing as unknown as {
+    photoSelection?: Partial<Record<string, string[]>>;
+  }).photoSelection;
+
+  const photos: string[] =
+    photoSelection?.["ebay"]?.length
+      ? photoSelection["ebay"]
+      : (listing.photoUrl ?? []).slice(0, PLATFORM_PHOTO_LIMITS.ebay);
+
+  return photos.slice(0, PLATFORM_PHOTO_LIMITS.ebay);
+}
+
 export async function buildInventoryItemPayload(
   listing: IListing,
   sku: string,
@@ -689,7 +703,7 @@ export async function buildInventoryItemPayload(
     product: {
       title: listing.title?.slice(0, 80) ?? "Artículo",
       description: listing.description ?? "",
-      imageUrls: (listing.photoUrl ?? []).slice(0, 12),
+      imageUrls: getEbayPhotos(listing),
       aspects: Object.keys(aspects).length ? aspects : undefined,
     },
     condition,

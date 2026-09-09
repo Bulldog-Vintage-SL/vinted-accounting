@@ -2,6 +2,26 @@
   Tipos de producto (BD y Formulario de creacion).
 */
 
+export type PlatformKey = "vinted" | "wallapop" | "vestiaire" | "depop" | "shopify" | "ebay";
+
+export const PLATFORM_PHOTO_LIMITS: Record<PlatformKey, number> = {
+  vinted: 20,
+  wallapop: 10,
+  vestiaire: 24,
+  depop: 4,
+  shopify: 250,
+  ebay: 12
+};
+
+export const PLATFORM_LABELS: Record<PlatformKey, string> = {
+  vinted: "Vinted",
+  wallapop: "Wallapop",
+  vestiaire: "Vestiaire",
+  depop: "Depop",
+  shopify: "Shopify",
+  ebay: "ebay"
+};
+
 export type Listing = {
   id: string
   profile_id: string
@@ -22,6 +42,7 @@ export type Listing = {
   item_type: string | null
   stock: number
   platforms?: string[]
+  photoSelection?: Partial<Record<PlatformKey, string[]>>
 }
 
 export type ListingForm = {
@@ -56,4 +77,5 @@ export type ListingForm = {
   gender: 'hombre' | 'mujer' | 'unisex' | null
   item_type: string | null
   stock: number | null
+  photoSelection?: Partial<Record<PlatformKey, string[]>>
 }

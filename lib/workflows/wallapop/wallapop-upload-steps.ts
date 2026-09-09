@@ -1,4 +1,5 @@
 import type { WorkflowStep } from '../types'
+import { PLATFORM_PHOTO_LIMITS } from '@/app/inventory/listings/types'
 
 export function buildWallapopSteps(listing: any): WorkflowStep[] {
   const steps: WorkflowStep[] = []
@@ -53,6 +54,13 @@ export function buildWallapopSteps(listing: any): WorkflowStep[] {
     request: { url: 'DYNAMIC', method: 'GET' }
   })
 
+  const wallapopPhotos: string[] =
+    listing.photoSelection?.['wallapop']?.length
+      ? listing.photoSelection['wallapop']
+      : (listing.photo_url ?? []).slice(0, PLATFORM_PHOTO_LIMITS.wallapop)
+
+  const cappedWallapopPhotos = wallapopPhotos.slice(0, PLATFORM_PHOTO_LIMITS.wallapop)
+
   steps.push({
     id: crypto.randomUUID(),
     platform: 'wallapop',
@@ -61,13 +69,13 @@ export function buildWallapopSteps(listing: any): WorkflowStep[] {
       url: 'https://api.wallapop.com/api/v3/items',
       method: 'POST',
       isMultipart: true,
-      photoUrl: listing.photo_url[0],
+      photoUrl: cappedWallapopPhotos[0],
       photoIndex: 0,
       body: {} 
     }
   })
 
-  for (let i = 1; i < listing.photo_url.length; i++) {
+  for (let i = 1; i < cappedWallapopPhotos.length; i++) {
     steps.push({
       id: crypto.randomUUID(),
       platform: 'wallapop',
@@ -76,7 +84,7 @@ export function buildWallapopSteps(listing: any): WorkflowStep[] {
         url: 'DYNAMIC', 
         method: 'POST',
         isMultipart: true,
-        photoUrl: listing.photo_url[i],
+        photoUrl: cappedWallapopPhotos[i],
         photoIndex: i,
         body: { order: i + 1 }
       }

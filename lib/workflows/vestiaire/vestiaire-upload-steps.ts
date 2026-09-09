@@ -4,6 +4,7 @@
 */
 
 import type { WorkflowStep } from '../types'
+import { PLATFORM_PHOTO_LIMITS } from '@/app/inventory/listings/types'
 
 const BASE = 'https://apiv2.vestiairecollective.com'
 const PARAMS = 'isoCountry=ES&x-siteid=12&x-language=en&x-currency=EUR'
@@ -53,7 +54,14 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
     },
   })
 
-  for (let i = 0; i < listing.photo_url.length; i++) {
+  const vestiairePhotos: string[] =
+    listing.photoSelection?.['vestiaire']?.length
+      ? listing.photoSelection['vestiaire']
+      : (listing.photo_url ?? []).slice(0, PLATFORM_PHOTO_LIMITS.vestiaire)
+
+  const cappedVestiairePhotos = vestiairePhotos.slice(0, PLATFORM_PHOTO_LIMITS.vestiaire)
+
+  for (let i = 0; i < cappedVestiairePhotos.length; i++) {
     steps.push({
       id: crypto.randomUUID(),
       platform: 'vestiaire',
@@ -62,7 +70,7 @@ export function buildVestiaireUploadSteps(listing: any): WorkflowStep[] {
         url: `${BASE}/deposit/photos`,
         method: 'POST',
         isMultipart: true,
-        photoUrl: listing.photo_url[i],
+        photoUrl: cappedVestiairePhotos[i],
         photoIndex: i + 1,
         body: {},
       },
