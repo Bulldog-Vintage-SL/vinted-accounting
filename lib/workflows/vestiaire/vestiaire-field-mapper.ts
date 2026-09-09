@@ -57,6 +57,17 @@ const CUT_KEYWORD_HINTS: Record<string, string[]> = {
   largo: ['largo', 'long'],
 }
 
+const LETTER_TO_TROUSER_SIZE_FR: Record<string, string> = {
+  xxs: '32',
+  xs: '34',
+  s: '36',
+  m: '38',
+  l: '40',
+  xl: '42',
+  xxl: '44',
+  xxxl: '46',
+}
+
 function normalize(s: string | undefined | null): string {
   return (s ?? '')
     .toLowerCase()
@@ -313,6 +324,21 @@ function resolveMaterialId(opts: any, listing: any): string {
   return '2'
 }
 
+// Busca, dentro de una lista ya filtrada por unidad, la opción cuyo
+// displayName matchea `target`. Match exacto siempre primero para evitar
+// falsos positivos con números (ej. "3" no debe matchear "34" via includes).
+function findSizeMatch(candidates: any[], target: string, allowFuzzy: boolean): any | null {
+  const exact = candidates.find((v: any) => normalize(v.displayName) === target)
+  if (exact) return exact
+
+  if (!allowFuzzy) return null
+
+  return candidates.find((v: any) => {
+    const name = normalize(v.displayName)
+    return name.includes(target) || target.includes(name)
+  }) ?? null
+}
+
 function resolveSizeIds(opts: any, sizeStr: string | undefined): { size_unit: string; size: string } | null {
   if (!sizeStr) return null
 
@@ -323,36 +349,48 @@ function resolveSizeIds(opts: any, sizeStr: string | undefined): { size_unit: st
 
   const target = normalize(sizeStr)
   const isNumeric = /^\d+(\.\d+)?$/.test(target)
-  const units: any[] = unitField?.values ?? [{ id: null }] // por si no hay size_unit (prendas sin unidades)
 
-  // Probamos cada unidad en el orden en que las lista Vestiaire (para ES,
-  // "FR" suele ir primero y es la que corresponde a la talla que guardamos,
-  // pero no lo asumimos como garantía: iteramos todas y nos quedamos con
-  // la primera que dé un match exacto).
-  for (const unit of units) {
-    const unitId = unit.id
-    const candidates = sizeField.values.filter((v: any) => {
-      if (unitId == null) return true
-      return v.dependsOn?.some((d: any) => d.field === 'size_unit' && d.values.includes(unitId))
-    })
+  // Si no hay size_unit (algunas categorías no lo tienen), tratamos todas
+  // las opciones como una única "unidad" sin filtrar por dependsOn.
+  const units: any[] = unitField?.values?.length ? unitField.values : [{ id: null }]
 
-    // Match exacto siempre primero (crítico para números: evita que "3"
-    // matchee "34" por un includes() suelto)
-    const exact = candidates.find((v: any) => normalize(v.displayName) === target)
-    if (exact) return { size_unit: String(unitId ?? candidates[0]?.id ?? ''), size: String(exact.id) }
+  const tryResolve = (str: string): { size_unit: string; size: string } | null => {
+    const normStr = normalize(str)
+    const numeric = /^\d+(\.\d+)?$/.test(normStr)
 
-    // Para tallas no numéricas (S/M/L/XL...) sí permitimos fuzzy match,
-    // porque el listing origen puede traer "extra large" en vez de "XL"
-    if (!isNumeric) {
-      const fuzzy = candidates.find((v: any) => {
-        const name = normalize(v.displayName)
-        return name.includes(target) || target.includes(name)
+    for (const unit of units) {
+      const unitId = unit.id
+      const candidates = sizeField.values.filter((v: any) => {
+        if (unitId == null) return true
+        return v.dependsOn?.some((d: any) => d.field === 'size_unit' && d.values.includes(unitId))
       })
-      if (fuzzy) return { size_unit: String(unitId ?? candidates[0]?.id ?? ''), size: String(fuzzy.id) }
+      if (!candidates.length) continue
+
+      const match = findSizeMatch(candidates, normStr, !numeric)
+      if (match) {
+        const resolvedUnitId = unitId ?? candidates[0]?.dependsOn?.[0]?.values?.[0] ?? ''
+        return { size_unit: String(resolvedUnitId), size: String(match.id) }
+      }
+    }
+    return null
+  }
+
+  // 1) Intento directo con la talla tal cual viene del listing.
+  const direct = tryResolve(sizeStr)
+  if (direct) return direct
+
+  // 2) Si la talla es una letra (S/M/L...) y el form solo tiene tallas
+  //    numéricas (caso típico de pantalones/vaqueros), la traducimos con la
+  //    tabla de conversión aproximada antes de rendirnos.
+  if (!isNumeric) {
+    const converted = LETTER_TO_TROUSER_SIZE_FR[target]
+    if (converted) {
+      const viaConversion = tryResolve(converted)
+      if (viaConversion) return viaConversion
     }
   }
 
-  console.warn(`[Vestiaire] No se pudo resolver talla "${sizeStr}" en ninguna unidad disponible`)
+  console.warn(`[Vestiaire] No se pudo resolver talla "${sizeStr}" en ninguna unidad/formato disponible`)
   return null
 }
 
@@ -426,6 +464,14 @@ export function buildVestiaireFieldEntries(s: WorkflowState): Array<{ key: strin
     if (sizeIds) {
       entries.push({ key: 'preduct_size_unit', value: sizeIds.size_unit })
       entries.push({ key: 'preduct_size', value: sizeIds.size })
+    } else {
+      // "size" es required en Vestiaire para prendas de vestir: si llega
+      // aquí sin resolverse, el draft quedará incompleto y SUBMIT_VEST_PRODUCT
+      // fallará con un 400 sin detalle al final del flujo. Lo dejamos bien
+      // visible en logs para no tener que deducirlo del error genérico.
+      console.warn(
+        `[Vestiaire] Talla no resuelta ("${l?.attributes?.size}") — el draft quedará incompleto y el submit fallará`
+      )
     }
   }
 
