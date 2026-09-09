@@ -455,7 +455,7 @@ const REJECTED_BRANDS = new Set([
   "topshop unique", "topshop boutique", "topshop x j.w. anderson",
   "u.s. polo assn.", "us polo assn", "uniqlo", "urban outfitters",
   "vero moda", "wallis", "warehouse", "weekday", "zara",
-  "fear of god essentials", "fog essentials", "essentials", "sin marca"
+  "fear of god essentials", "fog essentials", "essentials", "sin marca", "vintage dressing"
 ])
 
 function normalizeBrand(brand: string): string {
