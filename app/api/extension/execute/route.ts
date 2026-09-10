@@ -1,4 +1,3 @@
-
 import { processStepResult } from "@/lib/workflows/step-executor";
 import { buildVintedSteps } from "@/lib/workflows/vinted/vinted-steps";
 import {
@@ -41,6 +40,7 @@ import {
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 import connectMongo from "@/libs/mongoose";
 import WorkflowSession from "@/models/WorkflowSessions";
+import WorkflowErrorLog from "@/models/WorkflowErrorLogs";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +100,34 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildDepopUpdateSteps(p.slug),
 };
 
+// Claves que nunca deben acabar en el log de errores, aunque vengan
+// enterradas dentro de headers/cookies/tokens de cualquier step o respuesta.
+const SENSITIVE_KEY_PATTERN =
+  /token|cookie|authorization|auth|jwt|secret|password|bearer/i;
+
+function sanitize(value: any, seen = new WeakSet()): any {
+  if (value === null || value === undefined) return value;
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitize(item, seen));
+  }
+
+  if (typeof value === "object") {
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+
+    const result: Record<string, any> = {};
+    for (const [key, val] of Object.entries(value)) {
+      result[key] = SENSITIVE_KEY_PATTERN.test(key)
+        ? "[REDACTED]"
+        : sanitize(val, seen);
+    }
+    return result;
+  }
+
+  return value;
+}
+
 export async function POST(req: Request) {
   try {
 
@@ -140,10 +168,14 @@ export async function POST(req: Request) {
         ownerUserId: user._id,
         steps,
         currentStep: 0,
+        flow,
         state: {
           originalPayload: payload,
           photoIds: [],
           uploadSessionId,
+          // Historial de la respuesta (o error) de cada step ejecutado en
+          // esta sesion, para poder reconstruirla entera si algo falla.
+          history: [],
         },
       });
 
@@ -170,7 +202,40 @@ export async function POST(req: Request) {
         );
       }
 
+      const currentStepType = session.steps[session.currentStep]?.type;
+
+      // Registramos la respuesta (o error) de este step en el historial,
+      // sea cual sea el desenlace.
+      const history = session.state?.history ?? [];
+      history.push({
+        stepIndex: session.currentStep,
+        stepType: currentStepType,
+        at: new Date(),
+        ...(error ? { error } : { result }),
+      });
+      session.state = { ...session.state, history };
+      session.markModified("state");
+
       if (error) {
+        await WorkflowErrorLog.create({
+          sessionId,
+          ownerUserId: user._id,
+          flow: session.flow ?? "UNKNOWN",
+          stepType: currentStepType,
+          stepIndex: session.currentStep,
+          error: typeof error === "string" ? error : JSON.stringify(error),
+          context: {
+            // vistazo rapido sin tener que abrir el snapshot completo
+            itemExternalId: session.state?.originalPayload?.itemExternalId,
+            externalId: session.state?.originalPayload?.externalId,
+            listingTitle: session.state?.originalPayload?.listing?.title,
+          },
+          // snapshot completo de la sesion en el momento del fallo, saneado,
+          // incluyendo el historial de respuestas de todos los steps previos
+          steps: sanitize(session.steps),
+          state: sanitize(session.state),
+        });
+
         await WorkflowSession.deleteOne({
           sessionId,
           ownerUserId: user._id,
@@ -193,7 +258,9 @@ export async function POST(req: Request) {
         session.state
       );
 
-      session.state = updatedState;
+      // processStepResult devuelve su propio estado; reincorporamos el
+      // historial para que no se pierda en cada paso.
+      session.state = { ...updatedState, history };
       session.currentStep = nextIndex;
       session.markModified("steps");
       session.markModified("state");
@@ -259,4 +326,3 @@ function enrichStep(step: any, payload: any) {
     },
   };
 }
-
