@@ -120,6 +120,13 @@ const FieldsSchema = z.object({
   categoryId: z
     .number()
     .describe("El id de la categoría más adecuada, SI LA PRENDA ES DE CORTE UNISEX PRIORIZA ELEGIR UNA OPCIÓN DE HOMBRE, EXACTAMENTE uno de los ids de la lista proporcionada"),
+  condition: z
+    .enum(["Nuevo", "Como nuevo", "Bueno", "Aceptable"])
+    .nullable()
+    .describe(
+      "Estado de conservación de la prenda a partir de su aspecto visual en la imagen. " +
+      "Devuelve null si no se aprecia con suficiente claridad en la foto."
+    ),
 });
 
 type ManualFieldsInput = {
@@ -156,7 +163,9 @@ function buildManualContext(input: ManualFieldsInput): string {
   if (typeof input.costeInicial === "number" && !Number.isNaN(input.costeInicial)) {
     lines.push(
       `Coste de compra de la prenda para el vendedor: ${input.costeInicial}€. ` +
-      "Úsalo solo como referencia interna para que el precio de venta sugerido deje un margen de beneficio razonable; " +
+      "Úsalo solo como referencia interna para que el precio de venta sugerido deje un margen de beneficio bueno; " +
+      "Rangos orientativos: Coste inicial 9 € -> 19,95 € a 24,95 €, Coste inicial 12 € -> 24,95 € a 29,95 €, Coste inicial 15 € -> 32,95 € a 36,95 €" +
+      "Coste inicial 18 € -> 37,95 € a 42,50 €, Coste inicial 23 € -> 49,95 € a 54,95 €, Coste inicial 28 € -> 59,95 € a 66,75 €, Coste inicial 35 € -> 74,95 € a 89,95 €  " +
       "NUNCA menciones este coste en la descripción."
     );
   }
@@ -175,10 +184,18 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
         {
           role: "system",
           content:
-            "Eres un asistente que rellena campos de producto para un marketplace de ropa de segunda mano (estilo Vinted). " +
-            "Usa la imagen del producto y, como referencia de precio y estilo, los listings similares en JSON. " +
-            "Genera también un título nuevo y definitivo (no te limites a copiar el título borrador). " +
-            "Para la categoría, DEBES elegir un id EXACTO de la lista de categorías válidas proporcionada; nunca inventes un id que no esté en la lista.",
+            "Eres un asistente que analiza fotos de una prenda de ropa de segunda mano para determinar su talla y estado. " +
+            "Para 'size': SOLO la indiques si ves explícitamente una etiqueta con la talla escrita y legible en alguna imagen. " +
+            "Si la prenda es de corte unisex, no explicitamente de mujer, elige SIEMPRE una categoría de la rama Hombre y pon Unisex como género!!!." +
+            "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
+            "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
+            "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
+            "Si no hay una foto en la que ponga explicitamente la talla de la prenda, NO REFLEJAR LA TALLA EN LA DESCRIPCION" +
+            "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
+            "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
+            "NUNCA pongas más de 5 hashtags en la descripción" +
+            "Si no tienes una foto de donde sacar la talla NO la rellenes" +
+            "Si recibes de contexo<",
         },
         {
           role: "user",
@@ -194,7 +211,7 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
                 "Genera los campos del producto en base a la imagen y este contexto, incorporando de forma natural " +
                 "las medidas y los desperfectos indicados en la descripción.",
             },
-            { type: "image_url", image_url: { url: imgUrl} },
+            { type: "image_url", image_url: { url: imgUrl } },
           ],
         },
       ],
@@ -221,6 +238,7 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
     colors: parsed.colors,
     price: parsed.price,
     gender: parsed.gender,
+    condition: parsed.condition ?? "Bueno",
     category: matchedCategory
       ? { id: matchedCategory.id, path: matchedCategory.path, title: matchedCategory.title }
       : null,

@@ -1,3 +1,5 @@
+import type { PlatformKey } from "@/app/inventory/listings/types";
+
 type MongoDoc = Record<string, unknown> & {
   _id?: { toString(): string };
   toJSON?: () => Record<string, unknown>;
@@ -30,6 +32,8 @@ export function serializeListing(
     condition: (raw.condition as string) ?? "",
     description: (raw.description as string) ?? "",
     photo_url: (raw.photoUrl as string[]) ?? (raw.photo_url as string[]) ?? [],
+    photoSelection:
+      (raw.photoSelection as Partial<Record<PlatformKey, string[]>>) ?? {},
     price: (raw.price as number) ?? 0,
     delivery_method:
       (raw.deliveryMethod as string) ?? (raw.delivery_method as string) ?? "",

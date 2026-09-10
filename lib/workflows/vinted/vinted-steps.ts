@@ -3,6 +3,7 @@
 */
 
 import type { WorkflowStep } from '../types'
+import { PLATFORM_PHOTO_LIMITS } from '@/app/inventory/listings/types'
 
 export function buildVintedSteps(listing: any, uploadSessionId: string): WorkflowStep[] {
   const steps: WorkflowStep[] = []
@@ -27,7 +28,14 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
     }
   })
 
-  for (let i = 0; i < listing.photo_url.length; i++) {
+  const vintedPhotos: string[] =
+    listing.photoSelection?.['vinted']?.length
+      ? listing.photoSelection['vinted']
+      : (listing.photo_url ?? []).slice(0, PLATFORM_PHOTO_LIMITS.vinted)
+
+  const cappedVintedPhotos = vintedPhotos.slice(0, PLATFORM_PHOTO_LIMITS.vinted)
+
+  for (let i = 0; i < cappedVintedPhotos.length; i++) {
     steps.push({
       id: crypto.randomUUID(),
       platform: 'vinted',
@@ -36,7 +44,7 @@ export function buildVintedSteps(listing: any, uploadSessionId: string): Workflo
         url: 'https://www.vinted.es/api/v2/photos',
         method: 'POST',
         isMultipart: true,
-        photoUrl: listing.photo_url[i],
+        photoUrl: cappedVintedPhotos[i],
         photoIndex: i,
         body: {
           order: i,

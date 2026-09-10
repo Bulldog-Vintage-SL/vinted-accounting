@@ -6,6 +6,11 @@ import { Loader2, Scissors, Sparkles, XCircle, Rocket, Save } from "lucide-react
 import { uploadPhoto } from "@/utils/uploadPhoto";
 import { prepareImageForUpload } from "@/utils/client/compressImage";
 import type { Listing, ListingForm } from "@/app/inventory/listings/types";
+import {
+    PlatformKey,
+    PLATFORM_PHOTO_LIMITS,
+    PLATFORM_LABELS,
+} from "@/app/inventory/listings/types";
 import { PhotoCarousel, PhotoLightbox, SortablePhotoGrid } from "@/app/inventory/listings/components/ListingPhotos";
 import { useAccountSelector, SelectedAccount } from "@/hooks/useAccountSelector";
 import { useQueue } from "@/hooks/useQueue";
@@ -77,6 +82,8 @@ interface DraftListing {
     status: "pending" | "generating" | "done" | "error";
     error?: string;
     manual: ManualDetails;
+    // --- Mascara de fotos por plataforma para esta prenda ---
+    photoSelection: Partial<Record<PlatformKey, string[]>>;
 }
 
 type UploadJob = {
@@ -127,6 +134,9 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
 
     const [autoPublish, setAutoPublish] = useState(false);
 
+    // --- Mascara de fotos por plataforma: que plataforma esta "en edicion" por draft ---
+    const [activeMaskPlatform, setActiveMaskPlatform] = useState<Record<string, PlatformKey | null>>({});
+
     const { pushToast } = useToast();
     const openSelector = useAccountSelector(s => s.openSelector);
 
@@ -143,6 +153,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
         setPublishJobs([]);
         setAutoPublish(false);
         setUploadError(null);
+        setActiveMaskPlatform({});
         setPreviewDraftId(null);
         setPreviewIndex(0);
     };
@@ -259,6 +270,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
             data: null,
             status: "pending",
             manual: emptyManualDetails(),
+            photoSelection: {},
         }));
 
         setDrafts(initialDrafts);
@@ -298,6 +310,43 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
             return { ...d, manual: { ...d.manual, desperfectos: next } };
         }));
     };
+
+    // --- Helpers de mascara de fotos por plataforma, por prenda (mismo modelo que ItemForm) ---
+
+    // Seleccion efectiva para una plataforma en una prenda: la personalizada
+    // si existe (filtrada por si alguna foto ya no esta), si no las primeras N.
+    const getSelectedForPlatform = (draft: DraftListing, platform: PlatformKey): string[] => {
+        const custom = draft.photoSelection[platform];
+        if (custom) return custom.filter(url => draft.photos.includes(url));
+        return draft.photos.slice(0, PLATFORM_PHOTO_LIMITS[platform]);
+    };
+
+    const togglePhotoForPlatform = (draftId: string, platform: PlatformKey, url: string) => {
+        setDrafts(prev => prev.map(d => {
+            if (d.id !== draftId) return d;
+
+            const current = d.photoSelection[platform] ?? getSelectedForPlatform(d, platform);
+            const limit = PLATFORM_PHOTO_LIMITS[platform];
+            const isSelected = current.includes(url);
+
+            if (isSelected) {
+                return { ...d, photoSelection: { ...d.photoSelection, [platform]: current.filter(u => u !== url) } };
+            }
+            if (current.length >= limit) return d; // no se puede superar el limite
+            return { ...d, photoSelection: { ...d.photoSelection, [platform]: [...current, url] } };
+        }));
+    };
+
+    const overflowingPlatformsForDraft = (draft: DraftListing): PlatformKey[] =>
+        (Object.keys(PLATFORM_PHOTO_LIMITS) as PlatformKey[]).filter(
+            platform => draft.photos.length > PLATFORM_PHOTO_LIMITS[platform]
+        );
+
+    const buildPhotoSelectionForDraft = (draft: DraftListing): Partial<Record<PlatformKey, string[]>> =>
+        (Object.keys(PLATFORM_PHOTO_LIMITS) as PlatformKey[]).reduce((acc, platform) => {
+            acc[platform] = getSelectedForPlatform(draft, platform);
+            return acc;
+        }, {} as Partial<Record<PlatformKey, string[]>>);
 
     const handleWantsToPublish = () => {
         openSelector((accounts) => {
@@ -434,7 +483,10 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
 
             for (const draft of readyDrafts) {
                 try {
-                    const createdListing = await onSaveListing(draft.data as ListingForm);
+                    const createdListing = await onSaveListing({
+                        ...(draft.data as ListingForm),
+                        photoSelection: buildPhotoSelectionForDraft(draft),
+                    });
 
                     if (!createdListing?.id) {
                         throw new Error("El guardado no devolvió el producto creado (sin id)");
@@ -974,6 +1026,93 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                             €
                                                         </span>
                                                     </div>
+
+                                                    {/* Mascara de fotos por plataforma, solo si esta prenda supera algun limite */}
+                                                    {!autoPublish && overflowingPlatformsForDraft(draft).length > 0 && (() => {
+                                                        const activePlatform = activeMaskPlatform[draft.id] ?? null;
+                                                        const isMasking = activePlatform !== null;
+                                                        const selectedForActiveMask = isMasking
+                                                            ? getSelectedForPlatform(draft, activePlatform!)
+                                                            : [];
+
+                                                        return (
+                                                            <div className="pt-2 mt-2 border-t border-gray-100">
+                                                                <div className="grid grid-cols-8 gap-1.5">
+                                                                    {draft.photos.map((url, i) => {
+                                                                        const isSelectedForMask = isMasking && selectedForActiveMask.includes(url);
+                                                                        return (
+                                                                            <div
+                                                                                key={i}
+                                                                                onClick={() => isMasking && togglePhotoForPlatform(draft.id, activePlatform!, url)}
+                                                                                className={`relative aspect-square rounded overflow-hidden ${isMasking ? "cursor-pointer" : ""}`}
+                                                                            >
+                                                                                <img
+                                                                                    src={url}
+                                                                                    className={`h-full w-full object-cover transition-opacity ${
+                                                                                        isMasking && !isSelectedForMask ? "opacity-40" : ""
+                                                                                    }`}
+                                                                                />
+                                                                                {isMasking && (
+                                                                                    <span
+                                                                                        className={`absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full text-[8px] font-bold flex items-center justify-center border-2 transition ${
+                                                                                            isSelectedForMask
+                                                                                                ? "bg-amber-600 border-amber-600 text-white"
+                                                                                                : "bg-white/90 border-gray-300 text-gray-400"
+                                                                                        }`}
+                                                                                    >
+                                                                                        {isSelectedForMask ? "✓" : ""}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+
+                                                                <div className="mt-2 rounded-md bg-amber-50 border border-amber-200 p-2 text-xs text-amber-800">
+                                                                    <p className="font-medium mb-1.5">
+                                                                        Límite de fotos por plataforma — toca una para elegir cuáles se suben:
+                                                                    </p>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {overflowingPlatformsForDraft(draft).map(platform => {
+                                                                            const count = getSelectedForPlatform(draft, platform).length;
+                                                                            const limit = PLATFORM_PHOTO_LIMITS[platform];
+                                                                            const active = activeMaskPlatform[draft.id] === platform;
+                                                                            return (
+                                                                                <button
+                                                                                    key={platform}
+                                                                                    type="button"
+                                                                                    onClick={() =>
+                                                                                        setActiveMaskPlatform(prev => ({
+                                                                                            ...prev,
+                                                                                            [draft.id]: active ? null : platform,
+                                                                                        }))
+                                                                                    }
+                                                                                    className={`px-2 py-0.5 rounded-full border transition ${
+                                                                                        active
+                                                                                            ? "bg-amber-600 text-white border-amber-600"
+                                                                                            : "bg-white border-amber-300 text-amber-800 hover:bg-amber-100"
+                                                                                    }`}
+                                                                                >
+                                                                                    {PLATFORM_LABELS[platform]}: {count}/{limit}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                        {activeMaskPlatform[draft.id] && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() =>
+                                                                                    setActiveMaskPlatform(prev => ({ ...prev, [draft.id]: null }))
+                                                                                }
+                                                                                className="px-2 py-0.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100"
+                                                                            >
+                                                                                Listo
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
                                             )}
                                         </div>

@@ -5,6 +5,7 @@ import Account from "@/models/Account";
 import Publication from "@/models/Publication";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import { applyListingPublishOverrides } from "@/libs/listings/overrides";
+import { PLATFORM_PHOTO_LIMITS } from "@/app/inventory/listings/types";
 
 const CREATE_PRODUCT_MUTATION = `
   mutation CreateProduct($product: ProductCreateInput!, $media: [CreateMediaInput!]) {
@@ -75,6 +76,15 @@ function buildTags(listing: any): string[] {
   return base;
 }
 
+function getShopifyPhotos(listing: any): string[] {
+  const photos: string[] =
+    listing.photoSelection?.["shopify"]?.length
+      ? listing.photoSelection["shopify"]
+      : (listing.photoUrl || []).slice(0, PLATFORM_PHOTO_LIMITS.shopify);
+
+  return photos.slice(0, PLATFORM_PHOTO_LIMITS.shopify);
+}
+
 export async function POST(req: NextRequest) {
   const userId = await getAuthenticatedUserId();
   if (!userId) {
@@ -110,7 +120,8 @@ export async function POST(req: NextRequest) {
     "X-Shopify-Access-Token": account.shopifyAccessToken,
   };
 
-  const media = (listing.photoUrl || []).map((url: string) => ({
+  const shopifyPhotos = getShopifyPhotos(listing);
+  const media = shopifyPhotos.map((url: string) => ({
     originalSource: url,
     mediaContentType: "IMAGE",
   }));
