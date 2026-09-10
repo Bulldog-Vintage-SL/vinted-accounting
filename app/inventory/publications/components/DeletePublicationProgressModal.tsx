@@ -52,76 +52,80 @@ function DeletePublicationProgressModal<T>({ open, jobs, isBusy, onClose, title,
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="!max-w-[600px] w-full p-8 rounded-2xl max-h-[90vh] flex flex-col"
+        className="!max-w-[600px] w-full p-0 rounded-2xl overflow-hidden max-h-[90vh] flex flex-col gap-0"
         onPointerDownOutside={(e) => { if (blockClose) e.preventDefault() }}
         onEscapeKeyDown={(e) => { if (blockClose) e.preventDefault() }}
         showCloseButton={!blockClose}
       >
-        <DialogHeader className="shrink-0">
+        <DialogHeader className="shrink-0 px-8 pt-8 pb-4 pr-14">
           <DialogTitle className="text-2xl font-bold text-gray-800 mb-1">
             {getSummaryTitle()}
           </DialogTitle>
-          <p className="text-gray-600 text-sm mb-6">
+          <p className="text-gray-600 text-sm">
             {getSummarySubtitle()}
           </p>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          {jobs.map((job) => {
-            const errorMessage = (job as any).error ?? (job as any).message
-            const isExpandable = job.status === 'failed' && !!errorMessage
-            const isExpanded = expandedJobId === job.id
+        <div className={`flex-1 min-h-0 overflow-y-auto modal-scroll px-8 ${blockClose ? 'pb-8' : ''}`}>
+          <div className="flex flex-col gap-2 py-2">
+            {jobs.map((job) => {
+              const errorMessage = (job as any).error ?? (job as any).message
+              const isExpandable = job.status === 'failed' && !!errorMessage
+              const isExpanded = expandedJobId === job.id
 
-            return (
-              <div key={job.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                <div
-                  className={`flex items-center justify-between px-4 py-3 ${isExpandable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-                  onClick={() => isExpandable && toggleExpanded(job.id)}
-                >
-                  <span className="text-gray-800 font-medium">{job.entityLabel}</span>
-                  <div className="flex items-center gap-2">
-                    <JobStatusBadge status={job.status} />
-                    {isExpandable && (
-                      isExpanded
-                        ? <ChevronUp size={18} className="text-gray-400" />
-                        : <ChevronDown size={18} className="text-gray-400" />
-                    )}
+              return (
+                <div key={job.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                  <div
+                    className={`flex items-center justify-between gap-3 px-4 py-3 ${isExpandable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                    onClick={() => isExpandable && toggleExpanded(job.id)}
+                  >
+                    <span className="text-gray-800 font-medium truncate">{job.entityLabel}</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <JobStatusBadge status={job.status} />
+                      {isExpandable && (
+                        isExpanded
+                          ? <ChevronUp size={18} className="text-gray-400" />
+                          : <ChevronDown size={18} className="text-gray-400" />
+                      )}
+                    </div>
                   </div>
+
+                  {isExpandable && isExpanded && (
+                    <div className="border-t border-gray-100 bg-gray-50 px-4 py-4">
+                      <p className="text-sm text-gray-600 mb-3 break-words">
+                        Motivo del error:{' '}
+                        <span className="font-medium text-gray-800">{errorMessage}</span>
+                      </p>
+
+                      {onRetryJob && (
+                        <button
+                          onClick={() => {
+                            onRetryJob(job)
+                            setExpandedJobId(null)
+                          }}
+                          className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
+                        >
+                          <RefreshCw size={14} />
+                          Reintentar
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
-
-                {isExpandable && isExpanded && (
-                  <div className="border-t border-gray-100 bg-gray-50 px-4 py-4">
-                    <p className="text-sm text-gray-600 mb-3">
-                      Motivo del error:{' '}
-                      <span className="font-medium text-gray-800">{errorMessage}</span>
-                    </p>
-
-                    {onRetryJob && (
-                      <button
-                        onClick={() => {
-                          onRetryJob(job)
-                          setExpandedJobId(null)
-                        }}
-                        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
-                      >
-                        <RefreshCw size={14} />
-                        Reintentar
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
         </div>
 
         {!blockClose && (
-          <button
-            onClick={onClose}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 mt-6 self-start shrink-0"
-          >
-            Cerrar
-          </button>
+          <div className="px-8 py-5 border-t border-gray-100 bg-gray-50/90 shrink-0">
+            <button
+              onClick={onClose}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+            >
+              Cerrar
+            </button>
+          </div>
         )}
       </DialogContent>
     </Dialog>

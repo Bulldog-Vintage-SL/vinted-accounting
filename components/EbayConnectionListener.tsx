@@ -33,22 +33,70 @@ function EbayConnectionListenerInner(): null {
 
     handled.current = true;
 
+    const finish = () => {
+      router.replace(pathname);
+      router.refresh();
+    };
+
     if (ebayStatus === "connected") {
       const policies = searchParams.get("policies");
+      const accountId = searchParams.get("accountId");
+
       if (policies === "missing_scope") {
         toast.error(
-          "eBay conectado, pero falta el permiso sell.account. En developer.ebay.com activa ese scope en tu app sandbox y pulsa Reconectar.",
+          "eBay conectado, pero falta el permiso sell.account. En developer.ebay.com activa ese scope en tu app y vuelve a Añadir cuenta → eBay.",
           { duration: 10000 }
         );
-      } else if (policies === "setup_failed") {
-        toast.error(
-          "eBay conectado, pero no se pudieron crear las políticas de venta. Pulsa Verificar o Reconectar.",
-          { duration: 8000 }
-        );
-      } else {
-        toast.success("Cuenta de eBay conectada correctamente");
+        finish();
+        return;
       }
-    } else if (ebayStatus === "error") {
+
+      if (accountId && policies === "pending") {
+        const toastId = toast.loading(
+          "Cuenta conectada. Configurando políticas de vendedor…"
+        );
+
+        void (async () => {
+          try {
+            const res = await fetch("/api/ebay/setup-policies", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accountId }),
+            });
+            const data = (await res.json()) as {
+              ok?: boolean;
+              error?: string;
+            };
+
+            if (res.ok && data?.ok) {
+              toast.success("Cuenta de eBay conectada y políticas de venta listas", {
+                id: toastId,
+              });
+            } else {
+              toast.error(
+                data?.error ??
+                  "eBay conectado, pero no se pudieron crear las políticas de venta. Pulsa Verificar políticas.",
+                { id: toastId, duration: 8000 }
+              );
+            }
+          } catch {
+            toast.error(
+              "eBay conectado, pero no se pudieron crear las políticas de venta. Pulsa Verificar políticas.",
+              { id: toastId, duration: 8000 }
+            );
+          } finally {
+            finish();
+          }
+        })();
+        return;
+      }
+
+      toast.success("Cuenta de eBay conectada correctamente");
+      finish();
+      return;
+    }
+
+    if (ebayStatus === "error") {
       const reason = searchParams.get("reason");
       const details = searchParams.get("details");
       const baseMessage =
@@ -59,7 +107,7 @@ function EbayConnectionListenerInner(): null {
       });
     }
 
-    router.replace(pathname);
+    finish();
   }, [searchParams, router, pathname]);
 
   return null;

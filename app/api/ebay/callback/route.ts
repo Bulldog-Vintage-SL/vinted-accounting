@@ -13,9 +13,9 @@ import {
   hasEbaySellAccountScope,
   EbayOAuthError,
 } from "@/libs/ebay/client";
-import { ensureEbayListingPolicies } from "@/libs/ebay/policies";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 const ACCOUNTS_PAGE = "/settings/accounts";
 
@@ -138,24 +138,19 @@ export async function GET(req: NextRequest) {
       externalId: identity.userId,
     });
 
-    let policiesReady = false;
-    if (linkedAccount && hasEbaySellAccountScope(tokens.scope ?? grantedScopes)) {
-      try {
-        await ensureEbayListingPolicies(linkedAccount, tokens.access_token);
-        policiesReady = true;
-      } catch (policyErr) {
-        console.warn("eBay policies not configured on connect:", policyErr);
-      }
-    }
-
     await EbayOAuthState.deleteOne({ state });
 
     const successUrl = new URL(ACCOUNTS_PAGE, getAppUrl());
     successUrl.searchParams.set("ebay", "connected");
+    if (linkedAccount?._id) {
+      successUrl.searchParams.set("accountId", linkedAccount._id.toString());
+    }
     if (!hasEbaySellAccountScope(tokens.scope ?? grantedScopes)) {
       successUrl.searchParams.set("policies", "missing_scope");
-    } else if (!policiesReady) {
-      successUrl.searchParams.set("policies", "setup_failed");
+    } else {
+      // Las políticas se configuran en el cliente justo después del redirect
+      // para no cortar el OAuth si eBay tarda (opt-in + creación de políticas).
+      successUrl.searchParams.set("policies", "pending");
     }
     return NextResponse.redirect(successUrl);
   } catch (err) {
