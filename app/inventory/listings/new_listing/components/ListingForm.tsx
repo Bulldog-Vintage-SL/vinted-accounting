@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ChangeEvent } from "react";
-import { Loader2, Sparkles, ChevronDown } from "lucide-react";
+import { Loader2, Sparkles, ChevronDown, ArrowDownAZ } from "lucide-react";
 import {
   ListingForm,
   PlatformKey,
@@ -77,6 +77,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [photoNames, setPhotoNames] = useState<Record<string, string>>({});
 
   // Contexto manual para la IA
   const [manual, setManual] = useState<ManualDetails>(emptyManualDetails());
@@ -232,6 +233,11 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
   const removePhoto = (url: string) => {
     update("photo_url", form.photo_url.filter(u => u !== url));
+    setPhotoNames(prev => {
+      const next = { ...prev };
+      delete next[url];
+      return next;
+    });
     setPhotoSelection(prev => {
       const next: Partial<Record<PlatformKey, string[]>> = {};
       (Object.keys(prev) as PlatformKey[]).forEach(platform => {
@@ -243,6 +249,25 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
   const reorderPhotos = (nextPhotos: string[]) => {
     update("photo_url", nextPhotos);
+  };
+
+  const filenameFromUrl = (url: string) => {
+    try {
+      return decodeURIComponent(url.split("/").pop() ?? url);
+    } catch {
+      return url;
+    }
+  };
+
+  const sortPhotosByFilename = () => {
+    setForm(prev => ({
+      ...prev,
+      photo_url: [...prev.photo_url].sort((a, b) => {
+        const nameA = photoNames[a] ?? filenameFromUrl(a);
+        const nameB = photoNames[b] ?? filenameFromUrl(b);
+        return nameA.localeCompare(nameB, "es", { numeric: true, sensitivity: "base" });
+      }),
+    }));
   };
 
   const handleGenerateSuggestions = async () => {
@@ -335,19 +360,30 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         <div className="flex items-center justify-between">
           <label className="block text-sm font-medium">Fotos</label>
 
-          <button
-            type="button"
-            onClick={handleGenerateSuggestions}
-            disabled={form.photo_url.length === 0 || isGeneratingSuggestions}
-            className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 px-3 py-1.5 rounded-md hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-          >
-            {isGeneratingSuggestions ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Sparkles size={14} />
-            )}
-            Rellenar con IA
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={sortPhotosByFilename}
+              disabled={form.photo_url.length < 2}
+              className="flex items-center gap-1.5 text-sm text-gray-600 border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ArrowDownAZ size={14} />
+              Ordenar imágenes
+            </button>
+            <button
+              type="button"
+              onClick={handleGenerateSuggestions}
+              disabled={form.photo_url.length === 0 || isGeneratingSuggestions}
+              className="flex items-center gap-1.5 text-sm text-purple-600 border border-purple-200 px-3 py-1.5 rounded-md hover:bg-purple-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              {isGeneratingSuggestions ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Sparkles size={14} />
+              )}
+              Rellenar con IA
+            </button>
+          </div>
         </div>
 
         {suggestionsError && (
@@ -358,7 +394,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         )}
 
         <p className="text-xs text-gray-500 mt-1">
-          Arrastra las fotos para reordenarlas. La primera se usa para generar los datos con IA.
+          Arrastra las fotos para reordenarlas, o pulsa Ordenar imágenes para alinearlas por nombre de archivo. La primera se usa para generar los datos con IA.
         </p>
 
         <SortablePhotoGrid
@@ -427,13 +463,15 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
                     const results = await Promise.allSettled(
                       files.map(async (file) => {
                         const prepared = await prepareImageForUpload(file);
-                        return uploadPhoto(prepared);
+                        const url = await uploadPhoto(prepared);
+                        return { url, name: file.name };
                       })
                     );
 
-                    const successUrls = results
-                      .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
+                    const success = results
+                      .filter((r): r is PromiseFulfilledResult<{ url: string; name: string }> => r.status === "fulfilled")
                       .map((r) => r.value);
+                    const successUrls = success.map((s) => s.url);
 
                     const failedMessages = results
                       .filter((r): r is PromiseRejectedResult => r.status === "rejected")
@@ -449,6 +487,11 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
                     if (successUrls.length > 0) {
                       update("photo_url", [...form.photo_url, ...successUrls]);
+                      setPhotoNames(prev => {
+                        const next = { ...prev };
+                        for (const item of success) next[item.url] = item.name;
+                        return next;
+                      });
                     }
                   } finally {
                     setIsUploading(false);
