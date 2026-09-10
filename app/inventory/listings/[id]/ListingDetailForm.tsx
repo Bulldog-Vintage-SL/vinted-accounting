@@ -32,7 +32,7 @@ const emptyForm: ListingForm = {
   price: '',
   photo_url: [],
   colors: [],
-  attributes: { brand: '', size: '', categoryPath: '', vintedCategoryId: 0},
+  attributes: { brand: '', size: '', categoryPath: '', vintedCategoryId: 0 },
   gender: null,
   item_type: null,
   stock: 1
@@ -200,9 +200,12 @@ export function ListingDetailForm({ listingId }: Props) {
   // Seleccion efectiva para una plataforma: la personalizada si existe
   // (filtrada por si alguna foto fue borrada), si no las primeras N.
   const getSelectedForPlatform = (platform: PlatformKey): string[] => {
+    const limit = PLATFORM_PHOTO_LIMITS[platform]
     const custom = photoSelection[platform]
-    if (custom) return custom.filter(url => form.photo_url.includes(url))
-    return form.photo_url.slice(0, PLATFORM_PHOTO_LIMITS[platform])
+    const base = custom
+      ? custom.filter(url => form.photo_url.includes(url))
+      : form.photo_url
+    return base.slice(0, limit)
   }
 
   const togglePhotoForPlatform = (platform: PlatformKey, url: string) => {
@@ -235,9 +238,9 @@ export function ListingDetailForm({ listingId }: Props) {
     setActivePhotoIdx(prev => (prev >= idx && prev > 0 ? prev - 1 : prev))
     setPhotoSelection(prev => {
       const next: Partial<Record<PlatformKey, string[]>> = {}
-      ;(Object.keys(prev) as PlatformKey[]).forEach(platform => {
-        next[platform] = (prev[platform] ?? []).filter(u => u !== url)
-      })
+        ; (Object.keys(prev) as PlatformKey[]).forEach(platform => {
+          next[platform] = (prev[platform] ?? []).filter(u => u !== url)
+        })
       return next
     })
   }
@@ -395,29 +398,26 @@ export function ListingDetailForm({ listingId }: Props) {
                       setActivePhotoIdx(idx)
                     }
                   }}
-                  className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition group ${
-                    isMasking
+                  className={`relative aspect-square rounded-lg overflow-hidden cursor-pointer border-2 transition group ${isMasking
                       ? 'border-transparent'
                       : idx === activePhotoIdx
                         ? 'border-blue-500'
                         : 'border-transparent hover:border-gray-200'
-                  }`}
+                    }`}
                 >
                   <img
                     src={url}
                     alt=""
-                    className={`w-full h-full object-cover transition-opacity ${
-                      isMasking && !isSelectedForMask ? 'opacity-40' : ''
-                    }`}
+                    className={`w-full h-full object-cover transition-opacity ${isMasking && !isSelectedForMask ? 'opacity-40' : ''
+                      }`}
                   />
 
                   {isMasking ? (
                     <span
-                      className={`absolute top-0.5 right-0.5 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 transition ${
-                        isSelectedForMask
+                      className={`absolute top-0.5 right-0.5 h-4 w-4 rounded-full text-[10px] font-bold flex items-center justify-center border-2 transition ${isSelectedForMask
                           ? 'bg-amber-600 border-amber-600 text-white'
                           : 'bg-white/80 border-gray-300 text-gray-400'
-                      }`}
+                        }`}
                     >
                       {isSelectedForMask ? '✓' : ''}
                     </span>
@@ -466,11 +466,10 @@ export function ListingDetailForm({ listingId }: Props) {
                       key={platform}
                       type="button"
                       onClick={() => setActiveMaskPlatform(active ? null : platform)}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition ${
-                        active
+                      className={`px-2.5 py-1 rounded-full text-xs border transition ${active
                           ? 'bg-amber-600 text-white border-amber-600'
                           : 'bg-white border-amber-300 text-amber-800 hover:bg-amber-100'
-                      }`}
+                        }`}
                     >
                       {PLATFORM_LABELS[platform]}: {count}/{limit}
                     </button>
