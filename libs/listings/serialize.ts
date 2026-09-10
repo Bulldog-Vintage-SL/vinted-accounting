@@ -103,6 +103,7 @@ export function listingFormToMongo(
     condition: body.condition,
     price: body.price === "" ? null : body.price,
     photoUrl: body.photo_url ?? body.photoUrl,
+    photoSelection: body.photoSelection,
     colors: body.colors,
     attributes: body.attributes,
     gender: body.gender,

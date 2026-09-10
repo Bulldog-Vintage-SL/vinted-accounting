@@ -16,6 +16,11 @@ const workflowSessionSchema = new mongoose.Schema(
             index: true,
         },
 
+        flow: {
+            type: String,
+            index: true,
+        },
+
         steps: {
             type: [mongoose.Schema.Types.Mixed],
             required: true,
