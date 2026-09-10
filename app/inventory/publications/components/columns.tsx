@@ -2,7 +2,7 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 import { Publication } from '../types';
-import { Trash2, Pencil, RefreshCw } from "lucide-react";
+import { Trash2, Pencil, RefreshCw, Unlink } from "lucide-react";
 import {
   formatPublicationStatus,
   formatSyncStatus,
@@ -14,7 +14,8 @@ import { PlatformLogos } from "@/app/inventory/components/platform-logos";
 export const createColumns = (
   onDelete: (id: string) => void,
   onEdit: (id: string) => void,
-  onReupload: (id: string) => void
+  onReupload: (id: string) => void,
+  onUnlink: (id: string) => void
 ): ColumnDef<Publication>[] => [
 
     {
@@ -193,8 +194,8 @@ export const createColumns = (
   id: "actions",
   header: "",
   meta: {
-    headerClassName: "w-32",
-    cellClassName: "w-32",
+    headerClassName: "w-40",
+    cellClassName: "w-40",
   },
   cell: ({
     row,
@@ -224,6 +225,14 @@ export const createColumns = (
             title="Editar publicación"
           >
             <Pencil size={16} />
+          </button>
+
+          <button
+            onClick={() => onUnlink(row.original.id)}
+            className="rounded-lg bg-orange-500 p-2 text-white shadow transition hover:bg-orange-600"
+            title="Quitar de la lista (sin borrar en la plataforma)"
+          >
+            <Unlink size={16} />
           </button>
 
           <button

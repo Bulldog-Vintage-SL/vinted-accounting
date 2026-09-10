@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Pencil, Trash2, RefreshCw, Unlink } from "lucide-react";
 import type { Publication } from "../types";
 import {
   formatPublicationStatus,
@@ -16,6 +16,7 @@ interface Props {
   onSelect: (id: string, checked: boolean) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onUnlink: (id: string) => void;
   onReupload: (id: string) => void;
 }
 
@@ -25,6 +26,7 @@ export function PublicationMobileCard({
   onSelect,
   onEdit,
   onDelete,
+  onUnlink,
   onReupload,
 }: Props) {
   const listing = publication.listing;
@@ -98,6 +100,13 @@ export function PublicationMobileCard({
           aria-label="Resubir publicación"
         >
           <RefreshCw size={18} />
+        </button>
+        <button
+          onClick={() => onUnlink(publication.id)}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 font-medium text-white transition hover:bg-orange-600"
+          aria-label="Quitar de la lista"
+        >
+          <Unlink size={18} />
         </button>
         <button
           onClick={() => onDelete(publication.id)}
