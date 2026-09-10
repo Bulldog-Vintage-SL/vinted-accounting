@@ -55,6 +55,8 @@ function toListingType(doc: any): ListingType {
     item_type: doc.itemType ?? null,
     stock: doc.stock ?? 1,
     platforms: [],
+    publishedPlatforms: [],
+    manualPlatforms: doc.manualPlatforms ?? [],
     photoSelection: doc.photoSelection ?? {},
   };
 }

@@ -47,6 +47,29 @@ export function sortPlatforms(platforms: string[]): string[] {
   });
 }
 
+export function isKnownPlatform(
+  platform: string
+): platform is (typeof PLATFORM_ORDER)[number] {
+  return (PLATFORM_ORDER as readonly string[]).includes(platform);
+}
+
+export function mergeListingPlatforms(
+  publishedPlatforms: string[] | undefined,
+  manualPlatforms: string[] | undefined
+): { publishedPlatforms: string[]; manualPlatforms: string[]; platforms: string[] } {
+  const published = sortPlatforms(publishedPlatforms ?? []);
+  const publishedSet = new Set(published);
+  const manual = sortPlatforms(
+    (manualPlatforms ?? []).filter((platform) => !publishedSet.has(platform))
+  );
+
+  return {
+    publishedPlatforms: published,
+    manualPlatforms: manual,
+    platforms: sortPlatforms([...published, ...manual]),
+  };
+}
+
 const SYNC_STATUS_LABELS: Record<string, string> = {
   synced: "Sincronizado",
   live: "En vivo",

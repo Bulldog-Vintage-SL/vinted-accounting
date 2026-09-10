@@ -5,13 +5,15 @@ import { Listing } from '@/app/inventory/listings/types'
 import { Trash2, Send, Loader2, BadgeCheck } from 'lucide-react'
 import Link from 'next/link'
 import { formatListingStatus, listingStatusClass } from '@/libs/inventory/display'
-import { PlatformLogos } from '@/app/inventory/components/platform-logos'
+import { ListingPlatformsCell } from './ListingPlatformsCell'
 
 export const createColumns = (
   onDelete: (id: string) => void,
   onPublish: (listing: Listing) => void,
   onMarkSold: (listing: Listing) => void,
   publishingListingId: string | null,
+  onAddPlatform: (listing: Listing) => void,
+  markingPlatformsListingId: string | null,
 ): ColumnDef<Listing>[] => [
 
     {
@@ -87,11 +89,15 @@ export const createColumns = (
       id: 'platforms',
       header: 'Plataformas',
       meta: {
-        headerClassName: 'w-[14%] whitespace-normal',
-        cellClassName: 'w-[14%] whitespace-normal',
+        headerClassName: 'w-[16%] whitespace-normal',
+        cellClassName: 'w-[16%] whitespace-normal',
       },
       cell: ({ row }) => (
-        <PlatformLogos platforms={row.original.platforms ?? []} />
+        <ListingPlatformsCell
+          listing={row.original}
+          disabled={markingPlatformsListingId === row.original.id}
+          onAdd={onAddPlatform}
+        />
       ),
     },
 

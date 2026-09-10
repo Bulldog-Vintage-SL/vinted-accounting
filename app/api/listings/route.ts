@@ -41,9 +41,10 @@ export async function GET() {
     return NextResponse.json(
       listings.map((listing) =>
         serializeListing(listing, {
-          platforms: sortPlatforms(
+          publishedPlatforms: sortPlatforms(
             platformsByListing.get(listing._id?.toString() ?? "") ?? []
           ),
+          manualPlatforms: listing.manualPlatforms,
         })
       )
     );

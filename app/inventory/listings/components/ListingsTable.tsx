@@ -21,8 +21,10 @@ import { PublishProgressModal } from './PublishProgressModal'
 import { ScheduleUploadModal } from './ScheduleUploadModal'
 import { Listing, ListingForm } from '../types'
 import { useToast } from "@/components/toast"
+import { mergeListingPlatforms } from '@/libs/inventory/display'
 import { DeleteListingModal } from './DeleteListingModal'
 import { MarkSoldModal, type MarkSoldPayload } from './MarkSoldModal'
+import { MarkPlatformsModal } from './MarkPlatformsModal'
 import { ListingMobileCard } from './ListingMobileCard'
 import { TablePagination } from '@/components/ui/table-pagination'
 import { INVENTORY_PAGE_SIZE, useClientPagination } from '@/hooks/useClientPagination'
@@ -67,6 +69,8 @@ export function ListingsTable() {
 
   const [isBulkPublishing, setIsBulkPublishing] = useState(false)
   const [publishingListingId, setPublishingListingId] = useState<string | null>(null)
+  const [platformListing, setPlatformListing] = useState<Listing | null>(null)
+  const [isSavingPlatforms, setIsSavingPlatforms] = useState(false)
 
   // Programación de publicaciones (fecha/hora futura)
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false)
@@ -483,9 +487,87 @@ export function ListingsTable() {
     }
   }, [listingToMarkSold, mutate, pushToast])
 
+  const handleOpenPlatforms = useCallback((listing: Listing) => {
+    setPlatformListing(listing)
+  }, [])
+
+  const handleSavePlatforms = useCallback(async (platforms: string[]) => {
+    const listing = platformListing
+    if (!listing) return
+
+    const publishedPlatforms = listing.publishedPlatforms ?? []
+    const merged = mergeListingPlatforms(publishedPlatforms, platforms)
+    const unchanged =
+      merged.platforms.length === (listing.platforms ?? []).length &&
+      merged.platforms.every((platform) => listing.platforms?.includes(platform))
+
+    if (unchanged) {
+      setPlatformListing(null)
+      return
+    }
+
+    mutate(
+      (current: Listing[] | undefined) =>
+        (current ?? []).map((item) =>
+          item.id === listing.id
+            ? {
+                ...item,
+                manualPlatforms: merged.manualPlatforms,
+                platforms: merged.platforms,
+                publishedPlatforms: merged.publishedPlatforms,
+              }
+            : item
+        ),
+      false
+    )
+    setPlatformListing(null)
+
+    setIsSavingPlatforms(true)
+    try {
+      const res = await fetch(`/api/listings/${listing.id}/platforms`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platforms: merged.platforms }),
+      })
+      const updated = await res.json().catch(() => null)
+      if (!res.ok) {
+        mutate()
+        pushToast({
+          message: 'No se pudo actualizar la plataforma',
+          description: updated?.error || 'Inténtalo de nuevo.',
+          type: 'error',
+        })
+        return
+      }
+
+      mutate(
+        (current: Listing[] | undefined) =>
+          (current ?? []).map((item) => (item.id === listing.id ? updated : item)),
+        false
+      )
+    } catch (err) {
+      console.error('Error actualizando plataformas del listing:', err)
+      mutate()
+      pushToast({
+        message: 'Error al guardar',
+        description: 'No se pudo conectar con el servidor.',
+        type: 'error',
+      })
+    } finally {
+      setIsSavingPlatforms(false)
+    }
+  }, [platformListing, mutate, pushToast])
+
   const columns = useMemo(
-    () => createColumns(handleDeleteClick, handlePublish, handleMarkSoldClick, publishingListingId),
-    [handleDeleteClick, handlePublish, handleMarkSoldClick, publishingListingId]
+    () => createColumns(
+      handleDeleteClick,
+      handlePublish,
+      handleMarkSoldClick,
+      publishingListingId,
+      handleOpenPlatforms,
+      isSavingPlatforms ? platformListing?.id ?? null : null,
+    ),
+    [handleDeleteClick, handlePublish, handleMarkSoldClick, publishingListingId, handleOpenPlatforms, isSavingPlatforms, platformListing?.id]
   )
 
   const handleMobileSelect = useCallback((id: string, checked: boolean) => {
@@ -576,6 +658,8 @@ export function ListingsTable() {
               onMarkSold={handleMarkSoldClick}
               onDelete={handleDeleteClick}
               isPublishing={publishingListingId === listing.id}
+              onAddPlatform={handleOpenPlatforms}
+              isMarkingPlatforms={isSavingPlatforms && platformListing?.id === listing.id}
             />
           ))
         )}
@@ -690,6 +774,19 @@ export function ListingsTable() {
           scheduleTargetRef.current = null
         }}
         onConfirm={handleConfirmSchedule}
+      />
+
+      <MarkPlatformsModal
+        open={Boolean(platformListing)}
+        productName={platformListing?.title}
+        selectedPlatforms={platformListing?.platforms ?? []}
+        lockedPlatforms={platformListing?.publishedPlatforms ?? []}
+        isLoading={isSavingPlatforms}
+        onClose={() => {
+          if (isSavingPlatforms) return
+          setPlatformListing(null)
+        }}
+        onSave={handleSavePlatforms}
       />
 
       <DeleteListingModal

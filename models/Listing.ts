@@ -21,6 +21,9 @@ export interface IListing {
   // Si una plataforma no aparece aqui, se asume que se suben las primeras
   // N fotos de photoUrl segun el limite de esa plataforma.
   photoSelection?: Record<string, string[]>;
+  // Plataformas donde el usuario indica que el producto ya esta publicado
+  // sin crear un registro en Publicaciones (p. ej. subido a mano en Wallapop).
+  manualPlatforms?: string[];
   lastUpdate?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -48,6 +51,7 @@ const listingSchema = new mongoose.Schema(
     tags: { type: [String], default: [] },
     stock: { type: Number, default: 1 },
     photoSelection: { type: mongoose.Schema.Types.Mixed, default: {} },
+    manualPlatforms: { type: [String], default: [] },
     lastUpdate: { type: Date, default: null },
   },
   {
@@ -58,6 +62,12 @@ const listingSchema = new mongoose.Schema(
 
 listingSchema.index({ userId: 1, createdAt: -1 });
 listingSchema.plugin(toJSON);
+
+const existingListingModel = mongoose.models.Listing as mongoose.Model<IListing> | undefined;
+if (existingListingModel && !existingListingModel.schema.path("manualPlatforms")) {
+  delete mongoose.models.Listing;
+  delete mongoose.connection.models.Listing;
+}
 
 export default (mongoose.models.Listing ||
   mongoose.model("Listing", listingSchema)) as mongoose.Model<IListing>;

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Loader2, Send, Trash2, BadgeCheck } from "lucide-react";
 import type { Listing } from "@/app/inventory/listings/types";
 import { formatListingStatus, listingStatusClass } from "@/libs/inventory/display";
-import { PlatformLogos } from "@/app/inventory/components/platform-logos";
+import { ListingPlatformsCell } from "./ListingPlatformsCell";
 
 interface Props {
   listing: Listing;
@@ -14,6 +14,8 @@ interface Props {
   onMarkSold: (listing: Listing) => void;
   onDelete: (id: string) => void;
   isPublishing: boolean;
+  onAddPlatform: (listing: Listing) => void;
+  isMarkingPlatforms: boolean;
 }
 
 export function ListingMobileCard({
@@ -24,6 +26,8 @@ export function ListingMobileCard({
   onMarkSold,
   onDelete,
   isPublishing,
+  onAddPlatform,
+  isMarkingPlatforms,
 }: Props) {
   const photo = listing.photo_url?.[0];
   const isSold = listing.status === "sold";
@@ -63,7 +67,11 @@ export function ListingMobileCard({
             </span>
           </div>
           <div className="mt-2">
-            <PlatformLogos platforms={listing.platforms ?? []} />
+            <ListingPlatformsCell
+              listing={listing}
+              disabled={isMarkingPlatforms}
+              onAdd={onAddPlatform}
+            />
           </div>
           <p className="mt-1 truncate text-xs text-gray-500">
             SKU: {listing.sku || "—"} · {listing.condition || "—"}

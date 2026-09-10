@@ -1,4 +1,5 @@
 import type { PlatformKey } from "@/app/inventory/listings/types";
+import { mergeListingPlatforms } from "@/libs/inventory/display";
 
 type MongoDoc = Record<string, unknown> & {
   _id?: { toString(): string };
@@ -14,10 +15,18 @@ function toPlain(doc: unknown): Record<string, unknown> {
 
 export function serializeListing(
   doc: unknown,
-  extras?: { platforms?: string[] }
+  extras?: {
+    publishedPlatforms?: string[];
+    platforms?: string[];
+    manualPlatforms?: string[];
+  }
 ) {
   const raw = toPlain(doc);
   const tags = raw.tags;
+  const merged = mergeListingPlatforms(
+    extras?.publishedPlatforms ?? extras?.platforms ?? [],
+    extras?.manualPlatforms ?? (raw.manualPlatforms as string[]) ?? []
+  );
 
   return {
     id: (raw.id as string) || raw._id?.toString() || "",
@@ -46,7 +55,9 @@ export function serializeListing(
     gender: raw.gender ?? null,
     item_type: (raw.itemType as string) ?? (raw.item_type as string) ?? null,
     stock: (raw.stock as number) ?? 1,
-    platforms: extras?.platforms ?? [],
+    platforms: merged.platforms,
+    publishedPlatforms: merged.publishedPlatforms,
+    manualPlatforms: merged.manualPlatforms,
   };
 }
 

@@ -42,6 +42,8 @@ export type Listing = {
   item_type: string | null
   stock: number
   platforms?: string[]
+  publishedPlatforms?: string[]
+  manualPlatforms?: string[]
   photoSelection?: Partial<Record<PlatformKey, string[]>>
 }
 
