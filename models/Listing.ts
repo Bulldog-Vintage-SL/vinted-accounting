@@ -63,11 +63,5 @@ const listingSchema = new mongoose.Schema(
 listingSchema.index({ userId: 1, createdAt: -1 });
 listingSchema.plugin(toJSON);
 
-const existingListingModel = mongoose.models.Listing as mongoose.Model<IListing> | undefined;
-if (existingListingModel && !existingListingModel.schema.path("manualPlatforms")) {
-  delete mongoose.models.Listing;
-  delete mongoose.connection.models.Listing;
-}
-
 export default (mongoose.models.Listing ||
   mongoose.model("Listing", listingSchema)) as mongoose.Model<IListing>;
