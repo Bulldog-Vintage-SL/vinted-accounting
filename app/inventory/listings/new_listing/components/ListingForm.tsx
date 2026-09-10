@@ -361,103 +361,50 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
           Arrastra las fotos para reordenarlas. La primera se usa para generar los datos con IA.
         </p>
 
-        <div className="grid grid-cols-3 gap-3 mt-2">
-          {form.photo_url?.map((url, i) => {
-            const isMasking = activeMaskPlatform !== null;
-            const isSelectedForMask = isMasking && getSelectedForPlatform(activeMaskPlatform!).includes(url);
-
-            return (
-              <div key={i} className="relative group">
-                <img
-                  src={url}
-                  className={`rounded-md shadow-sm object-cover h-32 w-full transition-opacity ${
-                    isMasking && !isSelectedForMask ? "opacity-40" : ""
-                  }`}
-                />
-
-                {isMasking ? (
-                  <button
-                    type="button"
-                    onClick={() => togglePhotoForPlatform(activeMaskPlatform!, url)}
-                    className={`absolute top-1 right-1 h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center border-2 transition ${
-                      isSelectedForMask
-                        ? "bg-amber-600 border-amber-600 text-white"
-                        : "bg-white/80 border-gray-300 text-gray-400"
-                    }`}
-                  >
-                    {isSelectedForMask ? "✓" : ""}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => removePhoto(url)}
-                    className="absolute top-1 right-1 bg-black/60 text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
-                  >
-                    X
-                  </button>
-                )}
-
-                {i === 0 && (
-                  <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-                    IA
-                  </span>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Boton para anyadir fotos */}
-          <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-            {isUploading ? (
-              <Loader2 size={24} className="animate-spin text-gray-400" />
-            ) : (
-              <span className="text-gray-400 text-3xl">+</span>
-            )}
-            <input
-              type="file"
-              accept="image/*,.heic,.heif"
-              multiple
-              className="hidden"
-              disabled={isUploading}
-              onChange={async (e) => {
-                const files = Array.from(e.target.files || []);
-                if (files.length === 0) return;
-
-                setIsUploading(true);
-                setUploadError(null);
-
-                try {
-                  const results = await Promise.allSettled(
-                    files.map(async (file) => {
-                      const prepared = await prepareImageForUpload(file);
-                      return uploadPhoto(prepared);
-                    })
-                  );
-
-                  const successUrls = results
-                    .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
-                    .map(r => r.value);
-
-                  const failedMessages = results
-                    .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-                    .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
-
-                  if (failedMessages.length > 0) {
-                    setUploadError(
-                      failedMessages.length === files.length
-                        ? "No se pudo subir ninguna foto. Inténtalo de nuevo."
-                        : failedMessages.join(" · ")
         <SortablePhotoGrid
           photos={form.photo_url ?? []}
           onChange={reorderPhotos}
           onRemove={(i) => removePhoto(form.photo_url[i])}
           gridClassName="grid grid-cols-3 gap-3 mt-2"
-          renderOverlay={(_url, i) => i === 0 ? (
-            <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
-              IA
-            </span>
-          ) : null}
+          renderOverlay={(url, i) => {
+            const isMasking = activeMaskPlatform !== null;
+            const isSelectedForMask =
+              isMasking && getSelectedForPlatform(activeMaskPlatform!).includes(url);
+
+            if (isMasking) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePhotoForPlatform(activeMaskPlatform!, url);
+                  }}
+                  className={`absolute inset-0 flex items-start justify-end p-1 transition ${isSelectedForMask ? "" : "bg-black/40"
+                    }`}
+                >
+                  <span
+                    className={`h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center border-2 transition ${isSelectedForMask
+                        ? "bg-amber-600 border-amber-600 text-white"
+                        : "bg-white/80 border-gray-300 text-gray-400"
+                      }`}
+                  >
+                    {isSelectedForMask ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            }
+
+            return i === 0 ? (
+              <span className="absolute bottom-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">
+                IA
+              </span>
+            ) : null;
+          }}
           trailing={
-            <label className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <label
+              className={`flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition ${isUploading ? "opacity-50 pointer-events-none" : ""
+                }`}
+            >
               {isUploading ? (
                 <Loader2 size={24} className="animate-spin text-gray-400" />
               ) : (
@@ -486,11 +433,11 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
 
                     const successUrls = results
                       .filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled")
-                      .map(r => r.value);
+                      .map((r) => r.value);
 
                     const failedMessages = results
                       .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-                      .map(r => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
+                      .map((r) => (r.reason instanceof Error ? r.reason.message : "Error desconocido"));
 
                     if (failedMessages.length > 0) {
                       setUploadError(
@@ -507,14 +454,11 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
                     setIsUploading(false);
                     e.target.value = "";
                   }
-                } finally {
-                  setIsUploading(false);
-                  e.target.value = "";
-                }
-              }}
-            />
-          </label>
-        </div>
+                }}
+              />
+            </label>
+          }
+        />
 
         {/* Aviso de limites por plataforma + selector de mascara */}
         {overflowingPlatforms.length > 0 && (
@@ -523,7 +467,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
               Estas plataformas tienen límite de fotos — toca una para elegir cuáles se suben:
             </p>
             <div className="flex flex-wrap gap-2">
-              {overflowingPlatforms.map(platform => {
+              {overflowingPlatforms.map((platform) => {
                 const count = getSelectedForPlatform(platform).length;
                 const limit = PLATFORM_PHOTO_LIMITS[platform];
                 const active = activeMaskPlatform === platform;
@@ -532,11 +476,10 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
                     key={platform}
                     type="button"
                     onClick={() => setActiveMaskPlatform(active ? null : platform)}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition ${
-                      active
+                    className={`px-2.5 py-1 rounded-full text-xs border transition ${active
                         ? "bg-amber-600 text-white border-amber-600"
                         : "bg-white border-amber-300 text-amber-800 hover:bg-amber-100"
-                    }`}
+                      }`}
                   >
                     {PLATFORM_LABELS[platform]}: {count}/{limit}
                   </button>
@@ -554,11 +497,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
             </div>
           </div>
         )}
-                }}
-              />
-            </label>
-          }
-        />
       </div>
 
       {/* Contexto manual para la IA */}
@@ -934,3 +872,4 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     </div>
   );
 }
+
