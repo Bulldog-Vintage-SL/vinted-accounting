@@ -126,11 +126,19 @@ export async function DELETE(req: Request) {
     if (!id) return new Response("Missing id", { status: 400 });
 
     await connectMongo();
-    const publication = await Publication.findById(id).populate("listingId");
-    if (
-      !publication ||
-      (publication.listingId as any)?.userId?.toString() !== userId
-    ) {
+    const publication = await Publication.findById(id);
+    if (!publication) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const listingId =
+      publication.listingId &&
+      typeof publication.listingId === "object" &&
+      "toString" in publication.listingId
+        ? publication.listingId.toString()
+        : String(publication.listingId);
+    const listing = await Listing.findById(listingId).select("userId");
+    if (!listing || listing.userId.toString() !== userId) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 

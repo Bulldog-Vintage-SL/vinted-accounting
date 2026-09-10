@@ -6,6 +6,7 @@ import { DataTable, DataTableHandle } from '@/components/ui/data-table'
 import { createColumns } from './columns'
 import { Publication } from '../types'
 import { DeletePublicationModal } from './DeletePublicationModal'
+import { UnlinkPublicationModal } from './UnlinkPublicationModal'
 import { BulkDeletePublicationModal } from './BulkDeletePublicationModal'
 import { EditPublicationModal } from './EditPublicationModal'
 import DeletePublicationProgressModal from './DeletePublicationProgressModal'
@@ -71,6 +72,14 @@ async function deletePublication(publication: Publication): Promise<void> {
             const errorData = await response.json();
             throw new Error(errorData.message || 'Error al eliminar');
         }
+    }
+}
+
+async function unlinkPublicationLocal(publication: Publication): Promise<void> {
+    const response = await fetch(`/api/publications?id=${publication.id}`, { method: 'DELETE' });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || errorData?.message || 'Error al quitar de la lista');
     }
 }
 
@@ -273,6 +282,9 @@ export function PublicationsTable() {
     const [publicationToDelete, setPublicationToDelete] = useState<Publication | null>(null)
     const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false)
     const [publicationsToDelete, setPublicationsToDelete] = useState<Publication[]>([])
+    const [unlinkModalOpen, setUnlinkModalOpen] = useState(false)
+    const [publicationsToUnlink, setPublicationsToUnlink] = useState<Publication[]>([])
+    const [isUnlinking, setIsUnlinking] = useState(false)
     const [editModalOpen, setEditModalOpen] = useState(false)
     const [publicationToEdit, setPublicationToEdit] = useState<Publication | null>(null)
 
@@ -288,6 +300,67 @@ export function PublicationsTable() {
             setDeleteModalOpen(true)
         }
     }, [data])
+
+    const handleUnlinkClick = useCallback((id: string) => {
+        const publication = (data ?? []).find((p: Publication) => p.id === id)
+        if (publication) {
+            setPublicationsToUnlink([publication])
+            setUnlinkModalOpen(true)
+        }
+    }, [data])
+
+    const handleBulkUnlinkClick = useCallback(() => {
+        const selected: Publication[] = (data ?? []).filter((p: Publication) => selectedIds.includes(p.id))
+        if (selected.length === 0) return
+        setPublicationsToUnlink(selected)
+        setUnlinkModalOpen(true)
+    }, [data, selectedIds])
+
+    const handleConfirmUnlink = useCallback(async () => {
+        if (publicationsToUnlink.length === 0) return
+
+        setIsUnlinking(true)
+        const idsToUnlink = new Set(publicationsToUnlink.map((p) => p.id))
+        mutate(
+            (current: Publication[] | undefined) => (current ?? []).filter((p) => !idsToUnlink.has(p.id)),
+            false
+        )
+
+        const results = await Promise.allSettled(
+            publicationsToUnlink.map((publication) => unlinkPublicationLocal(publication))
+        )
+        const failedCount = results.filter((result) => result.status === 'rejected').length
+        const okCount = results.length - failedCount
+
+        if (failedCount > 0) {
+            mutate()
+            const firstError = results.find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined
+            pushToast({
+                message: okCount === 0 ? 'No se pudo quitar de la lista' : 'Algunas filas no se pudieron quitar',
+                description:
+                    failedCount === results.length
+                        ? (firstError?.reason instanceof Error ? firstError.reason.message : 'Inténtalo de nuevo.')
+                        : `${okCount} quitadas, ${failedCount} fallaron.`,
+                type: 'error',
+            })
+        } else {
+            mutate()
+            pushToast({
+                message: okCount === 1 ? 'Fila quitada' : 'Filas quitadas',
+                description:
+                    okCount === 1
+                        ? `"${publicationsToUnlink[0]?.listing?.title || 'Publicación'}" se ha quitado de la lista. El anuncio en la plataforma no se ha borrado.`
+                        : `${okCount} publicaciones se han quitado de la lista. Los anuncios en las plataformas no se han borrado.`,
+                type: 'success',
+            })
+            setUnlinkModalOpen(false)
+            setPublicationsToUnlink([])
+            setSelectedIds([])
+            tableRef.current?.resetSelection()
+        }
+
+        setIsUnlinking(false)
+    }, [publicationsToUnlink, mutate, pushToast])
 
     const handleEditClick = useCallback((id: string) => {
         const publication = (data ?? []).find((p: Publication) => p.id === id)
@@ -471,8 +544,8 @@ export function PublicationsTable() {
     }, [clear])
 
     const columns = useMemo(
-        () => createColumns(handleDeleteClick, handleEditClick, handleReuploadClick),
-        [handleDeleteClick, handleEditClick, handleReuploadClick]
+        () => createColumns(handleDeleteClick, handleEditClick, handleReuploadClick, handleUnlinkClick),
+        [handleDeleteClick, handleEditClick, handleReuploadClick, handleUnlinkClick]
     )
 
     const handleMobileSelect = useCallback((id: string, checked: boolean) => {
@@ -526,6 +599,7 @@ export function PublicationsTable() {
                             onSelect={handleMobileSelect}
                             onEdit={handleEditClick}
                             onDelete={handleDeleteClick}
+                            onUnlink={handleUnlinkClick}
                             onReupload={handleReuploadClick}
                         />
                     ))
@@ -545,21 +619,30 @@ export function PublicationsTable() {
             {selectedIds.length > 0 && (
                 <div className="mt-3 flex flex-col sm:flex-row sm:justify-between sm:items-center bg-blue-50 p-3 rounded-md gap-3">
                     <span className="text-sm text-gray-700">{selectedIds.length} seleccionados</span>
-                    <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <LoadingButton
                             onClick={handleBulkReuploadClick}
                             loading={bulkReuploadActive}
                             loadingText="Resubiendo..."
-                            disabled={deletePhase !== 'idle'}
+                            disabled={deletePhase !== 'idle' || isUnlinking}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
                         >
                             Resubir seleccionados
                         </LoadingButton>
                         <LoadingButton
+                            onClick={handleBulkUnlinkClick}
+                            loading={isUnlinking}
+                            loadingText="Quitando..."
+                            disabled={deletePhase !== 'idle' || reuploadPhase !== 'idle' || bulkReuploadModalOpen}
+                            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
+                        >
+                            Quitar de la lista
+                        </LoadingButton>
+                        <LoadingButton
                             onClick={handleBulkDeleteClick}
                             loading={isBulkDeleting}
                             loadingText="Eliminando..."
-                            disabled={reuploadPhase !== 'idle' || bulkReuploadModalOpen}
+                            disabled={reuploadPhase !== 'idle' || bulkReuploadModalOpen || isUnlinking}
                             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm w-full sm:w-auto"
                         >
                             Eliminar seleccionados
@@ -579,6 +662,20 @@ export function PublicationsTable() {
                 platform={publicationToDelete?.platform}
                 isLoading={isDeleting}
                 accountId={publicationToDelete?.account_id}
+            />
+
+            <UnlinkPublicationModal
+                open={unlinkModalOpen}
+                onClose={() => {
+                    if (isUnlinking) return
+                    setUnlinkModalOpen(false)
+                    setPublicationsToUnlink([])
+                }}
+                onConfirm={handleConfirmUnlink}
+                publicationTitle={publicationsToUnlink[0]?.listing?.title}
+                platform={publicationsToUnlink[0]?.platform}
+                count={publicationsToUnlink.length}
+                isLoading={isUnlinking}
             />
 
             <ReuploadPublicationModal
