@@ -209,7 +209,8 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
                 `Datos proporcionados manualmente por el vendedor:\n${manualContext}\n\n` +
                 `Usa como guía para descripción y título esto: \n${GUIDE_CONTENT}\n\n` +
                 "Genera los campos del producto en base a la imagen y este contexto, incorporando de forma natural " +
-                "las medidas y los desperfectos indicados en la descripción.",
+                "las medidas y los desperfectos indicados en la descripción." +
+                "No olvides los hastags",
             },
             { type: "image_url", image_url: { url: imgUrl } },
           ],
