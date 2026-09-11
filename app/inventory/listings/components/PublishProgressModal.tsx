@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, X } from "lucide-react"
 import type { Job, JobStatus } from '@/lib/queue/types'
+import { PLATFORM_ICONS, formatPlatformName } from '@/libs/inventory/display'
 import { uploadPhoto } from "@/utils/uploadPhoto"
 import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
 import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
@@ -103,6 +104,9 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
         <div className={`flex-1 min-h-0 overflow-y-auto modal-scroll px-8 ${blockClose ? 'pb-8' : ''}`}>
           <div className="flex flex-col gap-2 py-2">
             {jobs.map((job) => {
+              const { title, platform } = getUploadJobMeta(job.entity, job.entityLabel)
+              const platformLabel = platform ? formatPlatformName(platform) : null
+              const platformIcon = platform ? PLATFORM_ICONS[platform] : null
               const isExpandable = job.status === 'failed' && !!job.missingFields?.length && !!onRetryJob
               const isExpanded = expandedJobId === job.id
 
@@ -112,8 +116,23 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
                     className={`flex items-center justify-between gap-3 px-4 py-3 ${isExpandable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
                     onClick={() => isExpandable && toggleExpanded(job.id)}
                   >
-                    <span className="text-gray-800 font-medium truncate">{job.entityLabel}</span>
+                    <span className="min-w-0 truncate text-gray-800 font-medium" title={title}>{title}</span>
                     <div className="flex items-center gap-2 shrink-0">
+                      {platformLabel && (
+                        <span
+                          className="flex items-center gap-1.5 text-sm text-gray-600"
+                          title={platformLabel}
+                        >
+                          {platformIcon ? (
+                            <img
+                              src={platformIcon}
+                              alt=""
+                              className="h-5 w-5 rounded-md bg-white object-contain"
+                            />
+                          ) : null}
+                          <span>{platformLabel}</span>
+                        </span>
+                      )}
                       <JobStatusBadge status={job.status} />
                       {isExpandable && (
                         isExpanded
@@ -161,6 +180,24 @@ export function PublishProgressModal<T>({ open, jobs, isBusy, onClose, title, on
       </DialogContent>
     </Dialog>
   )
+}
+
+function getUploadJobMeta(entity: unknown, fallbackLabel: string): { title: string; platform: string | null } {
+  if (!entity || typeof entity !== 'object') {
+    return { title: fallbackLabel, platform: null }
+  }
+
+  const record = entity as {
+    listing?: { title?: string }
+    account?: { platform?: string }
+    title?: string
+    platform?: string
+  }
+
+  const title = record.listing?.title?.trim() || record.title?.trim() || fallbackLabel
+  const platform = record.account?.platform || record.platform || null
+
+  return { title, platform }
 }
 
 function RetryForm({
