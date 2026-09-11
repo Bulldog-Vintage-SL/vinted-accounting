@@ -1,5 +1,5 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
-import { runFlow } from './extensionBridge'
+import { runFlow, extractErrorMessage } from './extensionBridge'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
@@ -51,7 +51,7 @@ export async function uploadDepopItem(listing: any, accountId: string): Promise<
             };
         }
 
-        return { ok: false, message: "No se pudo completar la publicación en Depop" };
+        return { ok: false, message: extractErrorMessage(result, "No se pudo completar la publicación en Depop") };
 
     } catch (err: any) {
         return {
@@ -137,7 +137,7 @@ export async function reuploadDepopItem(
     if (!uploadResult.ok) {
       return {
         ok: false,
-        message: `Error al resubir el producto: ${uploadResult.message}`,
+        message: extractErrorMessage(uploadResult, `Error al resubir el producto: ${uploadResult.message}`),
       };
     }
 

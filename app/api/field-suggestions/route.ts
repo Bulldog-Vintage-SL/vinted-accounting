@@ -58,7 +58,7 @@ const TitleAndDescriptionSchema = z.object({
 async function generateTitleAndDescription(imgUrl: string) {
   const response = await withRetry(() =>
     openai.chat.completions.parse({
-      model: "gpt-4o-mini",
+      model: "gpt-5.6-luna",
       messages: [
         {
           role: "user",

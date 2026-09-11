@@ -1,5 +1,5 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
-import { runFlow } from './extensionBridge'
+import { runFlow, extractErrorMessage } from './extensionBridge'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
@@ -44,7 +44,7 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
       return { ok: true, message: data.message, data }
     }
 
-    return { ok: false, message: 'No se recibió ID del item creado' }
+    return { ok: false, message: extractErrorMessage(result, 'No se recibió ID del item creado') }
 
   } catch (err: any) {
     if (err instanceof MissingFieldsError) {
@@ -52,7 +52,7 @@ export async function uploadVestiaireItem(listing: any, accountId: string): Prom
     }
     return {
       ok: false,
-      message: err?.message || "Error inesperado",
+      message: extractErrorMessage(err, "Error inesperado"),
     }
   }
 }
@@ -105,7 +105,8 @@ export async function reuploadVestiaireItem(
     });
 
     if (!resModTexts.ok) {
-      throw new Error("Error modificando título y descripción");
+      const errorData = await resModTexts.json().catch((): null => null);
+      throw new Error(extractErrorMessage(errorData, "Error modificando título y descripción"));
     }
 
     const { title: newTitle, description: newDescription } = await resModTexts.json();
@@ -153,12 +154,11 @@ export async function reuploadVestiaireItem(
     }
     return {
       ok: false,
-      message: err?.message || 'Error inesperado',
+      message: extractErrorMessage(err, 'Error inesperado'),
     };
   }
 
 }
-
 
 // Buscar cuenta de Vestiaire Collective
 export async function searchVestiaireAccount() {
