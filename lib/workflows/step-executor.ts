@@ -1224,6 +1224,7 @@ function findDepopColourIds(options: any[], colors: string[]): string[] {
 function findDepopBrandSlug(brands: any[], brandName: string): string {
   if (!brandName) return ''
   if (brandName === 'Sin marca') return 'unbranded'
+  if (brandName === 'Vintage Dressing') return 'unbranded'
   const normalize = (s: string) => s?.toLowerCase().trim()
   const target = normalize(brandName)
 
