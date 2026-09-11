@@ -13,6 +13,17 @@ import {
 const EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID!
 declare const chrome: any
 
+export function extractErrorMessage(result: any, fallback: string): string {
+  return (
+    result?.result?.result?.message ??
+    result?.result?.message ??
+    result?.error?.message ??
+    result?.error ??
+    result?.message ??
+    fallback
+  )
+}
+
 async function getToken(): Promise<string | null> {
   const res = await fetch("/api/extension/token")
   if (!res.ok) return null

@@ -105,11 +105,35 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
 const SENSITIVE_KEY_PATTERN =
   /token|cookie|authorization|auth|jwt|secret|password|bearer/i;
 
+// Límites de truncado para no llenar la BD con JSONs gigantes de
+// respuestas de APIs externas (fotos en base64, listados completos, etc).
+const MAX_STRING_LENGTH = 500;
+const MAX_ARRAY_LENGTH = 20;
+
+function truncateString(str: string): string {
+  if (str.length <= MAX_STRING_LENGTH) return str;
+  const omitted = str.length - MAX_STRING_LENGTH;
+  return `${str.slice(0, MAX_STRING_LENGTH)}... [truncated, ${omitted} more chars]`;
+}
+
 function sanitize(value: any, seen = new WeakSet()): any {
   if (value === null || value === undefined) return value;
 
+  if (typeof value === "string") {
+    return truncateString(value);
+  }
+
   if (Array.isArray(value)) {
-    return value.map((item) => sanitize(item, seen));
+    const truncated = value.length > MAX_ARRAY_LENGTH;
+    const items = (truncated ? value.slice(0, MAX_ARRAY_LENGTH) : value).map(
+      (item) => sanitize(item, seen)
+    );
+    if (truncated) {
+      items.push(
+        `... [truncated, ${value.length - MAX_ARRAY_LENGTH} more items]` as any
+      );
+    }
+    return items;
   }
 
   if (typeof value === "object") {
@@ -173,8 +197,6 @@ export async function POST(req: Request) {
           originalPayload: payload,
           photoIds: [],
           uploadSessionId,
-          // Historial de la respuesta (o error) de cada step ejecutado en
-          // esta sesion, para poder reconstruirla entera si algo falla.
           history: [],
         },
       });
@@ -205,13 +227,14 @@ export async function POST(req: Request) {
       const currentStepType = session.steps[session.currentStep]?.type;
 
       // Registramos la respuesta (o error) de este step en el historial,
-      // sea cual sea el desenlace.
+      // sea cual sea el desenlace. Se sanea/trunca antes de guardar para
+      // no acumular JSONs gigantes de respuestas externas en cada sesión.
       const history = session.state?.history ?? [];
       history.push({
         stepIndex: session.currentStep,
         stepType: currentStepType,
         at: new Date(),
-        ...(error ? { error } : { result }),
+        ...(error ? { error: sanitize(error) } : { result: sanitize(result) }),
       });
       session.state = { ...session.state, history };
       session.markModified("state");
@@ -230,8 +253,9 @@ export async function POST(req: Request) {
             externalId: session.state?.originalPayload?.externalId,
             listingTitle: session.state?.originalPayload?.listing?.title,
           },
-          // snapshot completo de la sesion en el momento del fallo, saneado,
-          // incluyendo el historial de respuestas de todos los steps previos
+          // snapshot completo de la sesion en el momento del fallo, saneado
+          // y truncado, incluyendo el historial de respuestas de todos los
+          // steps previos
           steps: sanitize(session.steps),
           state: sanitize(session.state),
         });
@@ -258,8 +282,6 @@ export async function POST(req: Request) {
         session.state
       );
 
-      // processStepResult devuelve su propio estado; reincorporamos el
-      // historial para que no se pierda en cada paso.
       session.state = { ...updatedState, history };
       session.currentStep = nextIndex;
       session.markModified("steps");

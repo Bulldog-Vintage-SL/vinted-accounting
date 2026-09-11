@@ -1,5 +1,5 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
-import { runFlow } from './extensionBridge'
+import { runFlow, extractErrorMessage } from './extensionBridge'
 import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
@@ -51,7 +51,7 @@ export async function uploadWallapopItem(listing: any, accountId: string): Promi
       }
     }
 
-    return { ok: false, message: "No se recibió ID del item creado" }
+    return { ok: false, message: extractErrorMessage(result, "No se recibió ID del item creado") }
 
   } catch (err: any) {
     if (err instanceof MissingFieldsError) {
@@ -59,7 +59,7 @@ export async function uploadWallapopItem(listing: any, accountId: string): Promi
     }
     return {
       ok: false,
-      message: err?.message || "Error inesperado",
+      message: extractErrorMessage(err, "Error inesperado"),
     }
   }
 }
@@ -111,7 +111,8 @@ export async function reuploadWallapopItem(
     });
 
     if (!resModTexts.ok) {
-      throw new Error("Error modificando título y descripción");
+      const errorData = await resModTexts.json().catch((): null => null);
+      throw new Error(extractErrorMessage(errorData, "Error modificando título y descripción"));
     }
 
     const { title: newTitle, description: newDescription } = await resModTexts.json();
@@ -159,7 +160,7 @@ export async function reuploadWallapopItem(
     }
     return {
       ok: false,
-      message: err?.message || 'Error inesperado',
+      message: extractErrorMessage(err, 'Error inesperado'),
     };
   }
 
@@ -218,8 +219,9 @@ export async function searchWallapopAccount() {
 // Sincronizar cuenta de Wallapop
 export async function syncWallapopAccount(externalId: string) {
   try {
-    const result = await runFlow('SYNC_WALLAPOP_ACCOUNT', { externalId, platform: 'wallapop'
-     })
+    const result = await runFlow('SYNC_WALLAPOP_ACCOUNT', {
+      externalId, platform: 'wallapop'
+    })
 
     if (!result?.result?.state) {
 
@@ -285,7 +287,7 @@ export async function importWallapopWardrobe(userId: string) {
   try {
 
     // Iniciamos el workflow en la extension con el nombre pertinente
-    const result = await runFlow('IMPORT_WALLAPOP_WARDROBE', {platform: 'wallapop'});
+    const result = await runFlow('IMPORT_WALLAPOP_WARDROBE', { platform: 'wallapop' });
 
     if (result?.result?.state?.items) {
 

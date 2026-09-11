@@ -58,7 +58,7 @@ const TitleAndDescriptionSchema = z.object({
 async function generateTitleAndDescription(imgUrl: string) {
   const response = await withRetry(() =>
     openai.chat.completions.parse({
-      model: "gpt-4o-mini",
+      model: "gpt-5.6-luna",
       messages: [
         {
           role: "user",
@@ -108,7 +108,7 @@ const FieldsSchema = z.object({
   description: z.string(),
   brand: z.string().describe(
     "Nombre de la marca detectada en la prenda (logo, etiqueta, texto visible). " +
-    "Usa 'Sin marca' si no hay marca identificable o visible en la imagen."
+    "Usa 'Vintage Dressing' si no hay marca identificable o visible en la imagen."
   ),
   colors: z.array(z.enum(COLOR_OPTIONS)).min(1).describe(
     "Colores dominantes de la prenda, EXACTAMENTE de esta lista, en español"
@@ -190,12 +190,12 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
             "Para el precio guíate con los productos similares de ejemplo un poco, pero también por factores como si la marca es de lujo o no" +
             "Si la marca es rollo STWD u otra pero sale tb Pull&Bear prioriza marcar como marca lo segundo, asi tb con Zara, etc." +
             "Si ninguna imagen muestra una etiqueta de talla, devuelve null — no infieras la talla por el aspecto general de la prenda. " +
+            "Si no tienes datos para sacar la marca, devuelve como marca Vintage Dressing" +
             "Si no hay una foto en la que ponga explicitamente la talla de la prenda, NO REFLEJAR LA TALLA EN LA DESCRIPCION" +
             "Para 'condition': evalúa el estado solo si tienes confianza razonable observando las imágenes; si no, devuelve null." +
             "SIEMPRE sigue la estructura del documento explicativo sobre titulo y descripcion para generar dicho campos, SIEMPRE" +
             "NUNCA pongas más de 5 hashtags en la descripción" +
-            "Si no tienes una foto de donde sacar la talla NO la rellenes" +
-            "Si recibes de contexo<",
+            "Si no tienes una foto de donde sacar la talla NO la rellenes" 
         },
         {
           role: "user",
