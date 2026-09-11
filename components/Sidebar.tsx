@@ -36,7 +36,7 @@ const navItems: NavItem[] = [
   { name: "Chats", href: "/chats", icon: MessageSquare },
   { name: "Compras", href: "/purchases", icon: ShoppingCart },
 ];
-
+ 
 const Sidebar = () => {
   const pathname = usePathname();
   const { data: session } = useSession();
