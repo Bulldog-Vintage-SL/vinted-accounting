@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
-import { ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, RotateCw, ZoomIn } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export function moveItem<T>(items: T[], from: number, to: number): T[] {
@@ -80,6 +80,8 @@ interface SortablePhotoGridProps {
     photos: string[];
     onChange: (photos: string[]) => void;
     onRemove?: (index: number) => void;
+    onRotate?: (index: number) => void;
+    rotatingIndex?: number | null;
     renderOverlay?: (url: string, index: number) => ReactNode;
     trailing?: ReactNode;
     gridClassName?: string;
@@ -91,6 +93,8 @@ export function SortablePhotoGrid({
     photos,
     onChange,
     onRemove,
+    onRotate,
+    rotatingIndex = null,
     renderOverlay,
     trailing,
     gridClassName = "grid grid-cols-6 gap-3",
@@ -120,6 +124,24 @@ export function SortablePhotoGrid({
                         <span className="absolute top-1 left-1 bg-purple-600 text-white text-[10px] font-medium px-1.5 py-0.5 rounded pointer-events-none">
                             Principal
                         </span>
+                    )}
+
+                    {onRotate && (
+                        <button
+                            type="button"
+                            data-no-drag
+                            disabled={rotatingIndex !== null}
+                            onClick={() => onRotate(i)}
+                            className="absolute bottom-1 left-1 bg-black/60 text-white rounded p-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100 disabled:opacity-60"
+                            title="Rotar 90°"
+                            aria-label="Rotar foto"
+                        >
+                            {rotatingIndex === i ? (
+                                <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                                <RotateCw size={12} />
+                            )}
+                        </button>
                     )}
 
                     {onRemove && (

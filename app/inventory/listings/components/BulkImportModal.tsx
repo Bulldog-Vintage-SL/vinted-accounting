@@ -22,6 +22,7 @@ import { useToast } from "@/components/toast";
 import type { Job } from "@/lib/queue/types";
 import { useRef } from "react";
 import { mutate } from "swr";
+import { replacePhotoUrl, rotatePhoto } from "@/utils/rotatePhoto";
 
 type Phase = "upload" | "group" | "details" | "publish-choice" | "generating" | "review" | "publishing";
 
@@ -124,6 +125,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
     const [photos, setPhotos] = useState<string[]>([]);
     const [boundaries, setBoundaries] = useState<Set<number>>(new Set());
     const [isUploading, setIsUploading] = useState(false);
+    const [rotatingIndex, setRotatingIndex] = useState<number | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [drafts, setDrafts] = useState<DraftListing[]>([]);
     const [selectedAccounts, setSelectedAccounts] = useState<SelectedAccount[]>([]);
@@ -221,6 +223,34 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
             });
             return next;
         });
+    };
+
+    const rotatePhotoAt = async (index: number) => {
+        const url = photos[index];
+        if (!url || rotatingIndex !== null) return;
+
+        setRotatingIndex(index);
+        setUploadError(null);
+        try {
+            const nextUrl = await rotatePhoto(url);
+            setPhotos((prev) => replacePhotoUrl(prev, url, nextUrl));
+            setDrafts((prev) =>
+                prev.map((draft) => ({
+                    ...draft,
+                    photos: replacePhotoUrl(draft.photos, url, nextUrl),
+                    photoSelection: Object.fromEntries(
+                        Object.entries(draft.photoSelection).map(([platform, urls]) => [
+                            platform,
+                            replacePhotoUrl(urls ?? [], url, nextUrl),
+                        ])
+                    ) as DraftListing["photoSelection"],
+                }))
+            );
+        } catch (err) {
+            setUploadError(err instanceof Error ? err.message : "No se pudo rotar la foto");
+        } finally {
+            setRotatingIndex(null);
+        }
     };
 
     const reorderDraftPhotos = (id: string, nextPhotos: string[]) => {
@@ -585,6 +615,8 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                     photos={photos}
                                     onChange={reorderPhotos}
                                     onRemove={removePhoto}
+                                    onRotate={rotatePhotoAt}
+                                    rotatingIndex={rotatingIndex}
                                     showPrincipalBadge={false}
                                     gridClassName="grid grid-cols-6 gap-3"
                                     trailing={

@@ -3,7 +3,7 @@
 import useSWR from 'swr'
 import Link from 'next/link'
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { ArrowLeft, Loader2, Plus, X, ImagePlus, BadgeCheck } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, X, ImagePlus, BadgeCheck, RotateCw } from 'lucide-react'
 import {
   Listing,
   ListingForm,
@@ -13,6 +13,7 @@ import {
 } from '../types'
 import { useToast } from '@/components/toast'
 import { uploadPhoto } from '@/utils/uploadPhoto'
+import { replacePhotoUrl, rotatePhoto } from '@/utils/rotatePhoto'
 import { PageLoader } from '@/components/ui/page-loader'
 import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSelector'
 import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
@@ -90,6 +91,7 @@ export function ListingDetailForm({ listingId }: Props) {
   const [form, setForm] = useState<ListingForm>(emptyForm)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [rotatingIndex, setRotatingIndex] = useState<number | null>(null)
   const [selectedColor, setSelectedColor] = useState('')
   const [activePhotoIdx, setActivePhotoIdx] = useState(0)
   const [priceInput, setPriceInput] = useState('')
@@ -231,6 +233,33 @@ export function ListingDetailForm({ listingId }: Props) {
       acc[platform] = getSelectedForPlatform(platform)
       return acc
     }, {} as Partial<Record<PlatformKey, string[]>>)
+
+  const rotatePhotoAt = async (idx: number) => {
+    const url = form.photo_url[idx]
+    if (!url || rotatingIndex !== null) return
+
+    setRotatingIndex(idx)
+    try {
+      const nextUrl = await rotatePhoto(url)
+      setForm((prev) => ({ ...prev, photo_url: replacePhotoUrl(prev.photo_url, url, nextUrl) }))
+      setPhotoSelection((prev) => {
+        const next: Partial<Record<PlatformKey, string[]>> = {}
+        ;(Object.keys(prev) as PlatformKey[]).forEach((platform) => {
+          next[platform] = replacePhotoUrl(prev[platform] ?? [], url, nextUrl)
+        })
+        return next
+      })
+    } catch (err) {
+      console.error(err)
+      pushToast({
+        message: 'Error al rotar la foto',
+        description: err instanceof Error ? err.message : 'No se pudo rotar la imagen.',
+        type: 'error',
+      })
+    } finally {
+      setRotatingIndex(null)
+    }
+  }
 
   const removePhoto = (idx: number) => {
     const url = form.photo_url[idx]
@@ -422,12 +451,28 @@ export function ListingDetailForm({ listingId }: Props) {
                       {isSelectedForMask ? '✓' : ''}
                     </span>
                   ) : (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); removePhoto(idx) }}
-                      className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
-                    >
-                      <X size={10} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); void rotatePhotoAt(idx) }}
+                        disabled={rotatingIndex !== null}
+                        className="absolute bottom-0.5 left-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition disabled:opacity-60"
+                        title="Rotar 90°"
+                        aria-label="Rotar foto"
+                      >
+                        {rotatingIndex === idx ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          <RotateCw size={10} />
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removePhoto(idx) }}
+                        className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                      >
+                        <X size={10} />
+                      </button>
+                    </>
                   )}
                 </div>
               )

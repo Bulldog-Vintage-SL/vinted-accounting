@@ -14,6 +14,7 @@ import BrandSelect from "./BrandSelector";
 import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
 import { SortablePhotoGrid } from "@/app/inventory/listings/components/ListingPhotos";
+import { replacePhotoUrl, rotatePhoto } from "@/utils/rotatePhoto";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -78,6 +79,7 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [photoNames, setPhotoNames] = useState<Record<string, string>>({});
+  const [rotatingIndex, setRotatingIndex] = useState<number | null>(null);
 
   // Contexto manual para la IA
   const [manual, setManual] = useState<ManualDetails>(emptyManualDetails());
@@ -251,6 +253,40 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
     update("photo_url", nextPhotos);
   };
 
+  const replacePhotoUrlEverywhere = (oldUrl: string, newUrl: string) => {
+    update("photo_url", replacePhotoUrl(form.photo_url, oldUrl, newUrl));
+    setPhotoNames((prev) => {
+      if (!(oldUrl in prev)) return prev;
+      const next = { ...prev };
+      next[newUrl] = prev[oldUrl];
+      delete next[oldUrl];
+      return next;
+    });
+    setPhotoSelection((prev) => {
+      const next: Partial<Record<PlatformKey, string[]>> = {};
+      (Object.keys(prev) as PlatformKey[]).forEach((platform) => {
+        next[platform] = replacePhotoUrl(prev[platform] ?? [], oldUrl, newUrl);
+      });
+      return next;
+    });
+  };
+
+  const rotatePhotoAt = async (index: number) => {
+    const url = form.photo_url[index];
+    if (!url || rotatingIndex !== null) return;
+
+    setRotatingIndex(index);
+    setUploadError(null);
+    try {
+      const nextUrl = await rotatePhoto(url);
+      replacePhotoUrlEverywhere(url, nextUrl);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo rotar la foto");
+    } finally {
+      setRotatingIndex(null);
+    }
+  };
+
   const filenameFromUrl = (url: string) => {
     try {
       return decodeURIComponent(url.split("/").pop() ?? url);
@@ -394,13 +430,15 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
         )}
 
         <p className="text-xs text-gray-500 mt-1">
-          Arrastra las fotos para reordenarlas, o pulsa Ordenar imágenes para alinearlas por nombre de archivo. La primera se usa para generar los datos con IA.
+          Arrastra las fotos para reordenarlas, o pulsa Ordenar imágenes para alinearlas por nombre de archivo. Pulsa el icono de rotar para girar una foto 90°. La primera se usa para generar los datos con IA.
         </p>
 
         <SortablePhotoGrid
           photos={form.photo_url ?? []}
           onChange={reorderPhotos}
           onRemove={(i) => removePhoto(form.photo_url[i])}
+          onRotate={rotatePhotoAt}
+          rotatingIndex={rotatingIndex}
           gridClassName="grid grid-cols-3 gap-3 mt-2"
           renderOverlay={(url, i) => {
             const isMasking = activeMaskPlatform !== null;
