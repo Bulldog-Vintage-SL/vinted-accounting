@@ -11,6 +11,7 @@ import {
   VESTIAIRE_SEARCH_URL,
   buildVestiaireSearchBody,
 } from './vestiaire/vestiaire-import-steps'
+import stringSimilarity from 'string-similarity'
 
 export function processStepResult(
   steps: WorkflowStep[],
@@ -218,11 +219,21 @@ export function processStepResult(
       break
 
     case 'GET_VEST_BRANDS': {
-      const brand = result.data?.find((b: any) =>
-        b.name?.toLowerCase() === s.originalPayload?.listing?.attributes?.brand?.toLowerCase()
-      )
-      s.vestBrandId = brand?.id ?? null
-      s.vestBrandName = brand?.name ?? s.originalPayload?.listing?.attributes?.brand ?? ''
+      const targetRaw = s.originalPayload?.listing?.attributes?.brand ?? ''
+      const target = normalizeBrand(targetRaw)
+
+      const brandNames = result.data.map((b: any) => normalizeBrand(b.name))
+      const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(target, brandNames)
+
+      if (bestMatch.rating >= 0.82) {
+        const brand = result.data[bestMatchIndex]
+        s.vestBrandId = brand.id
+        s.vestBrandName = brand.name
+      } else {
+        s.vestBrandId = null
+        s.vestBrandName = targetRaw
+        console.warn(`[Vestiaire] No confident match for "${targetRaw}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)})`)
+      }
       break
     }
 
@@ -1341,4 +1352,16 @@ function buildDepopUpdateItemBody(s: WorkflowState) {
     variant_set: item.variant_set_id,
     variants: item.variants ?? {},
   }
+}
+function normalizeBrand(str: string): string {
+  return str
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u00A0\s]+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\s*&\s*/g, ' and ')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
