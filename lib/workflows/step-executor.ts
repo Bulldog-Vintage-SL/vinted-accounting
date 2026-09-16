@@ -222,11 +222,35 @@ export function processStepResult(
       const targetRaw = s.originalPayload?.listing?.attributes?.brand ?? ''
       const target = normalizeBrand(targetRaw)
 
-      const brandNames = result.data.map((b: any) => normalizeBrand(b.name))
+      // 1. Nunca considerar marcas baneadas como candidatas
+      const candidates = result.data.filter((b: any) => !b.banned)
+
+      // 2. Match exacto normalizado tiene prioridad absoluta
+      const exact = candidates.find((b: any) => normalizeBrand(b.name) === target)
+      if (exact) {
+        s.vestBrandId = exact.id
+        s.vestBrandName = exact.name
+        break
+      }
+
+      // 3. Bonus por relación de prefijo/substring antes del fuzzy puro
+      //    (evita que "STARTEE" gane sobre "Starter Black Label")
+      const prefixMatch = candidates.find((b: any) => {
+        const n = normalizeBrand(b.name)
+        return n.startsWith(target + ' ') || target.startsWith(n + ' ')
+      })
+      if (prefixMatch) {
+        s.vestBrandId = prefixMatch.id
+        s.vestBrandName = prefixMatch.name
+        break
+      }
+
+      // 4. Fallback: fuzzy solo entre marcas no baneadas
+      const brandNames = candidates.map((b: any) => normalizeBrand(b.name))
       const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(target, brandNames)
 
       if (bestMatch.rating >= 0.82) {
-        const brand = result.data[bestMatchIndex]
+        const brand = candidates[bestMatchIndex]
         s.vestBrandId = brand.id
         s.vestBrandName = brand.name
       } else {
