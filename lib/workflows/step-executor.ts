@@ -11,6 +11,12 @@ import {
   VESTIAIRE_SEARCH_URL,
   buildVestiaireSearchBody,
 } from './vestiaire/vestiaire-import-steps'
+import {
+  VESTIAIRE_CHAT_FEED_LIMIT,
+  VESTIAIRE_STREAM_API_KEY,
+  buildVestiaireChatsUrl,
+  extractVestiaireChatToken,
+} from './vestiaire/vestiaire-chat-steps'
 import stringSimilarity from 'string-similarity'
 
 export function processStepResult(
@@ -213,6 +219,54 @@ export function processStepResult(
       s.profileLink = result.profileLink
       s.accountName = result.accountName
       s.vestiaireId = result.vestiaireId
+      break
+
+    case 'GET_VEST_CHATS': {
+      const pageItems: any[] = result?.data ?? result?.items ?? []
+      s.vestFeedChats = [...(s.vestFeedChats ?? []), ...pageItems]
+      const limit = result?.meta?.limit ?? VESTIAIRE_CHAT_FEED_LIMIT
+      const offset = result?.meta?.offset ?? s.vestChatNextOffset ?? 0
+      const count = result?.meta?.count ?? s.vestFeedChats.length
+      const nextOffset = offset + pageItems.length
+      if (pageItems.length >= limit && nextOffset < count) {
+        s.vestChatNextOffset = nextOffset
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_VEST_CHATS',
+          platform: 'vestiaire',
+          request: { url: '', method: 'GET', skipDelay: true },
+        })
+      }
+      break
+    }
+
+    case 'GET_VEST_CHAT_CHANNEL': {
+      const list = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.data)
+          ? result.data
+          : Array.isArray(result?.channels)
+            ? result.channels
+            : Array.isArray(result?.data?.channels)
+              ? result.data.channels
+              : null
+      if (list) s.vestApiChannels = list
+      break
+    }
+
+    case 'GET_VEST_CHAT_TOKEN': {
+      const extracted = extractVestiaireChatToken(result)
+      s.vestChatToken = extracted.token
+      s.vestChatUserId = extracted.userId ?? s.vestiaireId
+      break
+    }
+
+    case 'GET_VEST_CHAT_MESSAGES':
+      s.vestChatMessagesRaw = result
+      break
+
+    case 'SEND_VEST_CHAT_MESSAGE':
+      s.vestChatSendResult = result
       break
 
     case 'GET_VEST_BRANDS': {
@@ -619,6 +673,47 @@ export function processStepResult(
         )
       }
       break
+
+    case 'GET_VEST_CHATS':
+      if (!next.request.url) {
+        next.request.url = buildVestiaireChatsUrl(s.vestChatNextOffset ?? 0)
+        next.request.method = 'GET'
+        next.request.skipDelay = true
+      }
+      break
+
+    case 'GET_VEST_CHAT_MESSAGES': {
+      const channelId = String(s.originalPayload?.channelId ?? '')
+      const userId = String(s.vestChatUserId ?? s.vestiaireId ?? '')
+      next.request.url =
+        `https://chat.stream-chat.com/channels/messaging/${encodeURIComponent(channelId)}/query` +
+        `?user_id=${encodeURIComponent(userId)}&api_key=${VESTIAIRE_STREAM_API_KEY}`
+      next.request.method = 'POST'
+      next.request.body = {
+        state: true,
+        watch: false,
+        presence: false,
+        messages: { limit: 100 },
+      }
+      next.request.streamChat = true
+      next.request.streamToken = s.vestChatToken
+      next.request.skipDelay = true
+      break
+    }
+
+    case 'SEND_VEST_CHAT_MESSAGE': {
+      const channelId = String(s.originalPayload?.channelId ?? '')
+      const userId = String(s.vestChatUserId ?? s.vestiaireId ?? '')
+      next.request.url =
+        `https://chat.stream-chat.com/channels/messaging/${encodeURIComponent(channelId)}/message` +
+        `?user_id=${encodeURIComponent(userId)}&api_key=${VESTIAIRE_STREAM_API_KEY}`
+      next.request.method = 'POST'
+      next.request.body = { message: { text: String(s.originalPayload?.text ?? '') } }
+      next.request.streamChat = true
+      next.request.streamToken = s.vestChatToken
+      next.request.skipDelay = true
+      break
+    }
 
     case 'ADD_VEST_PRODUCT':
       next.request.body = {

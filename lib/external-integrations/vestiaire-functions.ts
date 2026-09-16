@@ -5,6 +5,12 @@ import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 import { sleep } from '../utils'
+import {
+  mergeVestiaireInbox,
+  mapStreamMessages,
+  mapStreamSendResult,
+} from '@/lib/workflows/vestiaire/vestiaire-chat-steps'
+import type { Chat, ChatMessage } from '@/app/chats/types'
 
 // Subir producto a Vestiaire Collective
 export async function uploadVestiaireItem(listing: any, accountId: string): Promise<UploadResult> {
@@ -481,4 +487,121 @@ export function isRejectedByVestiaire(brand: string | null | undefined): boolean
   }
 
   return false
+}
+
+export async function fetchVestiaireChats(): Promise<{
+  ok: boolean
+  message: string
+  chats?: Chat[]
+  ownUserId?: string
+}> {
+  try {
+    const result = await runFlow('FETCH_VEST_CHATS', { platform: 'vestiaire' })
+    const state = result?.result?.state
+    if (!state) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'No se pudieron obtener los chats de Vestiaire'),
+      }
+    }
+
+    const chats = mergeVestiaireInbox(state.vestFeedChats, state.vestApiChannels)
+    if (!chats.length && !state.vestiaireId) {
+      return {
+        ok: false,
+        message: 'No hay sesión de Vestiaire. Abre Vestiaire Collective e inicia sesión, luego vuelve a sincronizar.',
+      }
+    }
+
+    return {
+      ok: true,
+      message: chats.length
+        ? `Se cargaron ${chats.length} conversaciones de Vestiaire`
+        : 'No hay conversaciones en Vestiaire',
+      chats,
+      ownUserId: state.vestiaireId || state.vestChatUserId,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al sincronizar chats de Vestiaire'),
+    }
+  }
+}
+
+export async function fetchVestiaireChatMessages(channelId: string): Promise<{
+  ok: boolean
+  message: string
+  messages?: ChatMessage[]
+  ownUserId?: string
+}> {
+  try {
+    const result = await runFlow('FETCH_VEST_CHAT_MESSAGES', {
+      platform: 'vestiaire',
+      channelId,
+    })
+    const state = result?.result?.state
+    if (!state?.vestChatMessagesRaw && !result?.result?.result) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'No se pudieron cargar los mensajes'),
+      }
+    }
+
+    const ownUserId = state?.vestChatUserId || state?.vestiaireId
+    const raw = state?.vestChatMessagesRaw ?? result?.result?.result
+    return {
+      ok: true,
+      message: 'Mensajes cargados',
+      messages: mapStreamMessages(raw, ownUserId),
+      ownUserId,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al cargar el chat'),
+    }
+  }
+}
+
+export async function sendVestiaireChatMessage(
+  channelId: string,
+  text: string
+): Promise<{
+  ok: boolean
+  message: string
+  sent?: ChatMessage
+}> {
+  try {
+    const result = await runFlow('SEND_VEST_CHAT_MESSAGE', {
+      platform: 'vestiaire',
+      channelId,
+      text,
+    })
+    const state = result?.result?.state
+    const raw = state?.vestChatSendResult ?? result?.result?.result
+    if (!raw && !result?.result?.done) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'No se pudo enviar el mensaje'),
+      }
+    }
+
+    const ownUserId = state?.vestChatUserId || state?.vestiaireId
+    const sent = mapStreamSendResult(raw, ownUserId) ?? {
+      id: `local-${Date.now()}`,
+      senderId: String(ownUserId ?? 'me'),
+      senderName: 'Tú',
+      content: text,
+      createdAt: new Date().toISOString(),
+      isOwn: true,
+    }
+
+    return { ok: true, message: 'Mensaje enviado', sent }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje'),
+    }
+  }
 }

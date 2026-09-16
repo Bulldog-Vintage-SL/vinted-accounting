@@ -26,6 +26,11 @@ import { buildImportVestiaireSteps } from "@/lib/workflows/vestiaire/vestiaire-i
 import { buildImportDepopWardrobeSteps } from "@/lib/workflows/depop/depop-import-steps";
 import { buildVestiaireUploadSteps } from "@/lib/workflows/vestiaire/vestiaire-upload-steps";
 import { buildUpdateVestiaireItemSteps } from "@/lib/workflows/vestiaire/vestiaire-update-steps";
+import {
+  buildFetchVestiaireChatsSteps,
+  buildFetchVestiaireChatMessagesSteps,
+  buildSendVestiaireChatMessageSteps,
+} from "@/lib/workflows/vestiaire/vestiaire-chat-steps";
 import { buildDepopUploadSteps } from "@/lib/workflows/depop/depop-upload-steps";
 import { buildDepopDeleteSteps } from "@/lib/workflows/depop/depop-delete-steps";
 import {
@@ -83,6 +88,9 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
       p.itemExternalId,
       p.fields.price
     ),
+  FETCH_VEST_CHATS: () => buildFetchVestiaireChatsSteps(),
+  FETCH_VEST_CHAT_MESSAGES: () => buildFetchVestiaireChatMessagesSteps(),
+  SEND_VEST_CHAT_MESSAGE: () => buildSendVestiaireChatMessageSteps(),
 
   SEARCH_DEPOP_ACCOUNT: () =>
     buildSearchDepopAccountSteps(),

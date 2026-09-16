@@ -53,6 +53,11 @@ export type StepType =
   | 'GET_VEST_DRAFT_DETAILS'
   | 'DELETE_VEST_ITEM'
   | 'UPDATE_VEST_ITEM'
+  | 'GET_VEST_CHATS'
+  | 'GET_VEST_CHAT_CHANNEL'
+  | 'GET_VEST_CHAT_TOKEN'
+  | 'GET_VEST_CHAT_MESSAGES'
+  | 'SEND_VEST_CHAT_MESSAGE'
   // Depop
   | 'GET_DEPOP_USER_ID'
   | 'GET_DEPOP_USER_INFO'
@@ -94,6 +99,10 @@ export interface WorkflowStep {
     isBinaryUpload?: boolean
     isPictureUpload?: boolean
     noAuth?: boolean
+    headers?: Record<string, string>
+    skipDelay?: boolean
+    streamChat?: boolean
+    streamToken?: string
   }
 }
 
@@ -162,6 +171,13 @@ export interface WorkflowState {
   vestProductId?: string
   vestPublicationUrl?: string
   vestNextOffset?: number
+  vestFeedChats?: any[]
+  vestApiChannels?: any[]
+  vestChatNextOffset?: number
+  vestChatToken?: string
+  vestChatUserId?: string
+  vestChatMessagesRaw?: any
+  vestChatSendResult?: any
 
   // Depop
   username?: string
