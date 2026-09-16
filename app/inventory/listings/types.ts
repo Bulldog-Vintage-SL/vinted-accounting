@@ -8,9 +8,9 @@ export const PLATFORM_PHOTO_LIMITS: Record<PlatformKey, number> = {
   vinted: 20,
   wallapop: 10,
   vestiaire: 24,
-  depop: 4,
+  depop: 8,
   shopify: 250,
-  ebay: 12
+  ebay: 24
 };
 
 export const PLATFORM_LABELS: Record<PlatformKey, string> = {

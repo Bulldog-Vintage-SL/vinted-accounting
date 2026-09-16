@@ -1,7 +1,7 @@
 import type { WorkflowStep } from '../types'
 
 const BASE = 'https://webapi.depop.com'
-const DEPOP_PHOTO_LIMIT = 4
+const DEPOP_PHOTO_LIMIT = 8
 
 export function buildDepopUploadSteps(listing: any): WorkflowStep[] {
   const steps: WorkflowStep[] = []
