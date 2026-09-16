@@ -129,9 +129,6 @@ export function processStepResult(
       s.wallaNextUrl = undefined
       s.wallaNextStart = undefined
 
-      // La API de "mis artículos" pagina de ~40 en ~40. El token oficial
-      // va en meta.pagination.next (query since=); el endpoint de consumidor
-      // a veces devuelve una URL completa o usa start= como offset.
       const nextToken = result.meta?.pagination?.next ?? result.meta?.next
       if (typeof nextToken === 'string' && nextToken.length > 0 && newItems.length > 0) {
         if (nextToken.startsWith('http')) s.wallaNextUrl = nextToken
@@ -219,13 +216,31 @@ export function processStepResult(
       break
 
     case 'GET_VEST_BRANDS': {
+      const UNSIGNED_BRAND_ID = '2837'
+      const UNSIGNED_BRAND_NAME = 'Non Signé / Unsigned'
+      const NO_BRAND_TERMS = new Set([
+        'sin marca',
+        'vintage dressing',
+        'no brand',
+        'unbranded',
+        's/m',
+      ].map(normalizeBrand))
+
       const targetRaw = s.originalPayload?.listing?.attributes?.brand ?? ''
       const target = normalizeBrand(targetRaw)
 
-      // 1. Nunca considerar marcas baneadas como candidatas
+      const useUnsigned = () => {
+        s.vestBrandId = UNSIGNED_BRAND_ID
+        s.vestBrandName = UNSIGNED_BRAND_NAME
+      }
+
+      if (NO_BRAND_TERMS.has(target)) {
+        useUnsigned()
+        break
+      }
+
       const candidates = result.data.filter((b: any) => !b.banned)
 
-      // 2. Match exacto normalizado tiene prioridad absoluta
       const exact = candidates.find((b: any) => normalizeBrand(b.name) === target)
       if (exact) {
         s.vestBrandId = exact.id
@@ -233,8 +248,6 @@ export function processStepResult(
         break
       }
 
-      // 3. Bonus por relación de prefijo/substring antes del fuzzy puro
-      //    (evita que "STARTEE" gane sobre "Starter Black Label")
       const prefixMatch = candidates.find((b: any) => {
         const n = normalizeBrand(b.name)
         return n.startsWith(target + ' ') || target.startsWith(n + ' ')
@@ -245,7 +258,6 @@ export function processStepResult(
         break
       }
 
-      // 4. Fallback: fuzzy solo entre marcas no baneadas
       const brandNames = candidates.map((b: any) => normalizeBrand(b.name))
       const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(target, brandNames)
 
@@ -254,13 +266,11 @@ export function processStepResult(
         s.vestBrandId = brand.id
         s.vestBrandName = brand.name
       } else {
-        s.vestBrandId = null
-        s.vestBrandName = targetRaw
-        console.warn(`[Vestiaire] No confident match for "${targetRaw}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)})`)
+        console.warn(`[Vestiaire] No confident match for "${targetRaw}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)}) → falling back to Unsigned`)
+        useUnsigned()
       }
       break
     }
-
     case 'GET_VEST_CATALOG': {
       const { universeId, categoryId, subcategoryId } = resolveVestiaireCategory(
         result.data,
