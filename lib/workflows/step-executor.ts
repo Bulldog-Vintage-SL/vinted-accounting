@@ -229,16 +229,15 @@ export function processStepResult(
       const targetRaw = s.originalPayload?.listing?.attributes?.brand ?? ''
       const target = normalizeBrand(targetRaw)
 
-      const useUnsigned = () => {
+      const assignUnsignedBrand = () => {
         s.vestBrandId = UNSIGNED_BRAND_ID
         s.vestBrandName = UNSIGNED_BRAND_NAME
       }
 
       if (NO_BRAND_TERMS.has(target)) {
-        useUnsigned()
+        assignUnsignedBrand()
         break
       }
-
       const candidates = result.data.filter((b: any) => !b.banned)
 
       const exact = candidates.find((b: any) => normalizeBrand(b.name) === target)
@@ -267,7 +266,7 @@ export function processStepResult(
         s.vestBrandName = brand.name
       } else {
         console.warn(`[Vestiaire] No confident match for "${targetRaw}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)}) → falling back to Unsigned`)
-        useUnsigned()
+        assignUnsignedBrand()
       }
       break
     }
