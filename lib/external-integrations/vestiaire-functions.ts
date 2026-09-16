@@ -496,7 +496,7 @@ export async function fetchVestiaireChats(): Promise<{
   ownUserId?: string
 }> {
   try {
-    const result = await runFlow('FETCH_VEST_CHATS', { platform: 'vestiaire' })
+    const result = await runFlow('FETCH_VEST_CHATS', { platform: 'vestiaire', stayInBackground: true })
     const state = result?.result?.state
     if (!state) {
       return {
@@ -506,7 +506,7 @@ export async function fetchVestiaireChats(): Promise<{
     }
 
     const chats = mergeVestiaireInbox(state.vestFeedChats, state.vestApiChannels)
-    if (!chats.length && !state.vestiaireId) {
+    if (!chats.length && !state.userId && !state.vestiaireId) {
       return {
         ok: false,
         message: 'No hay sesión de Vestiaire. Abre Vestiaire Collective e inicia sesión, luego vuelve a sincronizar.',
@@ -519,7 +519,7 @@ export async function fetchVestiaireChats(): Promise<{
         ? `Se cargaron ${chats.length} conversaciones de Vestiaire`
         : 'No hay conversaciones en Vestiaire',
       chats,
-      ownUserId: state.vestiaireId || state.vestChatUserId,
+      ownUserId: state.vestChatUserId || state.userId || state.vestiaireId,
     }
   } catch (err: any) {
     return {
@@ -539,6 +539,7 @@ export async function fetchVestiaireChatMessages(channelId: string): Promise<{
     const result = await runFlow('FETCH_VEST_CHAT_MESSAGES', {
       platform: 'vestiaire',
       channelId,
+      stayInBackground: true,
     })
     const state = result?.result?.state
     if (!state?.vestChatMessagesRaw && !result?.result?.result) {
@@ -548,7 +549,7 @@ export async function fetchVestiaireChatMessages(channelId: string): Promise<{
       }
     }
 
-    const ownUserId = state?.vestChatUserId || state?.vestiaireId
+    const ownUserId = state?.vestChatUserId || state?.userId
     const raw = state?.vestChatMessagesRaw ?? result?.result?.result
     return {
       ok: true,
@@ -577,6 +578,7 @@ export async function sendVestiaireChatMessage(
       platform: 'vestiaire',
       channelId,
       text,
+      stayInBackground: true,
     })
     const state = result?.result?.state
     const raw = state?.vestChatSendResult ?? result?.result?.result
@@ -587,7 +589,7 @@ export async function sendVestiaireChatMessage(
       }
     }
 
-    const ownUserId = state?.vestChatUserId || state?.vestiaireId
+    const ownUserId = state?.vestChatUserId || state?.userId
     const sent = mapStreamSendResult(raw, ownUserId) ?? {
       id: `local-${Date.now()}`,
       senderId: String(ownUserId ?? 'me'),

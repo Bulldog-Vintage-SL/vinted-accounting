@@ -103,6 +103,7 @@ export interface WorkflowStep {
     skipDelay?: boolean
     streamChat?: boolean
     streamToken?: string
+    runInBackground?: boolean
   }
 }
 
@@ -177,6 +178,8 @@ export interface WorkflowState {
   vestChatToken?: string
   vestChatUserId?: string
   vestChatMessagesRaw?: any
+  vestChatOldestMessageId?: string
+  vestChatMessagePages?: number
   vestChatSendResult?: any
 
   // Depop

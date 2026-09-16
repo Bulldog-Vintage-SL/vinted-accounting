@@ -9,6 +9,8 @@ import type { Chat, ChatMessage } from '@/app/chats/types'
 
 export const VESTIAIRE_STREAM_API_KEY = '2z32xywf24hh'
 export const VESTIAIRE_CHAT_FEED_LIMIT = 60
+export const VESTIAIRE_STREAM_MESSAGE_LIMIT = 300
+export const VESTIAIRE_STREAM_MESSAGE_MAX_PAGES = 10
 const BASE = 'https://apiv2.vestiairecollective.com'
 
 export function buildVestiaireChatsUrl(offset = 0) {
@@ -24,6 +26,11 @@ export function buildVestiaireChatsUrl(offset = 0) {
   return `${BASE}/notification-feed/v2?${params.toString()}`
 }
 
+const CHAT_BACKGROUND_REQUEST = {
+  skipDelay: true,
+  runInBackground: true,
+} as const
+
 export function buildFetchVestiaireChatsSteps(): WorkflowStep[] {
   return [
     {
@@ -31,9 +38,10 @@ export function buildFetchVestiaireChatsSteps(): WorkflowStep[] {
       platform: 'vestiaire',
       type: 'GET_VEST_USER_ID',
       request: {
-        url: 'https://es.vestiairecollective.com/',
+        url: `${BASE}/chat/user/token?isoCountry=ES`,
         method: 'GET',
         extractFromDom: 'userId',
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
     {
@@ -43,7 +51,7 @@ export function buildFetchVestiaireChatsSteps(): WorkflowStep[] {
       request: {
         url: buildVestiaireChatsUrl(0),
         method: 'GET',
-        skipDelay: true,
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
   ]
@@ -54,21 +62,22 @@ export function buildFetchVestiaireChatMessagesSteps(): WorkflowStep[] {
     {
       id: crypto.randomUUID(),
       platform: 'vestiaire',
-      type: 'GET_VEST_CHAT_TOKEN',
+      type: 'GET_VEST_USER_ID',
       request: {
         url: `${BASE}/chat/user/token?isoCountry=ES`,
         method: 'GET',
-        skipDelay: true,
+        extractFromDom: 'userId',
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
     {
       id: crypto.randomUUID(),
       platform: 'vestiaire',
-      type: 'GET_VEST_CHAT_CHANNEL',
+      type: 'GET_VEST_CHAT_TOKEN',
       request: {
-        url: `${BASE}/chat/channel/?isoCountry=ES`,
+        url: `${BASE}/chat/user/token?isoCountry=ES`,
         method: 'GET',
-        skipDelay: true,
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
     {
@@ -78,8 +87,8 @@ export function buildFetchVestiaireChatMessagesSteps(): WorkflowStep[] {
       request: {
         url: '',
         method: 'POST',
-        skipDelay: true,
         streamChat: true,
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
   ]
@@ -90,11 +99,22 @@ export function buildSendVestiaireChatMessageSteps(): WorkflowStep[] {
     {
       id: crypto.randomUUID(),
       platform: 'vestiaire',
+      type: 'GET_VEST_USER_ID',
+      request: {
+        url: `${BASE}/chat/user/token?isoCountry=ES`,
+        method: 'GET',
+        extractFromDom: 'userId',
+        ...CHAT_BACKGROUND_REQUEST,
+      },
+    },
+    {
+      id: crypto.randomUUID(),
+      platform: 'vestiaire',
       type: 'GET_VEST_CHAT_TOKEN',
       request: {
         url: `${BASE}/chat/user/token?isoCountry=ES`,
         method: 'GET',
-        skipDelay: true,
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
     {
@@ -104,8 +124,8 @@ export function buildSendVestiaireChatMessageSteps(): WorkflowStep[] {
       request: {
         url: '',
         method: 'POST',
-        skipDelay: true,
         streamChat: true,
+        ...CHAT_BACKGROUND_REQUEST,
       },
     },
   ]
@@ -281,18 +301,24 @@ export function mapStreamMessages(result: any, ownUserId?: string): ChatMessage[
       const content =
         (typeof message.text === 'string' && message.text.trim()) ||
         attachmentFallback ||
-        ''
+        (message.type && message.type !== 'regular' ? `[${message.type}]` : '')
 
       return {
         id: String(message.id ?? `${message.created_at}-${senderId}`),
         senderId,
-        senderName: message.user?.name || (isOwn ? 'Tú' : 'Usuario'),
+        senderName:
+          message.user?.name ||
+          message.user?.username ||
+          (isOwn ? 'Tú' : 'Usuario'),
         content,
         createdAt: message.created_at || new Date().toISOString(),
         isOwn,
       }
     })
     .filter((message: ChatMessage) => message.content.length > 0)
+    .sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )
 }
 
 export function mapStreamSendResult(result: any, ownUserId?: string): ChatMessage | null {
@@ -315,21 +341,56 @@ export function decodeJwtUserId(token: string): string | undefined {
   }
 }
 
+function findJwtToken(value: any, depth = 0): string | undefined {
+  if (value == null || depth > 6) return undefined
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed.split('.').length === 3 && trimmed.length > 40) return trimmed
+    return undefined
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findJwtToken(item, depth + 1)
+      if (found) return found
+    }
+    return undefined
+  }
+  if (typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      const found = findJwtToken(item, depth + 1)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 export function extractVestiaireChatToken(result: any): {
   token?: string
   userId?: string
 } {
   const token =
+    result?.data?.userToken?.token ??
+    result?.userToken?.token ??
+    result?.data?.token?.token ??
+    (typeof result === 'string' ? result : undefined) ??
     result?.token ??
+    result?.jwt ??
     result?.data?.token ??
-    (typeof result?.data === 'string' ? result.data : undefined)
+    result?.data?.jwt ??
+    (typeof result?.data === 'string' ? result.data : undefined) ??
+    findJwtToken(result)
+
   const userId =
+    (typeof token === 'string' ? decodeJwtUserId(token) : undefined) ??
     result?.userId ??
     result?.user_id ??
+    result?.user?.id ??
     result?.data?.userId ??
     result?.data?.user_id ??
-    result?.data?.user?.id ??
-    (typeof token === 'string' ? decodeJwtUserId(token) : undefined)
+    result?.data?.user?.id
 
-  return { token, userId: userId ? String(userId) : undefined }
+  return {
+    token: typeof token === 'string' ? token : undefined,
+    userId: userId ? String(userId) : undefined,
+  }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, MessageCircle, ExternalLink, Loader2, ArrowLeft } from "lucide-react";
+import { Send, MessageCircle, Loader2, ArrowLeft } from "lucide-react";
 import { Chat } from "../types";
 import { PlatformBadge } from "./PlatformBadge";
 
@@ -93,17 +93,6 @@ export function ChatWindow({
           />
         )}
         <PlatformBadge platform={chat.platform} />
-        {chat.externalUrl && (
-          <a
-            href={chat.externalUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 rounded-md hover:bg-base-200 text-base-content/70"
-            title="Abrir en Vestiaire"
-          >
-            <ExternalLink className="w-4 h-4" />
-          </a>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">

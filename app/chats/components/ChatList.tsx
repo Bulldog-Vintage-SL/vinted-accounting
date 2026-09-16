@@ -44,7 +44,7 @@ export function ChatList({
           onClick={onSync}
           disabled={syncing}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-base-300 hover:bg-base-200 transition disabled:opacity-50"
-          title="Sincronizar chats de Vestiaire. Necesitas la pestaña de Vestiaire abierta con sesión."
+          title="Sincronizar chats de Vestiaire"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
           {syncing ? "Sincronizando..." : "Sincronizar"}
@@ -56,7 +56,7 @@ export function ChatList({
           <p className="text-sm text-base-content/60 text-center py-10 px-4">
             {syncing
               ? "Cargando conversaciones de Vestiaire..."
-              : "No hay conversaciones. Pulsa Sincronizar con Vestiaire abierto e iniciado sesión."}
+              : "No hay conversaciones. Pulsa Sincronizar (con sesión de Vestiaire iniciada)."}
           </p>
         ) : (
           chats.map((chat) => {

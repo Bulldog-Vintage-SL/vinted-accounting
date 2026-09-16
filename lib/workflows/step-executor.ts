@@ -14,6 +14,8 @@ import {
 import {
   VESTIAIRE_CHAT_FEED_LIMIT,
   VESTIAIRE_STREAM_API_KEY,
+  VESTIAIRE_STREAM_MESSAGE_LIMIT,
+  VESTIAIRE_STREAM_MESSAGE_MAX_PAGES,
   buildVestiaireChatsUrl,
   extractVestiaireChatToken,
 } from './vestiaire/vestiaire-chat-steps'
@@ -219,6 +221,8 @@ export function processStepResult(
       s.profileLink = result.profileLink
       s.accountName = result.accountName
       s.vestiaireId = result.vestiaireId
+      // Stream Chat usa el id numérico (vc_uid / 30332763), no el vestiaireId tipo ObjectId
+      s.vestChatUserId = result.userId || s.vestChatUserId
       break
 
     case 'GET_VEST_CHATS': {
@@ -234,7 +238,7 @@ export function processStepResult(
           id: crypto.randomUUID(),
           type: 'GET_VEST_CHATS',
           platform: 'vestiaire',
-          request: { url: '', method: 'GET', skipDelay: true },
+          request: { url: '', method: 'GET', skipDelay: true, runInBackground: true },
         })
       }
       break
@@ -257,13 +261,43 @@ export function processStepResult(
     case 'GET_VEST_CHAT_TOKEN': {
       const extracted = extractVestiaireChatToken(result)
       s.vestChatToken = extracted.token
-      s.vestChatUserId = extracted.userId ?? s.vestiaireId
+      s.vestChatUserId = extracted.userId || s.userId || s.vestChatUserId
       break
     }
 
-    case 'GET_VEST_CHAT_MESSAGES':
-      s.vestChatMessagesRaw = result
+    case 'GET_VEST_CHAT_MESSAGES': {
+      const page = Array.isArray(result?.messages) ? result.messages : []
+      const existing = Array.isArray(s.vestChatMessagesRaw?.messages)
+        ? s.vestChatMessagesRaw.messages
+        : []
+      const byId = new Map<string, any>()
+      for (const message of [...existing, ...page]) {
+        if (message?.id) byId.set(String(message.id), message)
+      }
+      s.vestChatMessagesRaw = { ...result, messages: Array.from(byId.values()) }
+      s.vestChatMessagePages = (s.vestChatMessagePages ?? 0) + 1
+
+      if (
+        page.length >= VESTIAIRE_STREAM_MESSAGE_LIMIT &&
+        (s.vestChatMessagePages ?? 0) < VESTIAIRE_STREAM_MESSAGE_MAX_PAGES
+      ) {
+        const oldest = page.reduce((current: any, nextMsg: any) => {
+          if (!current?.created_at) return nextMsg
+          if (!nextMsg?.created_at) return current
+          return new Date(nextMsg.created_at) < new Date(current.created_at) ? nextMsg : current
+        }, page[0])
+        if (oldest?.id) {
+          s.vestChatOldestMessageId = String(oldest.id)
+          steps.splice(currentStep + 1, 0, {
+            id: crypto.randomUUID(),
+            type: 'GET_VEST_CHAT_MESSAGES',
+            platform: 'vestiaire',
+            request: { url: '', method: 'POST', skipDelay: true, streamChat: true, runInBackground: true },
+          })
+        }
+      }
       break
+    }
 
     case 'SEND_VEST_CHAT_MESSAGE':
       s.vestChatSendResult = result
@@ -679,31 +713,36 @@ export function processStepResult(
         next.request.url = buildVestiaireChatsUrl(s.vestChatNextOffset ?? 0)
         next.request.method = 'GET'
         next.request.skipDelay = true
+        next.request.runInBackground = true
       }
       break
 
     case 'GET_VEST_CHAT_MESSAGES': {
       const channelId = String(s.originalPayload?.channelId ?? '')
-      const userId = String(s.vestChatUserId ?? s.vestiaireId ?? '')
+      const userId = String(s.vestChatUserId || s.userId || '')
       next.request.url =
         `https://chat.stream-chat.com/channels/messaging/${encodeURIComponent(channelId)}/query` +
         `?user_id=${encodeURIComponent(userId)}&api_key=${VESTIAIRE_STREAM_API_KEY}`
       next.request.method = 'POST'
       next.request.body = {
+        data: {},
         state: true,
-        watch: false,
+        watch: true,
         presence: false,
-        messages: { limit: 100 },
+        messages: s.vestChatOldestMessageId
+          ? { limit: VESTIAIRE_STREAM_MESSAGE_LIMIT, id_lt: s.vestChatOldestMessageId }
+          : { limit: VESTIAIRE_STREAM_MESSAGE_LIMIT },
       }
       next.request.streamChat = true
       next.request.streamToken = s.vestChatToken
       next.request.skipDelay = true
+      next.request.runInBackground = true
       break
     }
 
     case 'SEND_VEST_CHAT_MESSAGE': {
       const channelId = String(s.originalPayload?.channelId ?? '')
-      const userId = String(s.vestChatUserId ?? s.vestiaireId ?? '')
+      const userId = String(s.vestChatUserId || s.userId || '')
       next.request.url =
         `https://chat.stream-chat.com/channels/messaging/${encodeURIComponent(channelId)}/message` +
         `?user_id=${encodeURIComponent(userId)}&api_key=${VESTIAIRE_STREAM_API_KEY}`
@@ -712,6 +751,7 @@ export function processStepResult(
       next.request.streamChat = true
       next.request.streamToken = s.vestChatToken
       next.request.skipDelay = true
+      next.request.runInBackground = true
       break
     }
 
