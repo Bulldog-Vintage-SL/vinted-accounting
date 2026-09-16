@@ -21,6 +21,46 @@ import {
 } from './vestiaire/vestiaire-chat-steps'
 import stringSimilarity from 'string-similarity'
 
+// Límites de caracteres por plataforma y campo. Ajustar estos valores si
+// difieren de los reales publicados por cada app.
+const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = {
+  vinted: { title: 100, description: 2000 },
+  wallapop: { title: 50, description: 640 },
+  vestiaire: { title: 100, description: 3000 },
+  depop: { title: 1000, description: 1000 },
+}
+
+/**
+ * Recorta `text` para que quepa en el límite de caracteres de `platform`/`field`,
+ * cortando por palabras completas (nunca a mitad de palabra) y sin dejar
+ * espacios ni puntuación suelta al final.
+ */
+function truncateForPlatform(
+  text: string | undefined | null,
+  platform: keyof typeof PLATFORM_LIMITS,
+  field: 'title' | 'description'
+): string {
+  if (!text) return text ?? ''
+
+  const limit = PLATFORM_LIMITS[platform]?.[field]
+  if (limit == null || text.length <= limit) return text
+
+  // Cortamos duro al límite y luego retrocedemos hasta el último espacio,
+  // así no partimos ninguna palabra por la mitad.
+  const hardCut = text.slice(0, limit)
+  const lastSpace = hardCut.lastIndexOf(' ')
+
+  // Si no hay ningún espacio dentro del límite (título de una sola palabra
+  // muy larga), no queda otra que cortar a saco.
+  let result = lastSpace > 0 ? hardCut.slice(0, lastSpace) : hardCut
+
+  // Limpiamos puntuación/espacios residuales que puedan quedar al final
+  // tras el recorte (p. ej. una coma justo antes del espacio cortado).
+  result = result.replace(/[\s,.;:!?-]+$/, '')
+
+  return result
+}
+
 export function processStepResult(
   steps: WorkflowStep[],
   currentStep: number,
@@ -847,7 +887,7 @@ export function processStepResult(
         colour: s.depopColourIds,
         condition: s.depopConditionId,
         country: s.depopCountryCode ?? 'ES',
-        description: limitTrailingHashtags(l.description),
+        description: truncateForPlatform(limitTrailingHashtags(l.description), 'depop', 'description'),
         gender: s.depopGender,
         geo_position_lat: s.depopGeoLat,
         geo_position_lng: s.depopGeoLng,
@@ -951,7 +991,7 @@ function buildCreateItemBody(s: WorkflowState) {
       catalog_id: s.categoryId,
       color_ids: s.colorIds,
       currency: 'EUR',
-      description: l.description,
+      description: truncateForPlatform(l.description, 'vinted', 'description'),
       id: null,
       is_unisex: false,
       isbn: null,
@@ -964,7 +1004,7 @@ function buildCreateItemBody(s: WorkflowState) {
       price: l.price,
       shipment_prices: { domestic: null, international: null },
       temp_uuid: s.uploadSessionId,
-      title: l.title,
+      title: truncateForPlatform(l.title, 'vinted', 'title'),
       video_game_rating_id: null
     },
     parcel: null,
@@ -1148,8 +1188,8 @@ function buildCreateWallaItemBody(s: WorkflowState) {
       brand: l.attributes.brand ?? 'Sin marca',
       size: s.wallaSizeId,
       color,
-      title: l.title,
-      description: l.description,
+      title: truncateForPlatform(l.title, 'wallapop', 'title'),
+      description: truncateForPlatform(l.description, 'wallapop', 'description'),
       condition: conditionMap[l.condition] ?? 'good',
       suggested_data_banner: null
     },
@@ -1207,8 +1247,8 @@ function buildVintedUpdateItemBody(s: WorkflowState) {
   return {
     item: {
       ...item,
-      title: fields.title ?? item.title,
-      description: fields.description ?? item.description,
+      title: truncateForPlatform(fields.title ?? item.title, 'vinted', 'title'),
+      description: truncateForPlatform(fields.description ?? item.description, 'vinted', 'description'),
       price: fields.price != null ? fields.price : item.price?.amount,
       color_ids: item.color1_id ? [item.color1_id, item.color2_id].filter(Boolean) : []
     },
@@ -1229,8 +1269,8 @@ function buildUpdateWallaItemBody(s: WorkflowState) {
 
   return {
     attributes: {
-      title: fields.title ?? item.title?.original,
-      description: fields.description ?? item.description?.original,
+      title: truncateForPlatform(fields.title ?? item.title?.original, 'wallapop', 'title'),
+      description: truncateForPlatform(fields.description ?? item.description?.original, 'wallapop', 'description'),
       brand: item.type_attributes?.brand?.value,
       size: item.type_attributes?.size?.value,
       color: item.type_attributes?.color?.value,
@@ -1504,7 +1544,7 @@ function buildDepopUpdateItemBody(s: WorkflowState) {
     colour: item.colour ?? [],
     condition: item.condition,
     country: item.country,
-    description: limitTrailingHashtags(fields.description ?? item.description),
+    description: truncateForPlatform(limitTrailingHashtags(fields.description ?? item.description), 'depop', 'description'),
     gender: item.gender,
     geo_position_lat: s.depopGeoLat,
     geo_position_lng: s.depopGeoLng,
