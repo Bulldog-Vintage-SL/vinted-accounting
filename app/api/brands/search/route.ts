@@ -24,14 +24,12 @@ export async function GET(req: Request) {
 
     await connectMongo();
 
-    // Escapamos caracteres especiales de regex para que el input del usuario
-    // no rompa la query (ej. si escribe "C&A").
     const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(escaped, "i");
 
     const brands = await Brand.find({ name: regex })
       .select("name")
-      .limit(MAX_RESULTS * 3) // sobre-pedimos un poco para poder reordenar antes de recortar
+      .limit(MAX_RESULTS * 3)
       .lean();
 
     const lowerQ = q.toLowerCase();

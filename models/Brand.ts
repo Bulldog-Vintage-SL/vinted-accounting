@@ -1,6 +1,13 @@
-import mongoose, { Schema, models, model } from "mongoose";
+import mongoose, { Schema, model, models, Document } from "mongoose";
 
-const BrandSchema = new Schema(
+export interface IBrand extends Document {
+  vinted_id?: number;
+  name: string;
+  slug?: string | null;
+  source: string;
+}
+
+const BrandSchema = new Schema<IBrand>(
   {
     vinted_id: { type: Number, index: true },
     name: { type: String, required: true },
@@ -10,9 +17,10 @@ const BrandSchema = new Schema(
   { timestamps: true }
 );
 
-// Índice normal para acelerar el sort/lookup por nombre.
-// Para autocomplete con prefijos/fuzzy a este volumen, valorar migrar a Atlas Search ($search)
-// más adelante — este índice no acelera un regex con substring libre (solo prefijo).
 BrandSchema.index({ name: 1 });
 
-export default models.Brand || model("Brand", BrandSchema, "brands");
+const Brand =
+  (models.Brand as mongoose.Model<IBrand>) ||
+  model<IBrand>("Brand", BrandSchema, "brands");
+
+export default Brand;
