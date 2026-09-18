@@ -23,6 +23,7 @@ import type { Job } from "@/lib/queue/types";
 import { useRef } from "react";
 import { mutate } from "swr";
 import { replacePhotoUrl, rotatePhoto } from "@/utils/rotatePhoto";
+import { SIZE_OPTIONS } from "@/data/sizes";
 
 type Phase = "upload" | "group" | "details" | "publish-choice" | "generating" | "review" | "publishing";
 
@@ -34,8 +35,6 @@ const GROUP_STYLES = [
     { ring: "ring-pink-400", chip: "bg-pink-600" },
     { ring: "ring-cyan-400", chip: "bg-cyan-600" },
 ];
-
-const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"];
 
 const DESPERFECTO_OPTIONS = ["Sin desperfectos", "Mancha", "Agujero", "Descosido"] as const;
 type Desperfecto = typeof DESPERFECTO_OPTIONS[number];
@@ -1011,7 +1010,7 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
 
                                                     <div className="grid grid-cols-2 gap-2">
                                                         <BrandSelect
-                                                            value={draft.data.attributes?.brand}
+                                                            value={draft.data.attributes?.brand ?? ""}
                                                             onChange={brand => updateDraftAttribute(draft.id, { brand })}
                                                         />
                                                         <CategorySelect
@@ -1080,17 +1079,15 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                                             >
                                                                                 <img
                                                                                     src={url}
-                                                                                    className={`h-full w-full object-cover transition-opacity ${
-                                                                                        isMasking && !isSelectedForMask ? "opacity-40" : ""
-                                                                                    }`}
+                                                                                    className={`h-full w-full object-cover transition-opacity ${isMasking && !isSelectedForMask ? "opacity-40" : ""
+                                                                                        }`}
                                                                                 />
                                                                                 {isMasking && (
                                                                                     <span
-                                                                                        className={`absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full text-[8px] font-bold flex items-center justify-center border-2 transition ${
-                                                                                            isSelectedForMask
+                                                                                        className={`absolute top-0.5 right-0.5 h-3.5 w-3.5 rounded-full text-[8px] font-bold flex items-center justify-center border-2 transition ${isSelectedForMask
                                                                                                 ? "bg-amber-600 border-amber-600 text-white"
                                                                                                 : "bg-white/90 border-gray-300 text-gray-400"
-                                                                                        }`}
+                                                                                            }`}
                                                                                     >
                                                                                         {isSelectedForMask ? "✓" : ""}
                                                                                     </span>
@@ -1119,11 +1116,10 @@ export function BulkImportModal({ open, onClose, onSaveListing }: Props) {
                                                                                             [draft.id]: active ? null : platform,
                                                                                         }))
                                                                                     }
-                                                                                    className={`px-2 py-0.5 rounded-full border transition ${
-                                                                                        active
+                                                                                    className={`px-2 py-0.5 rounded-full border transition ${active
                                                                                             ? "bg-amber-600 text-white border-amber-600"
                                                                                             : "bg-white border-amber-300 text-amber-800 hover:bg-amber-100"
-                                                                                    }`}
+                                                                                        }`}
                                                                                 >
                                                                                     {PLATFORM_LABELS[platform]}: {count}/{limit}
                                                                                 </button>

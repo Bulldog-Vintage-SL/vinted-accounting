@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 type BrandSelectProps = {
-  value: string;
+  value: string | undefined;
   onChange: (brand: string) => void;
 };
 
@@ -12,7 +12,7 @@ const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
 
 export default function BrandSelect({ value, onChange }: BrandSelectProps) {
-  const [query, setQuery] = useState(value);
+  const [query, setQuery] = useState(value ?? "");
   const [results, setResults] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    setQuery(value);
+    setQuery(value ?? "");
   }, [value]);
 
   // Búsqueda al backend con debounce, cancelando la petición anterior si aún no ha vuelto.
@@ -60,7 +60,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setQuery(value);
+        setQuery(value ?? "");
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -73,7 +73,12 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
     setIsOpen(false);
   };
 
-  const showEmptyHint = query.trim().length < MIN_QUERY_LENGTH;
+  const showEmptyHint = (() => {
+  if (typeof query !== "string") {
+    console.error("query no es string:", query, typeof query);
+  }
+  return query.trim().length < MIN_QUERY_LENGTH;
+})();
 
   return (
     <div ref={containerRef} className="relative">

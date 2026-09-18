@@ -1,19 +1,31 @@
 // lib/brands.ts
-import Fuse from "fuse.js";
-import brandsData from "@/data/brands.json";
+import connectMongo from "@/libs/mongoose";
+import Brand from "@/models/Brand";
 
-const BRANDS: string[] = brandsData as string[];
-
-const fuse = new Fuse(BRANDS, {
-  threshold: 0.3,
-  ignoreDiacritics: true,
-});
-
-export function matchBrand(rawName: string): string | null {
-  if (!rawName || rawName.trim().toLowerCase() === "sin marca") {
+export async function matchBrand(rawName: string): Promise<string | null> {
+  const trimmed = rawName?.trim();
+  if (!trimmed || trimmed.toLowerCase() === "sin marca") {
     return null;
   }
 
-  const results = fuse.search(rawName.trim());
-  return results.length > 0 ? results[0].item : null;
+  await connectMongo();
+
+  const results = await Brand.aggregate([
+    {
+      $search: {
+        index: "brands_fuzzy",
+        text: {
+          query: trimmed,
+          path: "name",
+          fuzzy: { maxEdits: 2, prefixLength: 1 },
+        },
+      },
+    },
+    { $limit: 1 },
+    { $project: { _id: 0, name: 1 } },
+  ]);
+
+
+  console.log(results[0]?.name)
+  return results[0]?.name ?? null;
 }
