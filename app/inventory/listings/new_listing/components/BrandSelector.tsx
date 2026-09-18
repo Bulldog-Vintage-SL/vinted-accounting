@@ -8,46 +8,72 @@ type BrandSelectProps = {
 };
 
 const NO_BRAND_OPTION = "Sin marca";
+const DEBOUNCE_MS = 250;
+const MIN_QUERY_LENGTH = 2;
 
 export default function BrandSelect({ value, onChange }: BrandSelectProps) {
   const [query, setQuery] = useState(value);
-  const [brands, setBrands] = useState<string[]>([]);
+  const [results, setResults] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setIsLoading(true);
-    fetch("/api/brands")
-      .then(res => res.json())
-      .then((data: string[]) => setBrands(data))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
+  // Búsqueda al backend con debounce, cancelando la petición anterior si aún no ha vuelto.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (query.trim().length < MIN_QUERY_LENGTH) {
+      setResults([]);
+      setIsLoading(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(() => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setIsLoading(true);
+      fetch(`/api/brands/search?q=${encodeURIComponent(query.trim())}`, {
+        signal: controller.signal,
+      })
+        .then(res => res.json())
+        .then((data: string[]) => setResults(data))
+        .catch(err => {
+          if (err.name !== "AbortError") console.error("Error buscando marcas:", err);
+        })
+        .finally(() => setIsLoading(false));
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [query]);
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setQuery(value); 
+        setQuery(value);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [value]);
 
-  const filtered = brands.filter(b =>
-    b.toLowerCase().includes(query.toLowerCase())
-  );
-
   const handleSelect = (brand: string) => {
     onChange(brand);
     setQuery(brand);
     setIsOpen(false);
   };
+
+  const showEmptyHint = query.trim().length < MIN_QUERY_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">
@@ -59,7 +85,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
           setIsOpen(true);
         }}
         onFocus={() => setIsOpen(true)}
-        placeholder={isLoading ? "Cargando marcas..." : "Busca una marca"}
+        placeholder="Busca una marca"
         className="mt-1 w-full rounded-md border border-gray-300 p-2"
         autoComplete="off"
       />
@@ -77,8 +103,14 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
             {NO_BRAND_OPTION}
           </li>
 
-          {filtered.length > 0 ? (
-            filtered.map(brand => (
+          {showEmptyHint ? (
+            <li className="px-3 py-2 text-sm text-gray-400">
+              Escribe al menos {MIN_QUERY_LENGTH} letras...
+            </li>
+          ) : isLoading ? (
+            <li className="px-3 py-2 text-sm text-gray-400">Buscando...</li>
+          ) : results.length > 0 ? (
+            results.map(brand => (
               <li
                 key={brand}
                 onClick={() => handleSelect(brand)}
@@ -90,9 +122,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
               </li>
             ))
           ) : (
-            !isLoading && (
-              <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
-            )
+            <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
           )}
         </ul>
       )}
