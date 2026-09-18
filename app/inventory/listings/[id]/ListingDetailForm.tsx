@@ -19,6 +19,8 @@ import BrandSelect from '@/app/inventory/listings/new_listing/components/BrandSe
 import CategorySelect from '@/app/inventory/listings/new_listing/components/CategorySelect'
 import { MarkSoldModal, type MarkSoldPayload } from '../components/MarkSoldModal'
 import { formatListingStatus } from '@/libs/inventory/display'
+import { SIZE_OPTIONS } from "@/data/sizes";
+import { COLOR_OPTIONS } from "@/data/colors";
 
 const fetcher = (url: string) => fetch(url).then(res => res.json())
 
@@ -38,23 +40,6 @@ const emptyForm: ListingForm = {
   item_type: null,
   stock: 1
 }
-
-const COLOR_OPTIONS = [
-  'Negro',
-  'Blanco',
-  'Rojo',
-  'Azul',
-  'Verde',
-  'Amarillo',
-  'Gris',
-  'Rosa',
-  'Naranja',
-  'Marrón',
-]
-
-const SIZE_OPTIONS = [
-  'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '4XL', '5XL', '6XL', '7XL', '8XL', 'Talla única',
-]
 
 const CONDITION_OPTIONS = ['Nuevo', 'Como nuevo', 'Bueno', 'Aceptable']
 

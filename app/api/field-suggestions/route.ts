@@ -230,7 +230,7 @@ async function generateFields(imgUrl: string, draftTitle: string, similarListing
     if (equivalent) matchedCategory = equivalent;
   }
 
-  const matchedBrand = matchBrand(parsed.brand);
+  const matchedBrand = (await matchBrand(parsed.brand)) ?? "Vintage Dressing";
 
   return {
     title: parsed.title,

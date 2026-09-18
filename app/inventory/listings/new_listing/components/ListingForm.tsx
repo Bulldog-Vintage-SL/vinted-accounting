@@ -15,6 +15,8 @@ import CategorySelect from "./CategorySelect";
 import { validateListingCreationFields } from "@/libs/listings/validation";
 import { SortablePhotoGrid } from "@/app/inventory/listings/components/ListingPhotos";
 import { replacePhotoUrl, rotatePhoto } from "@/utils/rotatePhoto";
+import { SIZE_OPTIONS } from "@/data/sizes";
+import { COLOR_OPTIONS } from "@/data/colors";
 
 type ItemFormProps = {
   initialData: ListingForm;
@@ -30,7 +32,6 @@ const GENDER_OPTIONS: { label: string; value: "hombre" | "mujer" | "unisex" }[] 
 ];
 
 // --- Contexto manual para la IA (mismo modelo que BulkImportModal) ---
-const SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL", "XXXL", "4XL", "5XL", "6XL", "7XL", "8XL", "Talla única"];
 const DESPERFECTO_OPTIONS = ["Sin desperfectos", "Mancha", "Agujero", "Descosido"] as const;
 type Desperfecto = typeof DESPERFECTO_OPTIONS[number];
 type GarmentType = "arriba" | "abajo";
@@ -136,10 +137,6 @@ export default function ItemForm({ initialData, onSubmit }: ItemFormProps) {
   };
 
   const [selectedColor, setSelectedColor] = useState("");
-
-  const COLOR_OPTIONS = [
-    "Negro", "Blanco", "Rojo", "Azul", "Verde", "Amarillo", "Gris", "Rosa", "Naranja", "Marrón"
-  ];
 
   const addColor = () => {
     if (!selectedColor) return;

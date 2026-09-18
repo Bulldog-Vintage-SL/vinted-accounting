@@ -20,6 +20,7 @@ import {
   extractVestiaireChatToken,
 } from './vestiaire/vestiaire-chat-steps'
 import stringSimilarity from 'string-similarity'
+import { CONDITION_OPTIONS } from '../constants'
 
 // Límites de caracteres por plataforma y campo. Ajustar estos valores si
 // difieren de los reales publicados por cada app.
@@ -490,15 +491,16 @@ export function processStepResult(
       break
 
     case 'GET_DEPOP_PRODUCT_ATTRIBUTES': {
-      s.depopConditionId = findDepopConditionId(
-        result.condition,
-        s.originalPayload?.listing?.condition
-      )
+      s.depopConditionId = findDepopConditionId(result.condition, s.originalPayload?.listing?.condition)
       s.depopColourIds = findDepopColourIds(result.colour, s.originalPayload?.listing?.colors)
-      s.depopBrandSlug = findDepopBrandSlug(result.brand, s.originalPayload?.listing?.attributes?.brand)
+      const normalizedBrands = result.brand.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        normalized: normalizeBrand(b.name),
+      }))
+      s.depopBrandSlug = findDepopBrandSlug(normalizedBrands, s.originalPayload?.listing?.attributes?.brand)
       break
     }
-
 
     case 'GET_DEPOP_BANNED_HASHTAGS':
       s.depopBannedHashtags = result.banned_hashtags
@@ -958,18 +960,27 @@ function findSizeId(attributes: any[], sizeTitle: string): number {
   return matches[0].id;
 }
 
-// Busca el id de la condición dentro de la misma respuesta de /api/v2/item_upload/attributes.
+const VINTED_CONDITION_MAP: Record<typeof CONDITION_OPTIONS[number], string> = {
+  'Nuevo': 'nuevo sin etiquetas',
+  'Como nuevo': 'muy bueno',
+  'Bueno': 'bueno',
+  'Aceptable': 'satisfactorio',
+}
+
 function findConditionId(attributes: any[], condition: string): number {
   const condAttr = attributes?.find((a: any) => a.code === 'condition')
   const options = condAttr?.configuration?.options?.[0]?.options ?? []
 
   const normalize = (s: string) =>
     s?.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
-  const target = normalize(condition)
+
+  const mapped = VINTED_CONDITION_MAP[condition as typeof CONDITION_OPTIONS[number]]
+  const target = normalize(mapped ?? condition)
 
   const match = options.find((o: any) => normalize(o.title) === target)
   if (match) return match.id
 
+  console.warn(`[Vinted] No se pudo resolver condición "${condition}", usando fallback id=3 (Bueno)`)
   return 3
 }
 
@@ -1173,12 +1184,35 @@ function buildCreateWallaItemBody(s: WorkflowState) {
   }
 
   const colorMap: Record<string, string> = {
-    'negro': 'black', 'marrón': 'brown', 'beige': 'beige', 'gris': 'gray',
-    'blanco': 'white', 'azul': 'blue', 'verde azulado': 'teal',
-    'turquesa': 'turquoise', 'verde': 'green', 'verde oliva': 'olive_green',
-    'amarillo': 'yellow', 'naranja': 'orange', 'rojo': 'red',
-    'rosa': 'pink', 'morado': 'purple', 'dorado': 'gold',
-    'plateado': 'silver', 'multicolor': 'multicolor'
+    'negro': 'black',
+    'gris': 'gray',
+    'blanco': 'white',
+    'crema': 'beige',
+    'beige': 'beige',
+    'naranja pastel': 'orange',
+    'naranja': 'orange',
+    'coral': 'orange',
+    'rojo': 'red',
+    'burdeos': 'red',
+    'fucsia': 'pink',
+    'rosa': 'pink',
+    'morado': 'purple',
+    'lila': 'purple',
+    'azul claro': 'blue',
+    'azul': 'blue',
+    'azul marino': 'blue',
+    'turquesa': 'turquoise',
+    'menta': 'turquoise',
+    'verde': 'green',
+    'verde oscuro': 'green',
+    'caqui': 'olive_green',
+    'marrón': 'brown',
+    'mostaza': 'yellow',
+    'amarillo': 'yellow',
+    'plateado': 'silver',
+    'dorado': 'gold',
+    'varios': 'multicolor',
+    'transparente': 'other',
   }
 
   const color = colorMap[l.colors?.[0]?.toLowerCase()] ?? 'other'
@@ -1423,11 +1457,36 @@ function findDepopConditionId(options: any[], condition: string): string {
 function findDepopColourIds(options: any[], colors: string[]): string[] {
   const normalize = (s: string) => s?.toLowerCase().trim()
   const COLOR_ES_EN: Record<string, string> = {
-    negro: 'black', gris: 'grey', blanco: 'white', marrón: 'brown',
-    marron: 'brown', beige: 'tan', azul: 'blue', verde: 'green',
-    amarillo: 'yellow', naranja: 'orange', rojo: 'red', rosa: 'pink',
-    morado: 'purple', dorado: 'gold', plateado: 'silver', crema: 'cream',
+    negro: 'black',
+    gris: 'grey',
+    blanco: 'white',
+    crema: 'cream',
+    beige: 'tan',
+    'naranja pastel': 'orange',
+    naranja: 'orange',
+    coral: 'red',
+    rojo: 'red',
+    burdeos: 'red',
+    marrón: 'brown',
+    marron: 'brown',
+    fucsia: 'pink',
+    rosa: 'pink',
+    morado: 'purple',
+    lila: 'purple',
+    'azul claro': 'blue',
+    azul: 'blue',
+    'azul marino': 'blue',
+    turquesa: 'blue',
+    menta: 'mint',
+    verde: 'green',
+    'verde oscuro': 'green',
+    caqui: 'green',
+    mostaza: 'yellow',
+    amarillo: 'yellow',
+    plateado: 'silver',
+    dorado: 'gold',
     multicolor: 'multi',
+    varios: 'multi',
   }
 
   return (colors ?? [])
@@ -1440,20 +1499,32 @@ function findDepopColourIds(options: any[], colors: string[]): string[] {
 }
 
 
-function findDepopBrandSlug(brands: any[], brandName: string): string {
+function findDepopBrandSlug(brands: { id: string; name: string; normalized: string }[], brandName: string): string {
   if (!brandName) return ''
-  if (brandName === 'Sin marca') return 'unbranded'
-  if (brandName === 'Vintage Dressing') return 'unbranded'
-  const normalize = (s: string) => s?.toLowerCase().trim()
-  const target = normalize(brandName)
 
-  const match = brands?.find((b: any) => normalize(b.name) === target)
-  if (match) return match.id
+  const target = normalizeBrand(brandName)
+  if (['sin marca', 'vintage dressing', 'no brand', 'unbranded'].includes(target)) {
+    return 'unbranded'
+  }
 
-  return target
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const exact = brands.find(b => b.normalized === target)
+  if (exact) return exact.id
+
+  const prefixMatch = brands.find(b =>
+    b.normalized.startsWith(target + ' ') || target.startsWith(b.normalized + ' ')
+  )
+  if (prefixMatch) return prefixMatch.id
+
+  const names = brands.map(b => b.normalized)
+  const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(target, names)
+
+  const CONFIDENCE_THRESHOLD = 0.88
+  if (bestMatch.rating >= CONFIDENCE_THRESHOLD) {
+    return brands[bestMatchIndex].id
+  }
+
+  console.warn(`[Depop] No confident match for "${brandName}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)}) → falling back to unbranded`)
+  return 'unbranded'
 }
 
 
