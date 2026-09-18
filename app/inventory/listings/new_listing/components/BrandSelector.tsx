@@ -73,12 +73,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
     setIsOpen(false);
   };
 
-  const showEmptyHint = (() => {
-  if (typeof query !== "string") {
-    console.error("query no es string:", query, typeof query);
-  }
-  return query.trim().length < MIN_QUERY_LENGTH;
-})();
+  const showEmptyHint = query.trim().length < MIN_QUERY_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">

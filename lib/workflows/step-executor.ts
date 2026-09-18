@@ -491,15 +491,16 @@ export function processStepResult(
       break
 
     case 'GET_DEPOP_PRODUCT_ATTRIBUTES': {
-      s.depopConditionId = findDepopConditionId(
-        result.condition,
-        s.originalPayload?.listing?.condition
-      )
+      s.depopConditionId = findDepopConditionId(result.condition, s.originalPayload?.listing?.condition)
       s.depopColourIds = findDepopColourIds(result.colour, s.originalPayload?.listing?.colors)
-      s.depopBrandSlug = findDepopBrandSlug(result.brand, s.originalPayload?.listing?.attributes?.brand)
+      const normalizedBrands = result.brand.map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        normalized: normalizeBrand(b.name),
+      }))
+      s.depopBrandSlug = findDepopBrandSlug(normalizedBrands, s.originalPayload?.listing?.attributes?.brand)
       break
     }
-
 
     case 'GET_DEPOP_BANNED_HASHTAGS':
       s.depopBannedHashtags = result.banned_hashtags
@@ -1186,7 +1187,7 @@ function buildCreateWallaItemBody(s: WorkflowState) {
     'negro': 'black',
     'gris': 'gray',
     'blanco': 'white',
-    'crema': 'beige',        
+    'crema': 'beige',
     'beige': 'beige',
     'naranja pastel': 'orange',
     'naranja': 'orange',
@@ -1463,24 +1464,24 @@ function findDepopColourIds(options: any[], colors: string[]): string[] {
     beige: 'tan',
     'naranja pastel': 'orange',
     naranja: 'orange',
-    coral: 'red',            
+    coral: 'red',
     rojo: 'red',
-    burdeos: 'red',     
+    burdeos: 'red',
     marrón: 'brown',
     marron: 'brown',
     fucsia: 'pink',
     rosa: 'pink',
     morado: 'purple',
-    lila: 'purple',         
+    lila: 'purple',
     'azul claro': 'blue',
     azul: 'blue',
-    'azul marino': 'blue',   
-    turquesa: 'blue',   
-    menta: 'mint',             
+    'azul marino': 'blue',
+    turquesa: 'blue',
+    menta: 'mint',
     verde: 'green',
     'verde oscuro': 'green',
-    caqui: 'green',        
-    mostaza: 'yellow',      
+    caqui: 'green',
+    mostaza: 'yellow',
     amarillo: 'yellow',
     plateado: 'silver',
     dorado: 'gold',
@@ -1498,20 +1499,32 @@ function findDepopColourIds(options: any[], colors: string[]): string[] {
 }
 
 
-function findDepopBrandSlug(brands: any[], brandName: string): string {
+function findDepopBrandSlug(brands: { id: string; name: string; normalized: string }[], brandName: string): string {
   if (!brandName) return ''
-  if (brandName === 'Sin marca') return 'unbranded'
-  if (brandName === 'Vintage Dressing') return 'unbranded'
-  const normalize = (s: string) => s?.toLowerCase().trim()
-  const target = normalize(brandName)
 
-  const match = brands?.find((b: any) => normalize(b.name) === target)
-  if (match) return match.id
+  const target = normalizeBrand(brandName)
+  if (['sin marca', 'vintage dressing', 'no brand', 'unbranded'].includes(target)) {
+    return 'unbranded'
+  }
 
-  return target
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const exact = brands.find(b => b.normalized === target)
+  if (exact) return exact.id
+
+  const prefixMatch = brands.find(b =>
+    b.normalized.startsWith(target + ' ') || target.startsWith(b.normalized + ' ')
+  )
+  if (prefixMatch) return prefixMatch.id
+
+  const names = brands.map(b => b.normalized)
+  const { bestMatch, bestMatchIndex } = stringSimilarity.findBestMatch(target, names)
+
+  const CONFIDENCE_THRESHOLD = 0.88
+  if (bestMatch.rating >= CONFIDENCE_THRESHOLD) {
+    return brands[bestMatchIndex].id
+  }
+
+  console.warn(`[Depop] No confident match for "${brandName}" (best: "${bestMatch.target}", rating: ${bestMatch.rating.toFixed(2)}) → falling back to unbranded`)
+  return 'unbranded'
 }
 
 
