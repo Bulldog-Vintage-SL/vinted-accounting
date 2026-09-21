@@ -165,75 +165,47 @@ export function processStepResult(
 
     case 'GET_CHATS': {
       const pag = result.pagination ?? {}
-      const convs: any[] = result.conversations ?? []
-      const currentPage = pag.current_page ?? 1
-
-      s.chatSummaries = { ...(s.chatSummaries ?? {}) }
-      s.chatQueue = [...(s.chatQueue ?? [])]
-
-      const lastSync = s.lastSyncAt ? Date.parse(s.lastSyncAt) : null
-      const before = s.backfillBefore ? Date.parse(s.backfillBefore) : null
-
-      for (const c of convs) {
-        const system = isSystemConv(c)
-        const ts = Date.parse(c.updated_at)
-
-        s.chatSummaries[c.id] = {
-          id: c.id,
-          system,
-          lastMessage: c.description,
-          unread: c.unread,
-          updatedAt: c.updated_at,
-          userId: c.opposite_user?.id,
-          login: c.opposite_user?.login,
-        }
-
-        const changed = lastSync === null || ts > lastSync
-        const inWindow = before === null || ts <= before   // <= : releer el último es idempotente
-        if (!system && changed && inWindow) s.chatQueue.push(c.id)
+      const byId = new Map<string, any>()
+      for (const c of [...(s.vintedInbox ?? []), ...(result.conversations ?? [])]) {
+        byId.set(String(c.id), c)
       }
+      s.vintedInbox = Array.from(byId.values())
 
-      s.chatsPage = currentPage + 1
-      s.chatsTotalPages = pag.total_pages ?? 1
-
-      // Corte 1: sync incremental. El inbox va por updated_at desc, así que si la
-      // última conversación de la página ya es anterior al watermark, no hay más nada nuevo
-      const last = convs[convs.length - 1]
-      if (lastSync !== null && last && Date.parse(last.updated_at) <= lastSync) {
-        s.chatsTotalPages = currentPage
-      }
-
-      // Corte 2: tope por ejecución
-      if (s.chatQueue.length > MAX_CHATS_PER_RUN) {
-        s.chatQueue = s.chatQueue.slice(0, MAX_CHATS_PER_RUN)
-        const oldest = s.chatSummaries[s.chatQueue[s.chatQueue.length - 1]]
-        s.backfillBefore = oldest.updatedAt      // la siguiente tanda continúa desde aquí
-        s.chatsTruncated = true
-        s.chatsTotalPages = currentPage          // no pedir más páginas
+      const page = pag.current_page ?? 1
+      if (page < (pag.total_pages ?? 1)) {
+        s.chatsPage = page + 1
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_CHATS',
+          platform: 'vinted',
+          request: { url: '', method: 'GET' }
+        })
       }
       break
     }
 
     case 'GET_CHAT': {
       const conv = result.conversation
-      s.chats = {
-        ...(s.chats ?? {}),
-        [conv.id]: {
-          id: conv.id,
-          subtitle: conv.subtitle,
-          allowReply: conv.allow_reply,
-          readByOpposite: conv.read_by_opposite_user,
-          oppositeUser: {
-            id: conv.opposite_user?.id,
-            login: conv.opposite_user?.login,
-            location: conv.opposite_user?.location_description,
-          },
-          messages: conv.messages, // crudo hasta ver un chat con mensajes de texto reales
-        }
+      s.vintedChatRaw = conv
+
+      // Igual que hace la web de Vinted al abrir el chat
+      if (conv && conv.read_by_current_user === false) {
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'MARK_CHAT_READ',
+          platform: 'vinted',
+          request: {
+            url: `https://www.vinted.es/api/v2/conversations/${conv.id}/mark_as_read`,
+            method: 'PUT'
+          }
+        })
       }
-      s.chatCursor = (s.chatCursor ?? 0) + 1
       break
     }
+
+    case 'SEND_CHAT_REPLY':
+      s.vintedChatSendResult = result
+      break
 
     case 'MARK_CHAT_READ':
     case 'SEND_CHAT_REPLY':
@@ -753,6 +725,13 @@ export function processStepResult(
 
     case 'CREATE_ITEM':
       next.request.body = buildCreateItemBody(s)
+      break
+
+
+    case 'GET_CHATS':
+      if (!next.request.url) {
+        next.request.url = `https://www.vinted.es/api/v2/inbox?page=${s.chatsPage ?? 1}&per_page=20`
+      }
       break
 
     // Wallapop

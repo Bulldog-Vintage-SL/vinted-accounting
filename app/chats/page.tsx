@@ -9,9 +9,13 @@ import {
   fetchVestiaireChats,
   fetchVestiaireChatMessages,
   sendVestiaireChatMessage,
+  fetchVintedChats,
+  fetchVintedChatMessages,
+  sendVintedChatMessage,
 } from "@/lib/external-integrations";
 
-const STORAGE_KEY = "rl:vestiaire-chats";
+// Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
+const STORAGE_KEY = "rl:chats";
 
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
@@ -32,6 +36,11 @@ function saveCachedChats(chats: Chat[]) {
     // Ignore quota / private mode.
   }
 }
+
+const lastMessageTs = (chat: Chat) =>
+  new Date(chat.lastMessageAt ?? 0).getTime() || 0;
+
+const byLastMessageDesc = (a: Chat, b: Chat) => lastMessageTs(b) - lastMessageTs(a);
 
 export default function ChatsPage() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -55,16 +64,34 @@ export default function ChatsPage() {
     loadingChatIdRef.current = null;
     setSyncing(true);
     try {
-      const res = await fetchVestiaireChats();
-      if (!res.ok) {
+      // Secuencial: las dos plataformas pasan por la misma extensión
+      const vest = await fetchVestiaireChats();
+      const vinted = await fetchVintedChats();
+
+      if (!vest.ok) {
         toast.error(
-          res.message ||
+          vest.message ||
             "Asegúrate de tener la pestaña de Vestiaire abierta e iniciada sesión."
         );
-        return;
       }
+      if (!vinted.ok) {
+        toast.error(
+          vinted.message ||
+            "Asegúrate de tener la pestaña de Vinted abierta e iniciada sesión."
+        );
+      }
+      if (!vest.ok && !vinted.ok) return;
 
-      const next = res.chats ?? [];
+      // Si una plataforma falla, conservamos sus chats cacheados
+      const next = [
+        ...(vest.ok
+          ? vest.chats ?? []
+          : chats.filter((c) => c.platform === "vestiaire")),
+        ...(vinted.ok
+          ? vinted.chats ?? []
+          : chats.filter((c) => c.platform === "vinted")),
+      ].sort(byLastMessageDesc);
+
       setChats(next);
       saveCachedChats(next);
       setSelectedChatId((current) =>
@@ -72,22 +99,37 @@ export default function ChatsPage() {
           ? current
           : next[0]?.id ?? null
       );
-      toast.success(res.message);
+
+      if (vest.ok) toast.success(vest.message);
+      if (vinted.ok) toast.success(vinted.message);
+
+      // Avisos de Vinted (p. ej. cuenta restringida)
+      if (vinted.ok) {
+        vinted.notices
+          ?.filter((n) => /restring/i.test(n.text))
+          .forEach((n) =>
+            toast.error(n.text, { id: `vinted-notice-${n.id}`, duration: 8000 })
+          );
+      }
     } catch (err: any) {
-      toast.error(err?.message ?? "Error al sincronizar chats de Vestiaire");
+      toast.error(err?.message ?? "Error al sincronizar chats");
     } finally {
       setSyncing(false);
     }
   };
 
   const loadMessages = useCallback(async (chat: Chat) => {
-    if (chat.platform !== "vestiaire" || chat.messagesLoaded) return;
+    if (chat.messagesLoaded) return;
     if (loadingChatIdRef.current === chat.id) return;
 
     loadingChatIdRef.current = chat.id;
     setMessagesLoading(true);
     try {
-      const res = await fetchVestiaireChatMessages(chat.channelId || chat.id);
+      const channel = chat.channelId || chat.id;
+      const res =
+        chat.platform === "vinted"
+          ? await fetchVintedChatMessages(channel)
+          : await fetchVestiaireChatMessages(channel);
       if (!res.ok) {
         toast.error(res.message);
         return;
@@ -130,10 +172,11 @@ export default function ChatsPage() {
     if (!selectedChat) return;
     setSending(true);
     try {
-      const res = await sendVestiaireChatMessage(
-        selectedChat.channelId || selectedChat.id,
-        text
-      );
+      const channel = selectedChat.channelId || selectedChat.id;
+      const res =
+        selectedChat.platform === "vinted"
+          ? await sendVintedChatMessage(channel, text)
+          : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message);
         return;

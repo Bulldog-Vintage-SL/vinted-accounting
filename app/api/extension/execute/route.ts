@@ -5,6 +5,11 @@ import {
   buildSyncAccountSteps,
 } from "@/lib/workflows/vinted/sync-steps";
 import {
+  buildFetchVintedChatsSteps,
+  buildFetchVintedChatMessagesSteps,
+  buildSendVintedChatMessageSteps
+} from "@/lib/workflows/vinted/vinted-chat-steps"
+import {
   buildSearchWallapopAccountSteps,
   buildSyncWallapopAccountSteps,
 } from "@/lib/workflows/wallapop/wallapop-sync-steps";
@@ -60,6 +65,9 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildGetVintedItemSteps(p.itemExternalId),
   UPDATE_VINTED_ITEM: (p) =>
     buildUpdateVintedItemSteps(p.itemExternalId),
+  FETCH_VINTED_CHATS: () => buildFetchVintedChatsSteps(),
+  FETCH_VINTED_CHAT_MESSAGES: (p) => buildFetchVintedChatMessagesSteps(p.conversationId),
+  SEND_VINTED_CHAT_MESSAGE: (p) => buildSendVintedChatMessageSteps(p.conversationId, p.text, p.photoTempUuids ?? null),
 
   UPLOAD_WALLAPOP_ITEM: (p) => buildWallapopSteps(p.listing),
   SEARCH_WALLAPOP_ACCOUNT: () => buildSearchWallapopAccountSteps(),
@@ -296,7 +304,7 @@ export async function POST(req: Request) {
       session.markModified("state");
 
       await session.save();
-      
+
       if (!nextStep) {
         const finalState = session.state;
 

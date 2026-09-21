@@ -142,12 +142,12 @@ export function ChatWindow({
             if (e.key === "Enter") handleSend();
           }}
           placeholder="Escribe un mensaje..."
-          disabled={sending || chat.platform !== "vestiaire"}
+          disabled={sending}
           className="flex-1 rounded-full border border-base-300 bg-base-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
         />
         <button
           onClick={handleSend}
-          disabled={sending || !draft.trim() || chat.platform !== "vestiaire"}
+          disabled={sending || !draft.trim()}
           className="w-9 h-9 rounded-full bg-primary text-primary-content flex items-center justify-center shrink-0 hover:opacity-90 transition disabled:opacity-50"
           aria-label="Enviar mensaje"
         >
