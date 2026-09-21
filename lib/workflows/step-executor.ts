@@ -207,10 +207,6 @@ export function processStepResult(
       s.vintedChatSendResult = result
       break
 
-    case 'MARK_CHAT_READ':
-    case 'SEND_CHAT_REPLY':
-      break
-
     // WALLAPOP
     case 'GET_USER_TYPE':
       s.userType = result.type
