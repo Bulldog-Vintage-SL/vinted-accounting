@@ -140,6 +140,16 @@ export interface WorkflowState {
   vintedItem?: any
   itemAttributesRaw?: any
   vintedNextPage?: number
+  // Chats
+  chatsPage?: number
+  chatsTotalPages?: number
+  chatQueue?: number[]
+  chatCursor?: number
+  chatSummaries?: Record<number, any>
+  chats?: Record<number, any>
+  chatsTruncated?: boolean
+  lastSyncAt?: string
+  backfillBefore?: string
 
   // Wallapop
   uploadId?: string
@@ -207,8 +217,8 @@ export interface WorkflowState {
   depopPricingInspiration?: any[]
   depopProductId?: number
   depopPublicationUrl?: string
-  depopItemRaw?: any        
-  depopUpdateDone?: boolean 
+  depopItemRaw?: any
+  depopUpdateDone?: boolean
   depopBrandsMap?: any
 
 }
