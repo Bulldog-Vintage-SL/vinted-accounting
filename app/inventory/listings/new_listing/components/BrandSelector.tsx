@@ -73,7 +73,16 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
     setIsOpen(false);
   };
 
-  const showEmptyHint = query.trim().length < MIN_QUERY_LENGTH;
+  const trimmedQuery = query.trim();
+  const showEmptyHint = trimmedQuery.length < MIN_QUERY_LENGTH;
+
+  // Se ofrece la opción de "crear" la marca escrita cuando hay suficiente texto
+  // y no coincide exactamente (ignorando mayúsculas) con ningún resultado ni con "Sin marca".
+  const canCreateCustomBrand =
+    !showEmptyHint &&
+    !isLoading &&
+    trimmedQuery.toLowerCase() !== NO_BRAND_OPTION.toLowerCase() &&
+    !results.some(brand => brand.toLowerCase() === trimmedQuery.toLowerCase());
 
   return (
     <div ref={containerRef} className="relative">
@@ -85,7 +94,7 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
           setIsOpen(true);
         }}
         onFocus={() => setIsOpen(true)}
-        placeholder="Busca una marca"
+        placeholder="Busca una marca o escribe una nueva"
         className="mt-1 w-full rounded-md border border-gray-300 p-2"
         autoComplete="off"
       />
@@ -109,20 +118,33 @@ export default function BrandSelect({ value, onChange }: BrandSelectProps) {
             </li>
           ) : isLoading ? (
             <li className="px-3 py-2 text-sm text-gray-400">Buscando...</li>
-          ) : results.length > 0 ? (
-            results.map(brand => (
-              <li
-                key={brand}
-                onClick={() => handleSelect(brand)}
-                className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
-                  brand === value ? "bg-blue-100 font-medium" : ""
-                }`}
-              >
-                {brand}
-              </li>
-            ))
           ) : (
-            <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+            <>
+              {results.map(brand => (
+                <li
+                  key={brand}
+                  onClick={() => handleSelect(brand)}
+                  className={`px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 ${
+                    brand === value ? "bg-blue-100 font-medium" : ""
+                  }`}
+                >
+                  {brand}
+                </li>
+              ))}
+
+              {results.length === 0 && !canCreateCustomBrand && (
+                <li className="px-3 py-2 text-sm text-gray-400">Sin resultados</li>
+              )}
+
+              {canCreateCustomBrand && (
+                <li
+                  onClick={() => handleSelect(trimmedQuery)}
+                  className="px-3 py-2 text-sm cursor-pointer border-t border-gray-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                >
+                  Usar &ldquo;{trimmedQuery}&rdquo; como marca
+                </li>
+              )}
+            </>
           )}
         </ul>
       )}

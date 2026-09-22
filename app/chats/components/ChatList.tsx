@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { Chat } from "../types";
 import { PlatformBadge } from "./PlatformBadge";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronDown } from "lucide-react";
 
 function formatRelativeTime(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -15,12 +16,19 @@ function formatRelativeTime(iso: string) {
   return `${diffD}d`;
 }
 
+type Platform = "vestiaire" | "vinted";
+
+const SYNC_OPTIONS: { platform: Platform; label: string }[] = [
+  { platform: "vestiaire", label: "Vestiaire Collective" },
+  { platform: "vinted", label: "Vinted" },
+];
+
 interface ChatListProps {
   chats: Chat[];
   selectedChatId: string | null;
   onSelect: (chatId: string) => void;
-  onSync: () => void;
-  syncing: boolean;
+  onSyncPlatform: (platform: Platform) => void;
+  syncingPlatform: Platform | null;
   hideOnMobile?: boolean;
 }
 
@@ -28,10 +36,33 @@ export function ChatList({
   chats,
   selectedChatId,
   onSelect,
-  onSync,
-  syncing,
+  onSyncPlatform,
+  syncingPlatform,
   hideOnMobile = false,
 }: ChatListProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const syncing = syncingPlatform !== null;
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handlePick = (platform: Platform) => {
+    setMenuOpen(false);
+    onSyncPlatform(platform);
+  };
+
+  const syncingLabel = syncingPlatform
+    ? SYNC_OPTIONS.find((o) => o.platform === syncingPlatform)?.label
+    : null;
+
   return (
     <div
       className={`${
@@ -40,23 +71,42 @@ export function ChatList({
     >
       <div className="h-16 flex items-center justify-between gap-2 px-4 border-b border-base-300 shrink-0">
         <h2 className="font-bold text-lg">Chats</h2>
-        <button
-          onClick={onSync}
-          disabled={syncing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-base-300 hover:bg-base-200 transition disabled:opacity-50"
-          title="Sincronizar chats de Vestiaire"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-          {syncing ? "Sincronizando..." : "Sincronizar"}
-        </button>
+
+        <div ref={menuRef} className="relative">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            disabled={syncing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-base-300 hover:bg-base-200 transition disabled:opacity-50"
+            title="Sincronizar chats"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? `Sincronizando ${syncingLabel}...` : "Sincronizar"}
+            {!syncing && <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {menuOpen && !syncing && (
+            <ul className="absolute right-0 z-10 mt-1 w-52 rounded-md border border-base-300 bg-base-100 shadow-lg overflow-hidden">
+              {SYNC_OPTIONS.map((opt) => (
+                <li key={opt.platform}>
+                  <button
+                    onClick={() => handlePick(opt.platform)}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-base-200 transition"
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {chats.length === 0 ? (
           <p className="text-sm text-base-content/60 text-center py-10 px-4">
             {syncing
-              ? "Cargando conversaciones de Vestiaire..."
-              : "No hay conversaciones. Pulsa Sincronizar (con sesión de Vestiaire iniciada)."}
+              ? `Cargando conversaciones de ${syncingLabel}...`
+              : "No hay conversaciones. Pulsa Sincronizar y elige una cuenta (con sesión iniciada)."}
           </p>
         ) : (
           chats.map((chat) => {
