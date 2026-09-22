@@ -19,6 +19,10 @@ export type StepType =
   | 'GET_PROFILE'
   | 'DELETE_VINTED'
   | 'UPDATE_VINTED_ITEM'
+  | 'GET_CHATS'
+  | 'GET_CHAT'
+  | 'MARK_CHAT_READ'
+  | 'SEND_CHAT_REPLY'
   // Compartido
   | 'GET_USER_ME'
   | 'GET_USER_ID'
@@ -140,6 +144,11 @@ export interface WorkflowState {
   vintedItem?: any
   itemAttributesRaw?: any
   vintedNextPage?: number
+  // Chats
+  chatsPage?: number
+  vintedInbox?: any[]
+  vintedChatRaw?: any
+  vintedChatSendResult?: any
 
   // Wallapop
   uploadId?: string
@@ -207,8 +216,8 @@ export interface WorkflowState {
   depopPricingInspiration?: any[]
   depopProductId?: number
   depopPublicationUrl?: string
-  depopItemRaw?: any        
-  depopUpdateDone?: boolean 
+  depopItemRaw?: any
+  depopUpdateDone?: boolean
   depopBrandsMap?: any
 
 }

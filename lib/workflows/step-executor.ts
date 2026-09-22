@@ -22,6 +22,11 @@ import {
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
 
+const MAX_CHATS_PER_RUN = 40
+
+const isSystemConv = (c: any) =>
+  c.opposite_user?.badge === 'moderator' || c.opposite_user?.login === 'Vinted'
+
 // Límites de caracteres por plataforma y campo. Ajustar estos valores si
 // difieren de los reales publicados por cada app.
 const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = {
@@ -156,6 +161,50 @@ export function processStepResult(
 
     case 'GET_VINT_ITEM':
       s.vintedItem = result.item
+      break
+
+    case 'GET_CHATS': {
+      const pag = result.pagination ?? {}
+      const byId = new Map<string, any>()
+      for (const c of [...(s.vintedInbox ?? []), ...(result.conversations ?? [])]) {
+        byId.set(String(c.id), c)
+      }
+      s.vintedInbox = Array.from(byId.values())
+
+      const page = pag.current_page ?? 1
+      if (page < (pag.total_pages ?? 1)) {
+        s.chatsPage = page + 1
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_CHATS',
+          platform: 'vinted',
+          request: { url: '', method: 'GET' }
+        })
+      }
+      break
+    }
+
+    case 'GET_CHAT': {
+      const conv = result.conversation
+      s.vintedChatRaw = conv
+
+      // Igual que hace la web de Vinted al abrir el chat
+      if (conv && conv.read_by_current_user === false) {
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'MARK_CHAT_READ',
+          platform: 'vinted',
+          request: {
+            url: `https://www.vinted.es/api/v2/conversations/${conv.id}/mark_as_read`,
+            method: 'PUT'
+          }
+        })
+      }
+      break
+    }
+
+    case 'SEND_CHAT_REPLY':
+      s.vintedChatSendResult = result
       break
 
     // WALLAPOP
@@ -672,6 +721,13 @@ export function processStepResult(
 
     case 'CREATE_ITEM':
       next.request.body = buildCreateItemBody(s)
+      break
+
+
+    case 'GET_CHATS':
+      if (!next.request.url) {
+        next.request.url = `https://www.vinted.es/api/v2/inbox?page=${s.chatsPage ?? 1}&per_page=20`
+      }
       break
 
     // Wallapop

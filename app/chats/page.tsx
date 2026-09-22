@@ -9,9 +9,15 @@ import {
   fetchVestiaireChats,
   fetchVestiaireChatMessages,
   sendVestiaireChatMessage,
+  fetchVintedChats,
+  fetchVintedChatMessages,
+  sendVintedChatMessage,
 } from "@/lib/external-integrations";
 
-const STORAGE_KEY = "rl:vestiaire-chats";
+// Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
+const STORAGE_KEY = "rl:chats";
+
+type Platform = "vestiaire" | "vinted";
 
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
@@ -33,10 +39,21 @@ function saveCachedChats(chats: Chat[]) {
   }
 }
 
+const lastMessageTs = (chat: Chat) =>
+  new Date(chat.lastMessageAt ?? 0).getTime() || 0;
+
+const byLastMessageDesc = (a: Chat, b: Chat) => lastMessageTs(b) - lastMessageTs(a);
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  vestiaire: "Vestiaire Collective",
+  vinted: "Vinted",
+};
+
 export default function ChatsPage() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
+  // Solo una plataforma puede sincronizar a la vez; null = ninguna sincronizando
+  const [syncingPlatform, setSyncingPlatform] = useState<Platform | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const loadingChatIdRef = useRef<string | null>(null);
@@ -51,89 +68,188 @@ export default function ChatsPage() {
 
   const selectedChat = chats.find((c) => c.id === selectedChatId) ?? null;
 
-  const handleSync = async () => {
-    loadingChatIdRef.current = null;
-    setSyncing(true);
-    try {
-      const res = await fetchVestiaireChats();
-      if (!res.ok) {
-        toast.error(
-          res.message ||
-            "Asegúrate de tener la pestaña de Vestiaire abierta e iniciada sesión."
-        );
-        return;
-      }
+  const handleSync = async (platform: Platform) => {
+    // Bloquea si ya hay una sincronización en curso (de esta u otra plataforma)
+    if (syncingPlatform) return;
 
-      const next = res.chats ?? [];
-      setChats(next);
-      saveCachedChats(next);
-      setSelectedChatId((current) =>
-        current && next.some((chat) => chat.id === current)
-          ? current
-          : next[0]?.id ?? null
-      );
-      toast.success(res.message);
+    setSyncingPlatform(platform);
+    try {
+      // Se separa en dos ramas (en vez de un ternario) para que TS infiera el tipo
+      // de respuesta correcto en cada una y "notices" quede disponible en la de Vinted.
+      if (platform === "vestiaire") {
+        const res = await fetchVestiaireChats();
+
+        if (!res.ok) {
+          toast.error(
+            res.message ||
+              `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
+          );
+          return;
+        }
+
+        const next = [
+          ...chats.filter((c) => c.platform !== platform),
+          ...(res.chats ?? []),
+        ].sort(byLastMessageDesc);
+
+        setChats(next);
+        saveCachedChats(next);
+        setSelectedChatId((current) =>
+          current && next.some((chat) => chat.id === current)
+            ? current
+            : next[0]?.id ?? null
+        );
+
+        toast.success(res.message);
+      } else {
+        const res = await fetchVintedChats();
+
+        if (!res.ok) {
+          toast.error(
+            res.message ||
+              `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
+          );
+          return;
+        }
+
+        const next = [
+          ...chats.filter((c) => c.platform !== platform),
+          ...(res.chats ?? []),
+        ].sort(byLastMessageDesc);
+
+        setChats(next);
+        saveCachedChats(next);
+        setSelectedChatId((current) =>
+          current && next.some((chat) => chat.id === current)
+            ? current
+            : next[0]?.id ?? null
+        );
+
+        toast.success(res.message);
+
+        // Avisos de Vinted (p. ej. cuenta restringida)
+        res.notices
+          ?.filter((n) => /restring/i.test(n.text))
+          .forEach((n) =>
+            toast.error(n.text, { id: `vinted-notice-${n.id}`, duration: 8000 })
+          );
+      }
     } catch (err: any) {
-      toast.error(err?.message ?? "Error al sincronizar chats de Vestiaire");
+      toast.error(err?.message ?? `Error al sincronizar ${PLATFORM_LABELS[platform]}`);
     } finally {
-      setSyncing(false);
+      setSyncingPlatform(null);
     }
   };
 
-  const loadMessages = useCallback(async (chat: Chat) => {
-    if (chat.platform !== "vestiaire" || chat.messagesLoaded) return;
-    if (loadingChatIdRef.current === chat.id) return;
+  const loadMessages = useCallback(
+    async (chat: Chat, opts?: { force?: boolean; silent?: boolean }) => {
+      const { force = false, silent = false } = opts ?? {};
+      // "force" se usa para el polling: ignora la caché de messagesLoaded.
+      // "silent" evita el spinner y los toasts de error, para no molestar
+      // con una petición de fondo que el usuario no ha pedido.
+      if (chat.messagesLoaded && !force) return;
+      if (loadingChatIdRef.current === chat.id) return;
 
-    loadingChatIdRef.current = chat.id;
-    setMessagesLoading(true);
-    try {
-      const res = await fetchVestiaireChatMessages(chat.channelId || chat.id);
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
+      loadingChatIdRef.current = chat.id;
+      if (!silent) setMessagesLoading(true);
+      try {
+        const channel = chat.channelId || chat.id;
+        const res =
+          chat.platform === "vinted"
+            ? await fetchVintedChatMessages(channel)
+            : await fetchVestiaireChatMessages(channel);
+        if (!res.ok) {
+          if (!silent) toast.error(res.message);
+          return;
+        }
+
+        setChats((prev) => {
+          const next = prev.map((item) =>
+            item.id === chat.id
+              ? {
+                  ...item,
+                  messages: res.messages?.length ? res.messages : item.messages,
+                  messagesLoaded: true,
+                  unreadCount: 0,
+                  lastMessagePreview:
+                    res.messages?.[res.messages.length - 1]?.content ??
+                    item.lastMessagePreview,
+                  lastMessageAt:
+                    res.messages?.[res.messages.length - 1]?.createdAt ??
+                    item.lastMessageAt,
+                }
+              : item
+          );
+          saveCachedChats(next);
+          return next;
+        });
+      } catch (err: any) {
+        if (!silent) toast.error(err?.message ?? "Error al cargar el hilo");
+      } finally {
+        if (loadingChatIdRef.current === chat.id) loadingChatIdRef.current = null;
+        if (!silent) setMessagesLoading(false);
       }
-
-      setChats((prev) => {
-        const next = prev.map((item) =>
-          item.id === chat.id
-            ? {
-                ...item,
-                messages: res.messages?.length ? res.messages : item.messages,
-                messagesLoaded: true,
-                unreadCount: 0,
-                lastMessagePreview:
-                  res.messages?.[res.messages.length - 1]?.content ??
-                  item.lastMessagePreview,
-                lastMessageAt:
-                  res.messages?.[res.messages.length - 1]?.createdAt ??
-                  item.lastMessageAt,
-              }
-            : item
-        );
-        saveCachedChats(next);
-        return next;
-      });
-    } catch (err: any) {
-      toast.error(err?.message ?? "Error al cargar el hilo");
-    } finally {
-      if (loadingChatIdRef.current === chat.id) loadingChatIdRef.current = null;
-      setMessagesLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!selectedChat) return;
     void loadMessages(selectedChat);
   }, [selectedChat, loadMessages]);
 
+  // Refs con el valor más reciente para poder leerlos dentro del intervalo
+  // de polling sin tener que recrearlo (y así no perder el "cada 10s") cada
+  // vez que cambia el chat seleccionado, el estado de sincronización, etc.
+  const chatsRef = useRef(chats);
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
+
+  const selectedChatIdRef = useRef(selectedChatId);
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
+  const syncingPlatformRef = useRef(syncingPlatform);
+  useEffect(() => {
+    syncingPlatformRef.current = syncingPlatform;
+  }, [syncingPlatform]);
+
+  const sendingRef = useRef(sending);
+  useEffect(() => {
+    sendingRef.current = sending;
+  }, [sending]);
+
+  // Polling: cada 10s se refresca en silencio la conversación que el usuario
+  // tiene abierta, para simular actualizaciones en tiempo real sin recargar
+  // toda la lista de chats ni pedir de nuevo la sincronización con la extensión.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (syncingPlatformRef.current || sendingRef.current) return;
+
+      const currentId = selectedChatIdRef.current;
+      if (!currentId) return;
+
+      const chat = chatsRef.current.find((c) => c.id === currentId);
+      if (!chat) return;
+
+      void loadMessages(chat, { force: true, silent: true });
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [loadMessages]);
+
   const handleSend = async (text: string) => {
     if (!selectedChat) return;
     setSending(true);
     try {
-      const res = await sendVestiaireChatMessage(
-        selectedChat.channelId || selectedChat.id,
-        text
-      );
+      const channel = selectedChat.channelId || selectedChat.id;
+      const res =
+        selectedChat.platform === "vinted"
+          ? await sendVintedChatMessage(channel, text)
+          : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message);
         return;
@@ -171,8 +287,8 @@ export default function ChatsPage() {
         chats={chats}
         selectedChatId={selectedChatId}
         onSelect={setSelectedChatId}
-        onSync={handleSync}
-        syncing={syncing}
+        onSyncPlatform={handleSync}
+        syncingPlatform={syncingPlatform}
         hideOnMobile={Boolean(selectedChatId)}
       />
       <ChatWindow

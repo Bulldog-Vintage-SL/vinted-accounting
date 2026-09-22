@@ -4,6 +4,8 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
+import type { Chat } from '@/app/chats/types'
+import type { ChatMessage } from '@/app/chats/types'
 import { sleep } from '../utils'
 
 // Subir producto a Vinted
@@ -465,4 +467,140 @@ export async function updateVintedItem(
   }
 }
 
+export async function fetchVintedChats(): Promise<{
+  ok: boolean
+  message: string
+  chats?: Chat[]
+  notices?: { id: string; text: string; updatedAt: string }[]
+}> {
+  try {
+    const result = await runFlow('FETCH_VINTED_CHATS', { platform: 'vinted', stayInBackground: true })
+    const state = result?.result?.state
+    if (!state?.vintedInbox) {
+      return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Vinted') }
+    }
+    const { chats, notices } = mapVintedInbox(state.vintedInbox)
+    return {
+      ok: true,
+      message: chats.length ? `Se cargaron ${chats.length} conversaciones de Vinted` : 'No hay conversaciones en Vinted',
+      chats,
+      notices,
+    }
+  } catch (err: any) {
+    return { ok: false, message: extractErrorMessage(err, 'Error inesperado al sincronizar chats de Vinted') }
+  }
+}
 
+export async function fetchVintedChatMessages(conversationId: string): Promise<{
+  ok: boolean
+  message: string
+  messages?: ChatMessage[]
+}> {
+  try {
+    const result = await runFlow('FETCH_VINTED_CHAT_MESSAGES', {
+      platform: 'vinted',
+      conversationId,
+      stayInBackground: true,
+    })
+    const raw = result?.result?.state?.vintedChatRaw
+    if (!raw) {
+      return { ok: false, message: extractErrorMessage(result, 'No se pudieron cargar los mensajes') }
+    }
+    return { ok: true, message: 'Mensajes cargados', messages: mapVintedMessages(raw) }
+  } catch (err: any) {
+    return { ok: false, message: extractErrorMessage(err, 'Error inesperado al cargar el chat') }
+  }
+}
+
+export async function sendVintedChatMessage(conversationId: string, text: string): Promise<{
+  ok: boolean
+  message: string
+  sent?: ChatMessage
+}> {
+  try {
+    const result = await runFlow('SEND_VINTED_CHAT_MESSAGE', {
+      platform: 'vinted',
+      conversationId,
+      text,
+      stayInBackground: true,
+    })
+    const state = result?.result?.state
+    const raw = state?.vintedChatSendResult ?? result?.result?.result
+    if (!raw && !result?.result?.done) {
+      return { ok: false, message: extractErrorMessage(result, 'No se pudo enviar el mensaje') }
+    }
+    const sent: ChatMessage = {
+      id: `local-${Date.now()}`,
+      senderId: 'me',
+      senderName: 'Tú',
+      content: text,
+      createdAt: new Date().toISOString(),
+      isOwn: true,
+    }
+    return { ok: true, message: 'Mensaje enviado', sent }
+  } catch (err: any) {
+    return { ok: false, message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje') }
+  }
+}
+
+const isSystemConv = (c: any) =>
+  c.opposite_user?.badge === 'moderator' || c.opposite_user?.login === 'Vinted'
+
+const pickThumb = (photo: any, type: string) =>
+  photo?.thumbnails?.find((t: any) => t.type === type)?.url ?? photo?.url ?? undefined
+
+export function mapVintedInbox(inbox: any[]): {
+  chats: Chat[]
+  notices: { id: string; text: string; updatedAt: string }[]
+} {
+  const chats: Chat[] = []
+  const notices: { id: string; text: string; updatedAt: string }[] = []
+
+  for (const c of inbox ?? []) {
+    if (isSystemConv(c)) {
+      notices.push({ id: String(c.id), text: c.description ?? '', updatedAt: c.updated_at })
+      continue
+    }
+
+    chats.push({
+      id: `vinted-${c.id}`,                
+      platform: 'vinted',
+      contactName: c.opposite_user?.login ?? 'Usuario de Vinted',
+      contactAvatarUrl: pickThumb(c.opposite_user?.photo, 'thumb100'),
+      listingImageUrl: pickThumb(c.item_photos?.[0], 'thumb150x210'),
+      lastMessagePreview: c.description ?? '',
+      lastMessageAt: new Date(c.updated_at).toISOString(),
+      unreadCount: c.unread ? 1 : 0,
+      messages: [],
+      messagesLoaded: false,
+      channelId: String(c.id),                 
+      externalUrl: `https://www.vinted.es/inbox/${c.id}`,
+    })
+  }
+  return { chats, notices }
+}
+
+const toIso = (v: any) => {
+  const d = new Date(v)
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+}
+
+export function mapVintedMessages(conv: any): ChatMessage[] {
+  const otherId = String(conv?.opposite_user?.id ?? '')
+  return (conv?.messages ?? [])
+    .filter((m: any) => m.entity_type === 'message')
+    .map((m: any) => {
+      const e = m.entity ?? {}
+      const senderId = String(e.user_id ?? '')
+      const isOwn = senderId !== otherId
+      return {
+        id: String(e.id),
+        senderId,
+        senderName: isOwn ? 'Tú' : conv.opposite_user?.login ?? '',
+        content: e.body ?? '',
+        createdAt: toIso(m.created_at_ts ?? e.created_at_ts),
+        isOwn,
+      } as ChatMessage
+    })
+    .sort((a: ChatMessage, b: ChatMessage) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+}
