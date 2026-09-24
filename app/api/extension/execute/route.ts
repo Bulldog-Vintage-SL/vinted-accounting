@@ -85,7 +85,8 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   UPDATE_WALLAPOP_ITEM: (p) =>
     buildUpdateWallapopItemSteps(p.itemExternalId),
   FETCH_WALLA_CHATS: () => buildFetchWallapopChatsSteps(),
-  FETCH_WALLA_CHAT_MESSAGES: () => buildFetchWallapopChatMessagesSteps(),
+  FETCH_WALLA_CHAT_MESSAGES: (p) =>
+    buildFetchWallapopChatMessagesSteps(p.conversationHash || p.channelId),
   SEND_WALLA_CHAT_MESSAGE: () => buildSendWallapopChatMessageSteps(),
 
   SEARCH_VESTIAIRE_ACCOUNT: () =>

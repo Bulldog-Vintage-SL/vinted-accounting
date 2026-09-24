@@ -20,6 +20,7 @@ import {
   extractVestiaireChatToken,
 } from './vestiaire/vestiaire-chat-steps'
 import {
+  WALLA_CHAT_SEARCH_MAX_PAGES,
   WALLA_INBOX_MAX_PAGES,
   WALLA_PUBNUB_PUBLISH_KEY,
   WALLA_PUBNUB_SUBSCRIBE_KEY,
@@ -30,6 +31,7 @@ import {
   extractWallaChatToken,
   extractWallaConversation,
   extractWallaInboxNext,
+  wallaConversationHasMessages,
 } from './wallapop/wallapop-chat-steps'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
@@ -272,11 +274,12 @@ export function processStepResult(
       s.email = result.email
       s.uploadId = crypto.randomUUID()
       s.wallaChatUserHash = result.hash ?? result.user_hash ?? result.userHash ?? s.wallaChatUserHash
-      if (result.location) {
-        s.wallaLocation = {
-          latitude: result.location.approximated_latitude,
-          longitude: result.location.approximated_longitude,
-          approximated: false
+      const loc = result.location
+      if (loc && typeof loc === 'object') {
+        const latitude = loc.approximated_latitude ?? loc.latitude
+        const longitude = loc.approximated_longitude ?? loc.longitude
+        if (latitude != null && longitude != null) {
+          s.wallaLocation = { latitude, longitude, approximated: false }
         }
       }
       break
@@ -323,7 +326,7 @@ export function processStepResult(
       const pageItems = asWallaInboxList(result)
       const byHash = new Map<string, any>()
       for (const conv of [...(s.wallaInbox ?? []), ...pageItems]) {
-        const hash = conv?.hash ?? conv?.conversation_hash ?? conv?.conversationHash ?? conv?.id
+        const hash = conv?.hash ?? conv?.conversation_hash ?? conv?.conversationHash ?? conv?.conversation_id ?? conv?.id
         if (hash) byHash.set(String(hash), conv)
       }
       s.wallaInbox = Array.from(byHash.values())
@@ -345,20 +348,37 @@ export function processStepResult(
       const wantedHash = String(
         s.originalPayload?.conversationHash || s.originalPayload?.channelId || ''
       )
-      s.wallaChatRaw = extractWallaConversation(result, wantedHash)
+      const extracted = extractWallaConversation(result, wantedHash)
+      if (extracted) s.wallaChatRaw = extracted
       const fromInbox = String(completed.request.url || '').includes('/inbox')
-      if (wantedHash && !s.wallaChatRaw && fromInbox) {
-        steps.splice(currentStep + 1, 0, {
-          id: crypto.randomUUID(),
-          type: 'GET_WALLA_CHAT',
-          platform: 'wallapop',
-          request: {
-            url: buildWallapopConversationUrl(wantedHash),
-            method: 'GET',
-            skipDelay: true,
-            runInBackground: true,
-          },
-        })
+      if (wantedHash && fromInbox && !wallaConversationHasMessages(s.wallaChatRaw)) {
+        const nextFrom = extractWallaInboxNext(result)
+        s.wallaInboxPages = (s.wallaInboxPages ?? 0) + 1
+        if (!extracted && nextFrom && (s.wallaInboxPages ?? 0) < WALLA_CHAT_SEARCH_MAX_PAGES) {
+          steps.splice(currentStep + 1, 0, {
+            id: crypto.randomUUID(),
+            type: 'GET_WALLA_CHAT',
+            platform: 'wallapop',
+            request: {
+              url: buildWallapopInboxUrl(nextFrom, 50),
+              method: 'GET',
+              skipDelay: true,
+              runInBackground: true,
+            },
+          })
+        } else {
+          steps.splice(currentStep + 1, 0, {
+            id: crypto.randomUUID(),
+            type: 'GET_WALLA_CHAT',
+            platform: 'wallapop',
+            request: {
+              url: buildWallapopConversationUrl(wantedHash),
+              method: 'GET',
+              skipDelay: true,
+              runInBackground: true,
+            },
+          })
+        }
       }
       break
     }

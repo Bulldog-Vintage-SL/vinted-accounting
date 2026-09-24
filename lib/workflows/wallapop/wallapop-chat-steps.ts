@@ -13,6 +13,7 @@ export const WALLA_PUBNUB_PUBLISH_KEY = 'pub-c-255dc549-86f5-4abd-8b9e-921d5a02f
 export const WALLA_PUBNUB_SUBSCRIBE_KEY = 'sub-c-89405e27-d4df-4d87-aca1-d6e9118f0a0d'
 export const WALLA_INBOX_PAGE_SIZE = 30
 export const WALLA_INBOX_MAX_PAGES = 4
+export const WALLA_CHAT_SEARCH_MAX_PAGES = 8
 export const WALLA_CHAT_APP_VERSION = '8.2784.0'
 
 const CHAT_BACKGROUND_REQUEST = {
@@ -20,10 +21,10 @@ const CHAT_BACKGROUND_REQUEST = {
   runInBackground: true,
 } as const
 
-export function buildWallapopInboxUrl(nextFrom?: string) {
+export function buildWallapopInboxUrl(nextFrom?: string, maxMessages = WALLA_INBOX_PAGE_SIZE) {
   const params = new URLSearchParams({
     page_size: String(WALLA_INBOX_PAGE_SIZE),
-    max_messages: String(WALLA_INBOX_PAGE_SIZE),
+    max_messages: String(maxMessages),
   })
   if (nextFrom) params.set('from', nextFrom)
   return `https://api.wallapop.com/bff/messaging/inbox?${params.toString()}`
@@ -61,7 +62,7 @@ export function buildWallapopConversationUrl(conversationHash: string) {
   )
 }
 
-export function buildFetchWallapopChatMessagesSteps(): WorkflowStep[] {
+export function buildFetchWallapopChatMessagesSteps(_conversationHash?: string): WorkflowStep[] {
   return [
     {
       id: crypto.randomUUID(),
@@ -78,7 +79,7 @@ export function buildFetchWallapopChatMessagesSteps(): WorkflowStep[] {
       platform: 'wallapop',
       type: 'GET_WALLA_CHAT',
       request: {
-        url: buildWallapopInboxUrl(),
+        url: buildWallapopInboxUrl(undefined, 50),
         method: 'GET',
         ...CHAT_BACKGROUND_REQUEST,
       },
@@ -239,12 +240,24 @@ function conversationHash(conv: any): string | null {
     conv?.hash ??
     conv?.conversation_hash ??
     conv?.conversationHash ??
+    conv?.conversation_id ??
+    conv?.conversationId ??
     conv?.id ??
     conv?.conversation?.hash
   return hash ? String(hash) : null
 }
 
 function otherUser(conv: any, ownHash?: string) {
+  const direct =
+    conv?.with_user ??
+    conv?.withUser ??
+    conv?.other_user ??
+    conv?.otherUser ??
+    conv?.user ??
+    conv?.counterpart ??
+    null
+  if (direct) return direct
+
   const users = conv?.users ?? conv?.participants ?? []
   if (Array.isArray(users) && users.length) {
     const other = ownHash
@@ -252,7 +265,22 @@ function otherUser(conv: any, ownHash?: string) {
       : users[0]
     if (other) return other
   }
-  return conv?.other_user ?? conv?.otherUser ?? conv?.user ?? conv?.counterpart ?? null
+  return null
+}
+
+export function asWallaMessages(conv: any): any[] {
+  if (!conv) return []
+  if (Array.isArray(conv.messages?.messages)) return conv.messages.messages
+  if (Array.isArray(conv.messages)) return conv.messages
+  if (Array.isArray(conv.last_messages)) return conv.last_messages
+  if (Array.isArray(conv.lastMessages)) return conv.lastMessages
+  if (Array.isArray(conv.data?.messages)) return conv.data.messages
+  const last = conv.last_message ?? conv.lastMessage
+  return last ? [last] : []
+}
+
+export function wallaConversationHasMessages(conv: any): boolean {
+  return asWallaMessages(conv).length > 0
 }
 
 function itemFromConv(conv: any) {
@@ -357,9 +385,9 @@ export function mapWallapopInbox(inbox: any[], ownHash?: string): Chat[] {
       conv.description ??
       ''
     const contactName =
+      other?.name ??
       other?.micro_name ??
       other?.microName ??
-      other?.name ??
       other?.username ??
       'Usuario de Wallapop'
 
@@ -388,24 +416,23 @@ export function mapWallapopInbox(inbox: any[], ownHash?: string): Chat[] {
 }
 
 export function mapWallapopMessages(conv: any, ownHash?: string): ChatMessage[] {
-  const raw =
-    conv?.messages ??
-    conv?.last_messages ??
-    conv?.lastMessages ??
-    conv?.data?.messages ??
-    []
+  const raw = asWallaMessages(conv)
 
   const other = otherUser(conv, ownHash)
   const otherName =
-    other?.micro_name ?? other?.microName ?? other?.name ?? other?.username ?? 'Usuario'
+    other?.name ?? other?.micro_name ?? other?.microName ?? other?.username ?? 'Usuario'
+  const otherHash = userHash(other)
 
-  return (Array.isArray(raw) ? raw : [])
+  return raw
     .map((message: any) => {
-      const senderId = messageSenderHash(message)
-      const isOwn = ownHash ? senderId === ownHash : false
+      const fromSelf = message?.from_self === true || message?.fromSelf === true
+      const senderId = fromSelf
+        ? String(ownHash ?? 'me')
+        : (messageSenderHash(message) || otherHash || '')
+      const isOwn = ownHash ? senderId === ownHash : fromSelf
       const content = messageText(message)
       return {
-        id: String(message.id ?? message.hash ?? `${message.created_at ?? ''}-${senderId}`),
+        id: String(message.id ?? message.hash ?? `${message.timestamp ?? message.created_at ?? ''}-${senderId}`),
         senderId,
         senderName: isOwn ? 'Tú' : otherName,
         content,
