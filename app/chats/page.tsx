@@ -12,12 +12,15 @@ import {
   fetchVintedChats,
   fetchVintedChatMessages,
   sendVintedChatMessage,
+  fetchWallapopChats,
+  fetchWallapopChatMessages,
+  sendWallapopChatMessage,
 } from "@/lib/external-integrations";
 
 // Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
 const STORAGE_KEY = "rl:chats";
 
-type Platform = "vestiaire" | "vinted";
+type Platform = "vestiaire" | "vinted" | "wallapop";
 
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
@@ -47,6 +50,7 @@ const byLastMessageDesc = (a: Chat, b: Chat) => lastMessageTs(b) - lastMessageTs
 const PLATFORM_LABELS: Record<Platform, string> = {
   vestiaire: "Vestiaire Collective",
   vinted: "Vinted",
+  wallapop: "Wallapop",
 };
 
 export default function ChatsPage() {
@@ -74,59 +78,38 @@ export default function ChatsPage() {
 
     setSyncingPlatform(platform);
     try {
-      // Se separa en dos ramas (en vez de un ternario) para que TS infiera el tipo
-      // de respuesta correcto en cada una y "notices" quede disponible en la de Vinted.
-      if (platform === "vestiaire") {
-        const res = await fetchVestiaireChats();
+      // Vestiaire / Vinted / Wallapop: misma fusión de lista, avisos solo en Vinted.
+      const res =
+        platform === "vestiaire"
+          ? await fetchVestiaireChats()
+          : platform === "vinted"
+            ? await fetchVintedChats()
+            : await fetchWallapopChats();
 
-        if (!res.ok) {
-          toast.error(
-            res.message ||
-              `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
-          );
-          return;
-        }
-
-        const next = [
-          ...chats.filter((c) => c.platform !== platform),
-          ...(res.chats ?? []),
-        ].sort(byLastMessageDesc);
-
-        setChats(next);
-        saveCachedChats(next);
-        setSelectedChatId((current) =>
-          current && next.some((chat) => chat.id === current)
-            ? current
-            : next[0]?.id ?? null
+      if (!res.ok) {
+        toast.error(
+          res.message ||
+            `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
         );
+        return;
+      }
 
-        toast.success(res.message);
-      } else {
-        const res = await fetchVintedChats();
+      const next = [
+        ...chats.filter((c) => c.platform !== platform),
+        ...(res.chats ?? []),
+      ].sort(byLastMessageDesc);
 
-        if (!res.ok) {
-          toast.error(
-            res.message ||
-              `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
-          );
-          return;
-        }
+      setChats(next);
+      saveCachedChats(next);
+      setSelectedChatId((current) =>
+        current && next.some((chat) => chat.id === current)
+          ? current
+          : next[0]?.id ?? null
+      );
 
-        const next = [
-          ...chats.filter((c) => c.platform !== platform),
-          ...(res.chats ?? []),
-        ].sort(byLastMessageDesc);
+      toast.success(res.message);
 
-        setChats(next);
-        saveCachedChats(next);
-        setSelectedChatId((current) =>
-          current && next.some((chat) => chat.id === current)
-            ? current
-            : next[0]?.id ?? null
-        );
-
-        toast.success(res.message);
-
+      if (platform === "vinted" && "notices" in res) {
         // Avisos de Vinted (p. ej. cuenta restringida)
         res.notices
           ?.filter((n) => /restring/i.test(n.text))
@@ -157,7 +140,9 @@ export default function ChatsPage() {
         const res =
           chat.platform === "vinted"
             ? await fetchVintedChatMessages(channel)
-            : await fetchVestiaireChatMessages(channel);
+            : chat.platform === "wallapop"
+              ? await fetchWallapopChatMessages(channel)
+              : await fetchVestiaireChatMessages(channel);
         if (!res.ok) {
           if (!silent) toast.error(res.message);
           return;
@@ -249,7 +234,12 @@ export default function ChatsPage() {
       const res =
         selectedChat.platform === "vinted"
           ? await sendVintedChatMessage(channel, text)
-          : await sendVestiaireChatMessage(channel, text);
+          : selectedChat.platform === "wallapop"
+            ? await sendWallapopChatMessage(channel, text, {
+                toUserHash: selectedChat.senderId,
+                fromUserHash: selectedChat.ownUserHash,
+              })
+            : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message);
         return;

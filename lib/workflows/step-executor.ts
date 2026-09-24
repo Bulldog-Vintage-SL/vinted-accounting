@@ -19,6 +19,18 @@ import {
   buildVestiaireChatsUrl,
   extractVestiaireChatToken,
 } from './vestiaire/vestiaire-chat-steps'
+import {
+  WALLA_INBOX_MAX_PAGES,
+  WALLA_PUBNUB_PUBLISH_KEY,
+  WALLA_PUBNUB_SUBSCRIBE_KEY,
+  asWallaInboxList,
+  buildWallapopConversationUrl,
+  buildWallapopInboxUrl,
+  buildWallapopPublishUrl,
+  extractWallaChatToken,
+  extractWallaConversation,
+  extractWallaInboxNext,
+} from './wallapop/wallapop-chat-steps'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
 
@@ -259,10 +271,13 @@ export function processStepResult(
       s.profileLink = result.url_share
       s.email = result.email
       s.uploadId = crypto.randomUUID()
-      s.wallaLocation = {
-        latitude: result.location.approximated_latitude,
-        longitude: result.location.approximated_longitude,
-        approximated: false
+      s.wallaChatUserHash = result.hash ?? result.user_hash ?? result.userHash ?? s.wallaChatUserHash
+      if (result.location) {
+        s.wallaLocation = {
+          latitude: result.location.approximated_latitude,
+          longitude: result.location.approximated_longitude,
+          approximated: false
+        }
       }
       break
 
@@ -302,6 +317,63 @@ export function processStepResult(
 
     case 'GET_WALLA_ITEM':
       s.wallaItem = result
+      break
+
+    case 'GET_WALLA_CHATS': {
+      const pageItems = asWallaInboxList(result)
+      const byHash = new Map<string, any>()
+      for (const conv of [...(s.wallaInbox ?? []), ...pageItems]) {
+        const hash = conv?.hash ?? conv?.conversation_hash ?? conv?.conversationHash ?? conv?.id
+        if (hash) byHash.set(String(hash), conv)
+      }
+      s.wallaInbox = Array.from(byHash.values())
+      s.wallaInboxPages = (s.wallaInboxPages ?? 0) + 1
+      const nextFrom = extractWallaInboxNext(result)
+      if (nextFrom && pageItems.length > 0 && (s.wallaInboxPages ?? 0) < WALLA_INBOX_MAX_PAGES) {
+        s.wallaInboxNext = nextFrom
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_WALLA_CHATS',
+          platform: 'wallapop',
+          request: { url: '', method: 'GET', skipDelay: true, runInBackground: true },
+        })
+      }
+      break
+    }
+
+    case 'GET_WALLA_CHAT': {
+      const wantedHash = String(
+        s.originalPayload?.conversationHash || s.originalPayload?.channelId || ''
+      )
+      s.wallaChatRaw = extractWallaConversation(result, wantedHash)
+      const fromInbox = String(completed.request.url || '').includes('/inbox')
+      if (wantedHash && !s.wallaChatRaw && fromInbox) {
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_WALLA_CHAT',
+          platform: 'wallapop',
+          request: {
+            url: buildWallapopConversationUrl(wantedHash),
+            method: 'GET',
+            skipDelay: true,
+            runInBackground: true,
+          },
+        })
+      }
+      break
+    }
+
+    case 'GET_WALLA_CHAT_TOKEN': {
+      const extracted = extractWallaChatToken(result)
+      s.wallaChatToken = extracted.token
+      s.wallaChatPubKey = extracted.publishKey || s.wallaChatPubKey
+      s.wallaChatSubKey = extracted.subscribeKey || s.wallaChatSubKey
+      s.wallaChatUserHash = extracted.userHash || s.wallaChatUserHash
+      break
+    }
+
+    case 'SEND_WALLA_CHAT_MESSAGE':
+      s.wallaChatSendResult = result
       break
 
 
@@ -793,6 +865,38 @@ export function processStepResult(
     case 'UPDATE_WALLA_ITEM':
       next.request.body = buildUpdateWallaItemBody(s)
       break
+
+    case 'GET_WALLA_CHATS':
+      if (!next.request.url) {
+        next.request.url = buildWallapopInboxUrl(s.wallaInboxNext)
+        next.request.skipDelay = true
+        next.request.runInBackground = true
+      }
+      break
+
+    case 'SEND_WALLA_CHAT_MESSAGE': {
+      const payload = s.originalPayload ?? {}
+      const fromHash = String(s.wallaChatUserHash || payload.fromUserHash || '')
+      const toHash = String(payload.toUserHash || '')
+      const conversationHash = String(payload.conversationHash || payload.channelId || '')
+      const token = String(s.wallaChatToken || '')
+      if (fromHash && toHash && conversationHash && token) {
+        next.request.url = buildWallapopPublishUrl({
+          publishKey: s.wallaChatPubKey || WALLA_PUBNUB_PUBLISH_KEY,
+          subscribeKey: s.wallaChatSubKey || WALLA_PUBNUB_SUBSCRIBE_KEY,
+          token,
+          fromUserHash: fromHash,
+          toUserHash: toHash,
+          conversationHash,
+          text: String(payload.text ?? ''),
+        })
+        next.request.method = 'GET'
+        next.request.noAuth = true
+        next.request.skipDelay = true
+        next.request.runInBackground = true
+      }
+      break
+    }
 
     // Vestiaire Collective
     case 'GET_ITEMS_NEW':
