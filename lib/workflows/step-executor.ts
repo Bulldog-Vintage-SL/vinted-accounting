@@ -21,6 +21,7 @@ import {
 } from './vestiaire/vestiaire-chat-steps'
 import {
   WALLA_CHAT_SEARCH_MAX_PAGES,
+  WALLA_CHAT_TOKEN_URLS,
   WALLA_INBOX_MAX_PAGES,
   WALLA_PUBNUB_PUBLISH_KEY,
   WALLA_PUBNUB_SUBSCRIBE_KEY,
@@ -386,11 +387,29 @@ export function processStepResult(
 
     case 'GET_WALLA_CHAT_TOKEN': {
       const extracted = extractWallaChatToken(result)
-      s.wallaChatToken = extracted.token
+      s.wallaChatToken = extracted.token || s.wallaChatToken
       s.wallaChatPubKey = extracted.publishKey || s.wallaChatPubKey
       s.wallaChatSubKey = extracted.subscribeKey || s.wallaChatSubKey
       s.wallaChatOrigin = extracted.origin || s.wallaChatOrigin
       s.wallaChatUserHash = extracted.userHash || s.wallaChatUserHash
+      const currentUrl = String(completed.request.url || '')
+      s.wallaChatTokenTried = [...(s.wallaChatTokenTried ?? []), currentUrl]
+      if (!s.wallaChatToken) {
+        const nextUrl = WALLA_CHAT_TOKEN_URLS.find((url) => !(s.wallaChatTokenTried ?? []).includes(url))
+        if (nextUrl) {
+          steps.splice(currentStep + 1, 0, {
+            id: crypto.randomUUID(),
+            type: 'GET_WALLA_CHAT_TOKEN',
+            platform: 'wallapop',
+            request: {
+              url: nextUrl,
+              method: 'GET',
+              skipDelay: true,
+              runInBackground: true,
+            },
+          })
+        }
+      }
       break
     }
 

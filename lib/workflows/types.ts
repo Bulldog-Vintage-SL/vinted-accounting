@@ -179,6 +179,7 @@ export interface WorkflowState {
   wallaChatPubKey?: string
   wallaChatSubKey?: string
   wallaChatOrigin?: string
+  wallaChatTokenTried?: string[]
   wallaChatSendResult?: any
 
   // Vestiaire Collective

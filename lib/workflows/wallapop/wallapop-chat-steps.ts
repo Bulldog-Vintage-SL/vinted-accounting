@@ -15,6 +15,11 @@ export const WALLA_INBOX_PAGE_SIZE = 30
 export const WALLA_INBOX_MAX_PAGES = 4
 export const WALLA_CHAT_SEARCH_MAX_PAGES = 8
 export const WALLA_CHAT_APP_VERSION = '8.2784.0'
+export const WALLA_CHAT_TOKEN_URLS = [
+  'https://api.wallapop.com/api/v3/instant-messaging/token',
+  'https://api.wallapop.com/api/v3/users/me/instant-messaging/token',
+  'https://api.wallapop.com/bff/messaging/token',
+]
 
 const CHAT_BACKGROUND_REQUEST = {
   skipDelay: true,
