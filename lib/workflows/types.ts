@@ -112,6 +112,17 @@ export interface WorkflowStep {
     streamChat?: boolean
     streamToken?: string
     runInBackground?: boolean
+    missingReason?: string
+    publish?: {
+      fromUserHash?: string
+      toUserHash?: string
+      conversationHash?: string
+      text?: string
+      token?: string
+      publishKey?: string
+      subscribeKey?: string
+      origin?: string
+    }
   }
 }
 
