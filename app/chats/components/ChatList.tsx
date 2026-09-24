@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { Chat } from "../types";
 import { PlatformBadge } from "./PlatformBadge";
-import { RefreshCw, ChevronDown } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 function formatRelativeTime(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -16,19 +16,12 @@ function formatRelativeTime(iso: string) {
   return `${diffD}d`;
 }
 
-type Platform = "vestiaire" | "vinted";
-
-const SYNC_OPTIONS: { platform: Platform; label: string }[] = [
-  { platform: "vestiaire", label: "Vestiaire Collective" },
-  { platform: "vinted", label: "Vinted" },
-];
-
 interface ChatListProps {
   chats: Chat[];
   selectedChatId: string | null;
   onSelect: (chatId: string) => void;
-  onSyncPlatform: (platform: Platform) => void;
-  syncingPlatform: Platform | null;
+  onSync: () => void;
+  syncing: boolean;
   hideOnMobile?: boolean;
 }
 
@@ -36,68 +29,30 @@ export function ChatList({
   chats,
   selectedChatId,
   onSelect,
-  onSyncPlatform,
-  syncingPlatform,
+  onSync,
+  syncing,
   hideOnMobile = false,
 }: ChatListProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const syncing = syncingPlatform !== null;
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handlePick = (platform: Platform) => {
-    setMenuOpen(false);
-    onSyncPlatform(platform);
-  };
-
-  const syncingLabel = syncingPlatform
-    ? SYNC_OPTIONS.find((o) => o.platform === syncingPlatform)?.label
-    : null;
 
   return (
     <div
-      className={`${
-        hideOnMobile ? "hidden lg:flex" : "flex"
-      } w-full lg:w-80 shrink-0 border-r border-base-300 bg-base-100 h-full flex-col`}
+      className={`${hideOnMobile ? "hidden lg:flex" : "flex"
+        } w-full lg:w-80 shrink-0 border-r border-base-300 bg-base-100 h-full flex-col`}
     >
       <div className="h-16 flex items-center justify-between gap-2 px-4 border-b border-base-300 shrink-0">
         <h2 className="font-bold text-lg">Chats</h2>
 
         <div ref={menuRef} className="relative">
           <button
-            onClick={() => setMenuOpen((o) => !o)}
+            onClick={onSync}
             disabled={syncing}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-base-300 hover:bg-base-200 transition disabled:opacity-50"
             title="Sincronizar chats"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? `Sincronizando ${syncingLabel}...` : "Sincronizar"}
-            {!syncing && <ChevronDown className="w-3.5 h-3.5" />}
+            {syncing ? "Sincronizando..." : "Sincronizar"}
           </button>
-
-          {menuOpen && !syncing && (
-            <ul className="absolute right-0 z-10 mt-1 w-52 rounded-md border border-base-300 bg-base-100 shadow-lg overflow-hidden">
-              {SYNC_OPTIONS.map((opt) => (
-                <li key={opt.platform}>
-                  <button
-                    onClick={() => handlePick(opt.platform)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-base-200 transition"
-                  >
-                    {opt.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       </div>
 
@@ -105,7 +60,7 @@ export function ChatList({
         {chats.length === 0 ? (
           <p className="text-sm text-base-content/60 text-center py-10 px-4">
             {syncing
-              ? `Cargando conversaciones de ${syncingLabel}...`
+              ? "Cargando conversaciones..."
               : "No hay conversaciones. Pulsa Sincronizar y elige una cuenta (con sesión iniciada)."}
           </p>
         ) : (
@@ -115,9 +70,8 @@ export function ChatList({
               <button
                 key={chat.id}
                 onClick={() => onSelect(chat.id)}
-                className={`w-full text-left px-4 py-3 flex gap-3 items-start border-b border-base-300 transition-colors duration-200 ${
-                  active ? "bg-base-300" : "hover:bg-base-200"
-                }`}
+                className={`w-full text-left px-4 py-3 flex gap-3 items-start border-b border-base-300 transition-colors duration-200 ${active ? "bg-base-300" : "hover:bg-base-200"
+                  }`}
               >
                 {chat.contactAvatarUrl ? (
                   <img

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, MessageCircle, Loader2, ArrowLeft } from "lucide-react";
+import { Send, MessageCircle, Loader2, ArrowLeft, Info } from "lucide-react";
 import { Chat } from "../types";
 import { PlatformBadge } from "./PlatformBadge";
 
@@ -16,6 +16,8 @@ interface ChatWindowProps {
   chat: Chat | null;
   messagesLoading?: boolean;
   sending?: boolean;
+  // Conversaciones que no admiten respuesta de texto (p. ej. ofertas de Depop)
+  readOnly?: boolean;
   onSend?: (text: string) => Promise<void> | void;
   onBack?: () => void;
 }
@@ -24,6 +26,7 @@ export function ChatWindow({
   chat,
   messagesLoading = false,
   sending = false,
+  readOnly = false,
   onSend,
   onBack,
 }: ChatWindowProps) {
@@ -49,7 +52,7 @@ export function ChatWindow({
 
   const handleSend = async () => {
     const text = draft.trim();
-    if (!text || sending) return;
+    if (readOnly || !text || sending) return;
     setDraft("");
     await onSend?.(text);
   };
@@ -133,27 +136,34 @@ export function ChatWindow({
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 border-t border-base-300 bg-base-100 p-4 flex items-center gap-2">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSend();
-          }}
-          placeholder="Escribe un mensaje..."
-          disabled={sending}
-          className="flex-1 rounded-full border border-base-300 bg-base-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !draft.trim()}
-          className="w-9 h-9 rounded-full bg-primary text-primary-content flex items-center justify-center shrink-0 hover:opacity-90 transition disabled:opacity-50"
-          aria-label="Enviar mensaje"
-        >
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
-      </div>
+      {readOnly ? (
+        <div className="shrink-0 border-t border-base-300 bg-base-100 px-4 py-4 flex items-center gap-2 text-sm text-base-content/60">
+          <Info className="w-4 h-4 shrink-0" />
+          <p>Las ofertas no admiten respuesta desde aquí.</p>
+        </div>
+      ) : (
+        <div className="shrink-0 border-t border-base-300 bg-base-100 p-4 flex items-center gap-2">
+          <input
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSend();
+            }}
+            placeholder="Escribe un mensaje..."
+            disabled={sending}
+            className="flex-1 rounded-full border border-base-300 bg-base-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-60"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !draft.trim()}
+            className="w-9 h-9 rounded-full bg-primary text-primary-content flex items-center justify-center shrink-0 hover:opacity-90 transition disabled:opacity-50"
+            aria-label="Enviar mensaje"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

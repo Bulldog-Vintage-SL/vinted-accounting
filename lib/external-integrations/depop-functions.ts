@@ -5,6 +5,9 @@ import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 import { sleep } from '../utils'
+import type { Chat } from '@/app/chats/types'
+import type { ChatMessage } from '@/app/chats/types'
+
 
 // Publicar en Depop
 export async function uploadDepopItem(listing: any, accountId: string): Promise<UploadResult> {
@@ -64,103 +67,103 @@ export async function uploadDepopItem(listing: any, accountId: string): Promise<
 }
 
 export async function reuploadDepopItem(
-  accountId: string, listing: Listing, itemExternalId: string, publicationId: string
+    accountId: string, listing: Listing, itemExternalId: string, publicationId: string
 ): Promise<UploadResult> {
 
-  try {
+    try {
 
-    const missing = validateListingRequiredFields(listing, 'depop')
-    if (missing.length > 0) throw new MissingFieldsError(missing)
+        const missing = validateListingRequiredFields(listing, 'depop')
+        if (missing.length > 0) throw new MissingFieldsError(missing)
 
-    // Borrar la publicacion
-    const resDelete = await deleteDepopItem(itemExternalId, publicationId);
+        // Borrar la publicacion
+        const resDelete = await deleteDepopItem(itemExternalId, publicationId);
 
-    if (!resDelete.ok) {
-      return {
-        ok: false,
-        message: `No se pudo eliminar la publicación anterior: ${resDelete.message}`,
-      };
+        if (!resDelete.ok) {
+            return {
+                ok: false,
+                message: `No se pudo eliminar la publicación anterior: ${resDelete.message}`,
+            };
+        }
+
+        console.log("Borrado")
+        console.log(resDelete)
+
+        // Modificar las imagenes
+        const transformedImages = await transformListingImages(listing)
+
+        const uploadedUrls = await Promise.all(
+            transformedImages.map((blob, i) =>
+                uploadPhoto(new File([blob], `${listing.id}_${i}.jpg`, { type: "image/jpeg" }))
+            )
+        );
+
+        console.log("Imagenes")
+        console.log(uploadedUrls)
+
+        // Modificar el titulo y la descripcion
+        const resModTexts = await fetch("/api/modify-texts", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                title: listing.title,
+                description: listing.description,
+            }),
+        });
+
+        if (!resModTexts.ok) {
+            throw new Error("Error modificando título y descripción");
+        }
+
+        const { title: newTitle, description: newDescription } = await resModTexts.json();
+
+        console.log("Textos")
+        console.log(newTitle)
+
+        // Crear un producto temporal con los campos del producto
+        const modifiedListing: Listing = {
+            ...listing,
+            photo_url: uploadedUrls,
+            title: newTitle,
+            description: newDescription,
+        };
+
+        await sleep(60_000);
+
+        // Resubir el producto y crear la nueva publicacion
+        const uploadResult = await uploadDepopItem(
+            modifiedListing,
+            accountId
+        );
+
+        if (!uploadResult.ok) {
+            return {
+                ok: false,
+                message: extractErrorMessage(uploadResult, `Error al resubir el producto: ${uploadResult.message}`),
+            };
+        }
+
+        return {
+            ok: true,
+            message: "Publicación resubida correctamente en Depop",
+            data: {
+                listingId: listing.id,
+                newTitle,
+                newDescription,
+                publication: uploadResult.data,
+            },
+        };
+
+    } catch (err: any) {
+        if (err instanceof MissingFieldsError) {
+            return { ok: false, message: err.message, missingFields: err.fields }
+        }
+        return {
+            ok: false,
+            message: err?.message || 'Error inesperado',
+        };
     }
-
-    console.log("Borrado")
-    console.log(resDelete)
-
-    // Modificar las imagenes
-    const transformedImages = await transformListingImages(listing)
-
-    const uploadedUrls = await Promise.all(
-      transformedImages.map((blob, i) =>
-        uploadPhoto(new File([blob], `${listing.id}_${i}.jpg`, { type: "image/jpeg" }))
-      )
-    );
-
-    console.log("Imagenes")
-    console.log(uploadedUrls)
-
-    // Modificar el titulo y la descripcion
-    const resModTexts = await fetch("/api/modify-texts", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: listing.title,
-        description: listing.description,
-      }),
-    });
-
-    if (!resModTexts.ok) {
-      throw new Error("Error modificando título y descripción");
-    }
-
-    const { title: newTitle, description: newDescription } = await resModTexts.json();
-
-    console.log("Textos")
-    console.log(newTitle)
-
-    // Crear un producto temporal con los campos del producto
-    const modifiedListing: Listing = {
-      ...listing,
-      photo_url: uploadedUrls,
-      title: newTitle,
-      description: newDescription,
-    };
-
-    await sleep(60_000);
-
-    // Resubir el producto y crear la nueva publicacion
-    const uploadResult = await uploadDepopItem(
-      modifiedListing,
-      accountId
-    );
-
-    if (!uploadResult.ok) {
-      return {
-        ok: false,
-        message: extractErrorMessage(uploadResult, `Error al resubir el producto: ${uploadResult.message}`),
-      };
-    }
-
-    return {
-      ok: true,
-      message: "Publicación resubida correctamente en Depop",
-      data: {
-        listingId: listing.id,
-        newTitle,
-        newDescription,
-        publication: uploadResult.data,
-      },
-    };
-
-  } catch (err: any) {
-    if (err instanceof MissingFieldsError) {
-      return { ok: false, message: err.message, missingFields: err.fields }
-    }
-    return {
-      ok: false,
-      message: err?.message || 'Error inesperado',
-    };
-  }
 
 }
 
@@ -439,4 +442,193 @@ export async function updateDepopItem(
     } catch (err: any) {
         return { ok: false, message: err?.message || 'Error inesperado' };
     }
+}
+
+export async function fetchDepopChats(ownUserId?: string | number): Promise<{
+    ok: boolean
+    message: string
+    chats?: Chat[]
+    notices?: { id: string; text: string; updatedAt: string }[]
+}> {
+    try {
+        const result = await runFlow('FETCH_DEPOP_CHATS', { platform: 'depop' })
+        const state = result?.result?.state
+        if (!state?.depopInbox && !state?.depopOffers) {
+            return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Depop') }
+        }
+        const { chats: inboxChats, notices } = mapDepopInbox(state.depopInbox ?? [], ownUserId)
+        const offerChats = mapDepopOffers(state.depopOffers ?? [])
+        const chats = [...inboxChats, ...offerChats]
+        return {
+            ok: true,
+            message: chats.length ? `Se cargaron ${chats.length} conversaciones de Depop` : 'No hay conversaciones en Depop',
+            chats,
+            notices,
+        }
+    } catch (err: any) {
+        return { ok: false, message: extractErrorMessage(err, 'Error inesperado al sincronizar chats de Depop') }
+    }
+}
+
+export async function fetchDepopChatMessages(
+    conversationId: string,
+    ownUserId?: string | number
+): Promise<{
+    ok: boolean
+    message: string
+    messages?: ChatMessage[]
+}> {
+    try {
+        const result = await runFlow('FETCH_DEPOP_CHAT_MESSAGES', { platform: 'depop', conversationId })
+        const state = result?.result?.state
+        const raw = state?.depopChatRaw
+        if (!raw) {
+            return { ok: false, message: extractErrorMessage(result, 'No se pudieron cargar los mensajes') }
+        }
+        return { ok: true, message: 'Mensajes cargados', messages: mapDepopMessages(raw, ownUserId) }
+    } catch (err: any) {
+        return { ok: false, message: extractErrorMessage(err, 'Error inesperado al cargar el chat') }
+    }
+}
+
+export async function sendDepopChatMessage(
+    conversationId: string,
+    recipientUserId: string | number,
+    text: string
+): Promise<{
+    ok: boolean
+    message: string
+    sent?: ChatMessage
+}> {
+    try {
+        const result = await runFlow('SEND_DEPOP_CHAT_MESSAGE', {
+            platform: 'depop',
+            conversationId,
+            recipientUserId,
+            text,
+        })
+        const state = result?.result?.state
+        const raw = state?.depopChatSendResult
+        if (!raw && !result?.result?.done) {
+            return { ok: false, message: extractErrorMessage(result, 'No se pudo enviar el mensaje') }
+        }
+        const sent: ChatMessage = {
+            id: `local-${Date.now()}`,
+            senderId: 'me',
+            senderName: 'Tú',
+            content: text,
+            createdAt: new Date().toISOString(),
+            isOwn: true,
+        }
+        return { ok: true, message: 'Mensaje enviado', sent }
+    } catch (err: any) {
+        return { ok: false, message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje') }
+    }
+}
+
+const pickDepopContactName = (u: any) =>
+    (u ? `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim() : '') || u?.username || 'Usuario de Depop'
+
+export function mapDepopInbox(
+    objects: any[],
+    ownUserId?: string | number
+): {
+    chats: Chat[]
+    notices: { id: string; text: string; updatedAt: string }[]
+} {
+    const chats: Chat[] = []
+    const notices: { id: string; text: string; updatedAt: string }[] = []
+
+    for (const c of objects ?? []) {
+        const otherUser = c.users?.[0]
+        const resolvedOwnUserId = ownUserId ?? c.user_id
+
+        if (c.chat_meta_status === 'DEPOP_OFFICIAL' || c.read_only) {
+            notices.push({
+                id: c.conversation_id,
+                text: c.last_message_text ?? '',
+                updatedAt: new Date(c.last_message_timestamp * 1000).toISOString(),
+            })
+            continue
+        }
+
+        chats.push({
+            id: `depop-${c.conversation_id}`,
+            platform: 'depop',
+            contactName: pickDepopContactName(otherUser),
+            contactAvatarUrl: otherUser?.picture_url,
+            listingImageUrl: undefined,
+            lastMessagePreview: c.last_message_text ?? '',
+            lastMessageAt: new Date(c.last_message_timestamp * 1000).toISOString(),
+            unreadCount: c.unread_count ?? 0,
+            messages: [],
+            messagesLoaded: false,
+            channelId: c.conversation_id,
+            externalUrl: `https://www.depop.com/messages/${c.conversation_id}/`,
+            recipientUserId: otherUser?.id,
+            ownUserId: resolvedOwnUserId,
+        } as any)
+    }
+    return { chats, notices }
+}
+
+export function mapDepopMessages(raw: { objects: any[] }, ownUserId?: string | number): ChatMessage[] {
+    return (raw?.objects ?? [])
+        .map((m: any) => {
+            const isOwn = ownUserId != null && String(m.user_id) === String(ownUserId)
+            return {
+                id: String(m.id),
+                senderId: String(m.user_id),
+                senderName: isOwn ? 'Tú' : '',
+                content: m.text ?? '',
+                createdAt: new Date(m.created_timestamp * 1000).toISOString(),
+                isOwn,
+            } as ChatMessage
+        })
+        .sort((a: ChatMessage, b: ChatMessage) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+}
+
+const pickOfferContactName = (o: any) =>
+    `${o.offerer_first_name ?? ''} ${o.offerer_last_name ?? ''}`.trim() || o.offerer_username || 'Comprador de Depop'
+
+// Las ofertas de Depop no son conversaciones reales (no hay endpoint de
+// mensajes para ellas, solo aceptar/rechazar/contraofertar, que no está
+// cubierto aquí), así que cada oferta se representa como un "chat" con un
+// único mensaje ya resuelto en el propio mapeo — messagesLoaded: true evita
+// que la UI intente cargar mensajes o hacer polling sobre ella.
+export function mapDepopOffers(offers: any[]): Chat[] {
+    return (offers ?? []).map((o: any) => {
+        const priceNote = o.originalPrice ? ` (precio del artículo: ${o.originalPrice} ${o.currency ?? o.offer_currency})` : ''
+        const content = `Te ofrece ${o.offer_value} ${o.offer_currency} por tu artículo${priceNote}`
+        // La respuesta no trae fecha de creación de la oferta, solo expires_at,
+        // así que usamos "ahora" para que aparezca junto a lo más reciente.
+        const createdAt = new Date().toISOString()
+
+        return {
+            id: `depop-offer-${o.offer_id}`,
+            platform: 'depop',
+            contactName: pickOfferContactName(o),
+            contactAvatarUrl: undefined,
+            listingImageUrl: o.pictureUrl,
+            listingTitle: o.productDescription ? String(o.productDescription).slice(0, 60) : undefined,
+            lastMessagePreview: content,
+            lastMessageAt: createdAt,
+            unreadCount: o.offer_display_status === 'RECEIVED' ? 1 : 0,
+            messages: [{
+                id: `depop-offer-msg-${o.offer_id}`,
+                senderId: String(o.offerer_id),
+                senderName: pickOfferContactName(o),
+                content,
+                createdAt,
+                isOwn: false,
+            }],
+            messagesLoaded: true,
+            channelId: undefined,
+            externalUrl: undefined,
+            // Flags para que page.tsx no intente cargar mensajes ni permitir
+            // respuesta de texto sobre esto (ver nota en page.tsx).
+            isOffer: true,
+            recipientUserId: o.offerer_id,
+        } as any
+    })
 }

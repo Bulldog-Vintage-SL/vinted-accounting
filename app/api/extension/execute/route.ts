@@ -44,8 +44,13 @@ import {
 } from "@/lib/workflows/depop/depop-update-steps";
 import {
   buildSearchDepopAccountSteps,
-  buildSyncDepopAccountSteps,
+  buildSyncDepopAccountSteps, 
 } from "@/lib/workflows/depop/depop-sync-steps";
+import {
+  buildFetchDepopChatsSteps,
+  buildFetchDepopChatMessagesSteps,
+  buildSendDepopChatMessageSteps
+} from "@/lib/workflows/depop/depop-chat-steps"
 
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 import connectMongo from "@/libs/mongoose";
@@ -114,6 +119,10 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildDepopGetItemSteps(p.slug),
   UPDATE_DEPOP_ITEM: (p) =>
     buildDepopUpdateSteps(p.slug),
+  FETCH_DEPOP_CHATS: () => buildFetchDepopChatsSteps(),
+  FETCH_DEPOP_CHAT_MESSAGES: (p) => buildFetchDepopChatMessagesSteps(p.conversationId),
+  SEND_DEPOP_CHAT_MESSAGE: (p) => buildSendDepopChatMessageSteps(p.recipientUserId, p.text),
+  
 };
 
 // Claves que nunca deben acabar en el log de errores, aunque vengan

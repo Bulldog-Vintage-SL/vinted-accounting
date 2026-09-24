@@ -474,7 +474,7 @@ export async function fetchVintedChats(): Promise<{
   notices?: { id: string; text: string; updatedAt: string }[]
 }> {
   try {
-    const result = await runFlow('FETCH_VINTED_CHATS', { platform: 'vinted', stayInBackground: true })
+    const result = await runFlow('FETCH_VINTED_CHATS', { platform: 'vinted' })
     const state = result?.result?.state
     if (!state?.vintedInbox) {
       return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Vinted') }
@@ -499,8 +499,7 @@ export async function fetchVintedChatMessages(conversationId: string): Promise<{
   try {
     const result = await runFlow('FETCH_VINTED_CHAT_MESSAGES', {
       platform: 'vinted',
-      conversationId,
-      stayInBackground: true,
+      conversationId
     })
     const raw = result?.result?.state?.vintedChatRaw
     if (!raw) {
@@ -521,8 +520,7 @@ export async function sendVintedChatMessage(conversationId: string, text: string
     const result = await runFlow('SEND_VINTED_CHAT_MESSAGE', {
       platform: 'vinted',
       conversationId,
-      text,
-      stayInBackground: true,
+      text
     })
     const state = result?.result?.state
     const raw = state?.vintedChatSendResult ?? result?.result?.result

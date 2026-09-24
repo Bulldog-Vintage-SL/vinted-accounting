@@ -82,6 +82,13 @@ export type StepType =
   | 'GET_DEPOP_ITEM'
   | 'UPDATE_DEPOP_ITEM'
   | 'GET_DEPOP_BRANDS'
+  | 'GET_DEPOP_CHATS'
+  | 'GET_DEPOP_CHAT'
+  | 'MARK_DEPOP_CHAT_READ'
+  | 'GET_DEPOP_CHAT_VERIFICATION_TOKEN'
+  | 'SEND_DEPOP_CHAT_REPLY'
+  | 'GET_DEPOP_OFFER_PRODUCTS'
+  | 'GET_DEPOP_PRODUCT_OFFERS'
 
 
 
@@ -219,5 +226,13 @@ export interface WorkflowState {
   depopItemRaw?: any
   depopUpdateDone?: boolean
   depopBrandsMap?: any
+  // Chats
+  depopInbox?: any[]
+  depopChatsCursor?: string
+  depopChatRaw?: any
+  depopVerificationToken?: string
+  depopChatSendResult?: any
+  depopOfferProducts?: any[]
+  depopOffers?: any[]
 
 }

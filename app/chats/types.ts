@@ -22,4 +22,7 @@ export interface Chat {
   senderId?: string;
   externalUrl?: string;
   messagesLoaded?: boolean;
+  isOffer?: boolean;
+  recipientUserId?: string | number;
+  ownUserId?: string | number;
 }
