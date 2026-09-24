@@ -4,6 +4,12 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
+import type { Chat, ChatMessage } from '@/app/chats/types'
+import {
+  mapWallapopInbox,
+  mapWallapopMessages,
+  mapWallapopSendResult,
+} from '@/lib/workflows/wallapop/wallapop-chat-steps'
 import { sleep } from '../utils'
 
 // Subir producto a Wallapop
@@ -468,6 +474,129 @@ export async function updateWallapopItem(
       ok: false,
       message: err?.message || 'Error inesperado',
     };
+  }
+}
+
+export async function fetchWallapopChats(): Promise<{
+  ok: boolean
+  message: string
+  chats?: Chat[]
+  ownUserHash?: string
+}> {
+  try {
+    const result = await runFlow('FETCH_WALLA_CHATS', { platform: 'wallapop', stayInBackground: true })
+    const state = result?.result?.state
+    if (!state?.wallaInbox && !state?.wallaChatUserHash && !state?.userId) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'No se pudieron obtener los chats de Wallapop'),
+      }
+    }
+
+    const ownUserHash = state.wallaChatUserHash
+    const chats = mapWallapopInbox(state.wallaInbox ?? [], ownUserHash)
+    if (!chats.length && !ownUserHash && !state.userId) {
+      return {
+        ok: false,
+        message: 'No hay sesión de Wallapop. Abre Wallapop e inicia sesión, luego vuelve a sincronizar.',
+      }
+    }
+
+    return {
+      ok: true,
+      message: chats.length
+        ? `Se cargaron ${chats.length} conversaciones de Wallapop`
+        : 'No hay conversaciones en Wallapop',
+      chats,
+      ownUserHash,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al sincronizar chats de Wallapop'),
+    }
+  }
+}
+
+export async function fetchWallapopChatMessages(conversationHash: string): Promise<{
+  ok: boolean
+  message: string
+  messages?: ChatMessage[]
+  ownUserHash?: string
+}> {
+  try {
+    const result = await runFlow('FETCH_WALLA_CHAT_MESSAGES', {
+      platform: 'wallapop',
+      conversationHash,
+      channelId: conversationHash,
+      stayInBackground: true,
+    })
+    const state = result?.result?.state
+    const raw = state?.wallaChatRaw ?? result?.result?.result
+    if (!raw) {
+      return { ok: false, message: extractErrorMessage(result, 'No se pudieron cargar los mensajes') }
+    }
+
+    const ownUserHash = state?.wallaChatUserHash
+    return {
+      ok: true,
+      message: 'Mensajes cargados',
+      messages: mapWallapopMessages(raw, ownUserHash),
+      ownUserHash,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al cargar el chat'),
+    }
+  }
+}
+
+export async function sendWallapopChatMessage(
+  conversationHash: string,
+  text: string,
+  opts?: { toUserHash?: string; fromUserHash?: string }
+): Promise<{
+  ok: boolean
+  message: string
+  sent?: ChatMessage
+}> {
+  try {
+    if (!opts?.toUserHash) {
+      return { ok: false, message: 'Falta el destinatario del chat de Wallapop. Vuelve a sincronizar.' }
+    }
+
+    const result = await runFlow('SEND_WALLA_CHAT_MESSAGE', {
+      platform: 'wallapop',
+      conversationHash,
+      channelId: conversationHash,
+      text,
+      toUserHash: opts.toUserHash,
+      fromUserHash: opts.fromUserHash,
+      stayInBackground: true,
+    })
+    const state = result?.result?.state
+    const raw = state?.wallaChatSendResult ?? result?.result?.result
+    if (!raw && !result?.result?.done) {
+      return { ok: false, message: extractErrorMessage(result, 'No se pudo enviar el mensaje') }
+    }
+
+    const ownUserHash = state?.wallaChatUserHash || opts.fromUserHash
+    const sent = mapWallapopSendResult(raw, text, ownUserHash) ?? {
+      id: `local-${Date.now()}`,
+      senderId: String(ownUserHash ?? 'me'),
+      senderName: 'Tú',
+      content: text,
+      createdAt: new Date().toISOString(),
+      isOwn: true,
+    }
+
+    return { ok: true, message: 'Mensaje enviado', sent }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje'),
+    }
   }
 }
 
