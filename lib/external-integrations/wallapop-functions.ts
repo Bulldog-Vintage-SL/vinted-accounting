@@ -6,6 +6,7 @@ import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 import type { Chat, ChatMessage } from '@/app/chats/types'
 import {
+  isWallapopPublishOk,
   mapWallapopInbox,
   mapWallapopMessages,
   mapWallapopSendResult,
@@ -577,7 +578,7 @@ export async function sendWallapopChatMessage(
     })
     const state = result?.result?.state
     const raw = state?.wallaChatSendResult ?? result?.result?.result
-    if (!raw && !result?.result?.done) {
+    if (!isWallapopPublishOk(raw)) {
       return { ok: false, message: extractErrorMessage(result, 'No se pudo enviar el mensaje') }
     }
 

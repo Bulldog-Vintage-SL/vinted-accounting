@@ -389,6 +389,7 @@ export function processStepResult(
       s.wallaChatToken = extracted.token
       s.wallaChatPubKey = extracted.publishKey || s.wallaChatPubKey
       s.wallaChatSubKey = extracted.subscribeKey || s.wallaChatSubKey
+      s.wallaChatOrigin = extracted.origin || s.wallaChatOrigin
       s.wallaChatUserHash = extracted.userHash || s.wallaChatUserHash
       break
     }
@@ -910,6 +911,7 @@ export function processStepResult(
           toUserHash: toHash,
           conversationHash,
           text: String(payload.text ?? ''),
+          origin: s.wallaChatOrigin,
         })
         next.request.method = 'GET'
         next.request.noAuth = true

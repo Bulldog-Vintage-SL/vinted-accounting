@@ -8,7 +8,7 @@
 import type { WorkflowStep } from '../types'
 import type { Chat, ChatMessage } from '@/app/chats/types'
 
-export const WALLA_PUBNUB_ORIGIN = 'https://ps16.pndsn.com'
+export const WALLA_PUBNUB_ORIGIN = 'https://ps14.pndsn.com'
 export const WALLA_PUBNUB_PUBLISH_KEY = 'pub-c-255dc549-86f5-4abd-8b9e-921d5a02fde7'
 export const WALLA_PUBNUB_SUBSCRIBE_KEY = 'sub-c-89405e27-d4df-4d87-aca1-d6e9118f0a0d'
 export const WALLA_INBOX_PAGE_SIZE = 30
@@ -131,6 +131,7 @@ export function buildWallapopPublishUrl(opts: {
   toUserHash: string
   conversationHash: string
   text: string
+  origin?: string
 }) {
   const channel = `chat.${opts.toUserHash}.${opts.conversationHash}.${opts.fromUserHash}`
   const message = encodeURIComponent(
@@ -139,8 +140,8 @@ export function buildWallapopPublishUrl(opts: {
       payload: { text: opts.text },
     })
   )
-  const meta = encodeURIComponent(
-    JSON.stringify({
+  const params = new URLSearchParams({
+    meta: JSON.stringify({
       type: 'text',
       sender: {
         platform: {
@@ -151,10 +152,7 @@ export function buildWallapopPublishUrl(opts: {
       to_user_hash: opts.toUserHash,
       from_user_hash: opts.fromUserHash,
       conversation_hash: opts.conversationHash,
-    })
-  )
-  const params = new URLSearchParams({
-    meta,
+    }),
     uuid: opts.fromUserHash,
     requestid: crypto.randomUUID(),
     pnsdk: 'PubNub-JS-Web/10.2.6',
@@ -162,7 +160,7 @@ export function buildWallapopPublishUrl(opts: {
   })
 
   return (
-    `${WALLA_PUBNUB_ORIGIN}/publish/${opts.publishKey}/${opts.subscribeKey}/0/` +
+    `${opts.origin || WALLA_PUBNUB_ORIGIN}/publish/${opts.publishKey}/${opts.subscribeKey}/0/` +
     `${channel}/0/${message}?${params.toString()}`
   )
 }
@@ -196,17 +194,28 @@ export function extractWallaChatToken(result: any): {
   publishKey?: string
   subscribeKey?: string
   userHash?: string
+  origin?: string
 } {
   const token =
     (typeof result === 'string' && result) ||
     (typeof result?.token === 'string' && result.token) ||
+    (typeof result?.token?.token === 'string' && result.token.token) ||
     (typeof result?.auth_key === 'string' && result.auth_key) ||
     (typeof result?.authKey === 'string' && result.authKey) ||
     (typeof result?.auth === 'string' && result.auth) ||
+    (typeof result?.access_token === 'string' && result.access_token) ||
     (typeof result?.data === 'string' && result.data) ||
     (typeof result?.data?.token === 'string' && result.data.token) ||
     (typeof result?.data?.auth_key === 'string' && result.data.auth_key) ||
+    (typeof result?.data?.authKey === 'string' && result.data.authKey) ||
     undefined
+
+  const origin =
+    result?.origin ??
+    result?.publish_origin ??
+    result?.publishOrigin ??
+    result?.data?.origin ??
+    result?.data?.publish_origin
 
   return {
     token,
@@ -226,6 +235,7 @@ export function extractWallaChatToken(result: any): {
       result?.hash ??
       result?.data?.user_hash ??
       result?.data?.hash,
+    origin: typeof origin === 'string' && origin.length ? origin : undefined,
   }
 }
 
@@ -450,9 +460,12 @@ export function mapWallapopMessages(conv: any, ownHash?: string): ChatMessage[] 
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 }
 
+export function isWallapopPublishOk(result: any): boolean {
+  return Array.isArray(result) && (result[0] === 1 || result[0] === '1')
+}
+
 export function mapWallapopSendResult(result: any, text: string, ownHash?: string): ChatMessage | null {
-  const ok = Array.isArray(result) ? result[0] === 1 : Boolean(result)
-  if (!ok && result == null) return null
+  if (!isWallapopPublishOk(result)) return null
 
   return {
     id: `local-${Date.now()}`,
