@@ -62,7 +62,7 @@ export function buildWallapopConversationUrl(conversationHash: string) {
   )
 }
 
-export function buildFetchWallapopChatMessagesSteps(_conversationHash?: string): WorkflowStep[] {
+export function buildFetchWallapopChatMessagesSteps(): WorkflowStep[] {
   return [
     {
       id: crypto.randomUUID(),

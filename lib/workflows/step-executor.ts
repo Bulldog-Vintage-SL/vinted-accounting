@@ -267,7 +267,7 @@ export function processStepResult(
       break
     }
 
-    case 'GET_USER_ME':
+    case 'GET_USER_ME': {
       s.userId = result.id
       s.accountName = result.micro_name
       s.profileLink = result.url_share
@@ -283,6 +283,7 @@ export function processStepResult(
         }
       }
       break
+    }
 
     case 'GET_WALLA_CATEGORIES': {
       const categoryResult = getWallapopCategoryIds(
