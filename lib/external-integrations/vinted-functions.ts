@@ -6,6 +6,7 @@ import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
 import type { Chat } from '@/app/chats/types'
 import type { ChatMessage } from '@/app/chats/types'
+import type { OfferInfo, OfferStatusKind, SystemEventInfo, SystemEventStyle } from '@/app/chats/types';
 import { sleep } from '../utils'
 
 // Subir producto a Vinted
@@ -491,6 +492,7 @@ export async function fetchVintedChats(): Promise<{
   }
 }
 
+
 export async function fetchVintedChatMessages(conversationId: string): Promise<{
   ok: boolean
   message: string
@@ -510,7 +512,7 @@ export async function fetchVintedChatMessages(conversationId: string): Promise<{
     return { ok: false, message: extractErrorMessage(err, 'Error inesperado al cargar el chat') }
   }
 }
-
+ 
 export async function sendVintedChatMessage(conversationId: string, text: string): Promise<{
   ok: boolean
   message: string
@@ -540,26 +542,26 @@ export async function sendVintedChatMessage(conversationId: string, text: string
     return { ok: false, message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje') }
   }
 }
-
+ 
 const isSystemConv = (c: any) =>
   c.opposite_user?.badge === 'moderator' || c.opposite_user?.login === 'Vinted'
-
+ 
 const pickThumb = (photo: any, type: string) =>
   photo?.thumbnails?.find((t: any) => t.type === type)?.url ?? photo?.url ?? undefined
-
+ 
 export function mapVintedInbox(inbox: any[]): {
   chats: Chat[]
   notices: { id: string; text: string; updatedAt: string }[]
 } {
   const chats: Chat[] = []
   const notices: { id: string; text: string; updatedAt: string }[] = []
-
+ 
   for (const c of inbox ?? []) {
     if (isSystemConv(c)) {
       notices.push({ id: String(c.id), text: c.description ?? '', updatedAt: c.updated_at })
       continue
     }
-
+ 
     chats.push({
       id: `vinted-${c.id}`,                
       platform: 'vinted',
@@ -577,28 +579,108 @@ export function mapVintedInbox(inbox: any[]): {
   }
   return { chats, notices }
 }
-
+ 
 const toIso = (v: any) => {
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
 }
-
+ 
+// Códigos de status confirmados por captura real de la API de Vinted:
+//   10 = Pendiente, 40 = Cancelada/Rechazada.
+// El código de "Aceptada" aún no se ha capturado; cuando aparezca uno,
+// añádelo aquí (probablemente 20 o 30).
+const OFFER_STATUS_MAP: Record<number, OfferStatusKind> = {
+  10: "pending",
+  40: "rejected",
+}
+ 
+function classifyOfferStatus(status: number, statusTitle: string): OfferStatusKind {
+  if (status in OFFER_STATUS_MAP) return OFFER_STATUS_MAP[status]
+  // Fallback por texto, por si aparece un código nuevo no mapeado todavía.
+  const t = (statusTitle ?? '').toLowerCase()
+  if (t.includes('pendient')) return 'pending'
+  if (t.includes('acept')) return 'accepted'
+  if (t.includes('rechaz') || t.includes('cancel') || t.includes('expir') || t.includes('caduc')) return 'rejected'
+  return 'other'
+}
+ 
+// Vinted ya manda un "template.style" para status_message/action_message
+// (gray_box, red_box, clear_box, ...). Lo reducimos a 3 estilos propios.
+function classifySystemEventStyle(templateStyle: string | undefined, eventGroup: string | undefined): SystemEventStyle {
+  const s = (templateStyle ?? '').toLowerCase()
+  if (s.includes('red')) return 'danger'
+  if (s.includes('gray') || s.includes('grey')) return 'warning'
+  // Algunos event_group son claramente negativos aunque el template sea "clear_box"
+  if (eventGroup === 'cancelation') return 'danger'
+  return 'neutral'
+}
+ 
 export function mapVintedMessages(conv: any): ChatMessage[] {
   const otherId = String(conv?.opposite_user?.id ?? '')
-  return (conv?.messages ?? [])
-    .filter((m: any) => m.entity_type === 'message')
-    .map((m: any) => {
+  const items: ChatMessage[] = []
+ 
+  for (const m of conv?.messages ?? []) {
+    if (m.entity_type === 'message') {
       const e = m.entity ?? {}
       const senderId = String(e.user_id ?? '')
       const isOwn = senderId !== otherId
-      return {
+      items.push({
         id: String(e.id),
         senderId,
         senderName: isOwn ? 'Tú' : conv.opposite_user?.login ?? '',
         content: e.body ?? '',
         createdAt: toIso(m.created_at_ts ?? e.created_at_ts),
         isOwn,
-      } as ChatMessage
-    })
-    .sort((a: ChatMessage, b: ChatMessage) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
+      })
+      continue
+    }
+ 
+    if (m.entity_type === 'offer_request_message') {
+      const e = m.entity ?? {}
+      const senderId = String(e.user_id ?? '')
+      const isOwn = senderId !== otherId
+      const offer: OfferInfo = {
+        price: e.price_label ?? '',
+        originalPrice: e.original_price_label,
+        statusTitle: e.status_title ?? '',
+        statusKind: classifyOfferStatus(e.status, e.status_title),
+      }
+      items.push({
+        id: `offer-${e.offer_request_id}`,
+        senderId,
+        senderName: isOwn ? 'Tú' : conv.opposite_user?.login ?? '',
+        content: e.title ?? 'Oferta',
+        createdAt: toIso(m.created_at_ts),
+        isOwn,
+        offer,
+      })
+      continue
+    }
+ 
+    if (m.entity_type === 'status_message' || m.entity_type === 'action_message') {
+      const e = m.entity ?? {}
+      // Estos mensajes no tienen remitente real: son eventos del sistema,
+      // así que se muestran centrados (isOwn = false y sin burbuja lateral
+      // se resuelve en el componente por la presencia de systemEvent).
+      const systemEvent: SystemEventInfo = {
+        title: e.title ?? '',
+        subtitle: e.subtitle,
+        style: classifySystemEventStyle(e.template?.style, m.event_group),
+      }
+      items.push({
+        id: `sys-${m.display_group}-${m.event_type}-${m.created_at_ts}`,
+        senderId: 'system',
+        senderName: 'Vinted',
+        content: e.title ?? '',
+        createdAt: toIso(m.created_at_ts),
+        isOwn: false,
+        systemEvent,
+      })
+      continue
+    }
+ 
+    // Cualquier otro entity_type desconocido se sigue descartando.
+  }
+ 
+  return items.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 }

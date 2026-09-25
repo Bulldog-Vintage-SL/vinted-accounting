@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Send, MessageCircle, Loader2, ArrowLeft, Info } from "lucide-react";
-import { Chat } from "../types";
+import { Chat, OfferStatusKind, SystemEventStyle } from "../types";
 import { PlatformBadge } from "./PlatformBadge";
 
 function formatTime(iso: string) {
@@ -11,6 +11,19 @@ function formatTime(iso: string) {
     minute: "2-digit",
   });
 }
+
+const OFFER_STYLES: Record<OfferStatusKind, string> = {
+  pending: "bg-warning/10 border-warning/40",
+  accepted: "bg-success/10 border-success/40",
+  rejected: "bg-error/10 border-error/40 opacity-70",
+  other: "bg-base-100 border-base-300",
+};
+
+const SYSTEM_EVENT_STYLES: Record<SystemEventStyle, string> = {
+  neutral: "bg-base-300/40 text-base-content/70 border-base-300",
+  warning: "bg-base-300/60 text-base-content/80 border-base-300",
+  danger: "bg-error/10 text-error border-error/30",
+};
 
 interface ChatWindowProps {
   chat: Chat | null;
@@ -104,29 +117,86 @@ export function ChatWindow({
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : (
-          chat.messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}
-            >
+          chat.messages.map((message) => {
+            if (message.systemEvent) {
+              return (
+                <div key={message.id} className="flex justify-center">
+                  <div
+                    className={`max-w-[85%] rounded-xl border px-3 py-2 text-xs text-center ${
+                      SYSTEM_EVENT_STYLES[message.systemEvent.style]
+                    }`}
+                  >
+                    <p className="font-medium">{message.systemEvent.title}</p>
+                    {message.systemEvent.subtitle && (
+                      <p className="mt-0.5 opacity-80">{message.systemEvent.subtitle}</p>
+                    )}
+                    <p className="mt-1 opacity-50">{formatTime(message.createdAt)}</p>
+                  </div>
+                </div>
+              );
+            }
+
+            if (message.offer) {
+              return (
+                <div
+                  key={message.id}
+                  className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[75%] rounded-2xl border px-4 py-3 text-sm shadow-sm ${
+                      OFFER_STYLES[message.offer.statusKind]
+                    }`}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-wide opacity-70 mb-1">
+                      {message.offer.statusTitle}
+                    </p>
+                    <p className="mb-1">{message.content}</p>
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className={`text-base font-bold ${
+                          message.offer.statusKind === "rejected" ? "line-through" : ""
+                        }`}
+                      >
+                        {message.offer.price}
+                      </span>
+                      {message.offer.originalPrice && (
+                        <span className="text-xs line-through opacity-60">
+                          {message.offer.originalPrice}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] mt-1 opacity-50">
+                      {formatTime(message.createdAt)}
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
               <div
-                className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
-                  message.isOwn
-                    ? "bg-primary text-primary-content rounded-br-sm"
-                    : "bg-base-100 text-base-content rounded-bl-sm border border-base-300"
-                }`}
+                key={message.id}
+                className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}
               >
-                <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                <p
-                  className={`text-[10px] mt-1 ${
-                    message.isOwn ? "text-primary-content/70" : "text-base-content/50"
+                <div
+                  className={`max-w-[70%] rounded-2xl px-4 py-2 text-sm shadow-sm ${
+                    message.isOwn
+                      ? "bg-primary text-primary-content rounded-br-sm"
+                      : "bg-base-100 text-base-content rounded-bl-sm border border-base-300"
                   }`}
                 >
-                  {formatTime(message.createdAt)}
-                </p>
+                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                  <p
+                    className={`text-[10px] mt-1 ${
+                      message.isOwn ? "text-primary-content/70" : "text-base-content/50"
+                    }`}
+                  >
+                    {formatTime(message.createdAt)}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         {messagesLoading && chat.messages.length > 0 && (
           <div className="flex justify-center py-2 text-base-content/40">
