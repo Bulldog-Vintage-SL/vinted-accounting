@@ -728,6 +728,97 @@ export function processStepResult(
     case 'UPDATE_DEPOP_ITEM':
       s.depopUpdateDone = true
       break
+    case 'GET_DEPOP_CHATS': {
+      const objs = result.objects ?? []
+      const byId = new Map<string, any>()
+      for (const c of [...(s.depopInbox ?? []), ...objs]) {
+        byId.set(String(c.conversation_id), c)
+      }
+      s.depopInbox = Array.from(byId.values())
+
+      const pageInfo = result.page_info ?? {}
+      if (pageInfo.has_more && pageInfo.last) {
+        s.depopChatsCursor = pageInfo.last
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_DEPOP_CHATS',
+          platform: 'depop',
+          request: { url: '', method: 'GET' }
+        })
+      }
+      break
+    }
+
+    case 'GET_DEPOP_CHAT': {
+      s.depopChatRaw = result
+
+      // A diferencia de Vinted, la respuesta de mensajes de Depop no trae un
+      // flag de "leído" en el propio conversation/mensaje, así que marcamos
+      // como leído sin condición al abrir el chat (el endpoint es idempotente).
+      steps.splice(currentStep + 1, 0, {
+        id: crypto.randomUUID(),
+        type: 'MARK_DEPOP_CHAT_READ',
+        platform: 'depop',
+        request: {
+          url: 'https://webapi.depop.com/presentation/api/v1/conversations/mark-read/',
+          method: 'PATCH',
+          body: { group_id: s.originalPayload?.conversationId }
+        }
+      })
+      break
+    }
+
+    case 'MARK_DEPOP_CHAT_READ':
+      break
+
+    case 'GET_DEPOP_CHAT_VERIFICATION_TOKEN':
+      s.depopVerificationToken = result?.token
+      break
+
+    case 'SEND_DEPOP_CHAT_REPLY':
+      s.depopChatSendResult = result
+      break
+
+    case 'GET_DEPOP_OFFER_PRODUCTS': {
+      const objs = result.objects ?? []
+      const byId = new Map<string, any>()
+      for (const p of [...(s.depopOfferProducts ?? []), ...objs]) {
+        byId.set(String(p.product_id), p)
+      }
+      s.depopOfferProducts = Array.from(byId.values())
+
+      for (const p of objs) {
+        if (!p.offer_count || Number(p.offer_count) <= 0) continue
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_DEPOP_PRODUCT_OFFERS',
+          platform: 'depop',
+          request: {
+            url: `https://webapi.depop.com/presentation/api/v1/products/${p.product_id}/offers/?active=true&include_size=true&variant_id=${p.variant_id}`,
+            method: 'GET'
+          }
+        })
+      }
+      break
+    }
+
+    case 'GET_DEPOP_PRODUCT_OFFERS': {
+      const offers = result.offers ?? []
+      const enriched = offers.map((o: any) => ({
+        productId: result.product_id,
+        productDescription: result.product_description,
+        pictureUrl: result.picture_data?.formats?.P2?.url,
+        originalPrice: result.prices?.original_price?.price,
+        currency: result.price_currency,
+        ...o,
+      }))
+      const byId = new Map<string, any>()
+      for (const o of [...(s.depopOffers ?? []), ...enriched]) {
+        byId.set(String(o.offer_id), o)
+      }
+      s.depopOffers = Array.from(byId.values())
+      break
+    }
 
     case 'GET_ITEMS_NEW': {
       // En Vestiaire este paso es la búsqueda del armario (en Vinted es un
@@ -1116,6 +1207,23 @@ export function processStepResult(
     case 'UPDATE_DEPOP_ITEM':
       next.request.body = buildDepopUpdateItemBody(s)
       break
+
+    case 'GET_DEPOP_CHATS':
+      if (!next.request.url) {
+        next.request.url =
+          `https://webapi.depop.com/presentation/api/v1/conversations/` +
+          `?limit=24&unreadOnly=false&cursor=${encodeURIComponent(s.depopChatsCursor ?? '')}`
+      }
+      break
+
+    case 'SEND_DEPOP_CHAT_REPLY':
+      next.request.body = {
+        ...next.request.body,
+        verification_token: s.depopVerificationToken
+      }
+      break
+
+
   }
 
   return { nextStep: next, updatedState: s, nextIndex }
