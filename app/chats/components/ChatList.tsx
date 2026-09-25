@@ -16,6 +16,14 @@ function formatRelativeTime(iso: string) {
   return `${diffD}d`;
 }
 
+type Platform = "vestiaire" | "vinted" | "wallapop";
+
+const SYNC_OPTIONS: { platform: Platform; label: string }[] = [
+  { platform: "vestiaire", label: "Vestiaire Collective" },
+  { platform: "vinted", label: "Vinted" },
+  { platform: "wallapop", label: "Wallapop" },
+];
+
 interface ChatListProps {
   chats: Chat[];
   selectedChatId: string | null;

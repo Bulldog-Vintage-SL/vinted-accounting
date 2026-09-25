@@ -14,14 +14,21 @@ const EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID!
 declare const chrome: any
 
 export function extractErrorMessage(result: any, fallback: string): string {
-  return (
-    result?.result?.result?.message ??
-    result?.result?.message ??
-    result?.error?.message ??
-    result?.error ??
-    result?.message ??
-    fallback
-  )
+  const candidates = [
+    result?.result?.result?.message,
+    result?.result?.error,
+    result?.result?.message,
+    result?.error?.message,
+    result?.error,
+    result?.message,
+  ]
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) return value
+    if (value && typeof value === 'object' && typeof value.message === 'string' && value.message.trim()) {
+      return value.message
+    }
+  }
+  return fallback
 }
 
 async function getToken(): Promise<string | null> {

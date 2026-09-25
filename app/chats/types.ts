@@ -41,6 +41,7 @@ export interface Chat {
   messages: ChatMessage[];
   channelId?: string;
   senderId?: string;
+  ownUserHash?: string;
   externalUrl?: string;
   messagesLoaded?: boolean;
   isOffer?: boolean;

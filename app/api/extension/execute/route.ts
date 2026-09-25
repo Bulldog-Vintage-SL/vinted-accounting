@@ -16,6 +16,11 @@ import {
 import { buildImportWardrobeSteps } from "@/lib/workflows/vinted/import-steps";
 import { buildWallapopImportSteps } from "@/lib/workflows/wallapop/wallapop-import-steps";
 import { buildWallapopSteps } from "@/lib/workflows/wallapop/wallapop-upload-steps";
+import {
+  buildFetchWallapopChatsSteps,
+  buildFetchWallapopChatMessagesSteps,
+  buildSendWallapopChatMessageSteps,
+} from "@/lib/workflows/wallapop/wallapop-chat-steps";
 import { buildVintedDeleteListingSteps } from "@/lib/workflows/vinted/vinted-delete-steps";
 import { buildWallapopDeleteListingSteps } from "@/lib/workflows/wallapop/wallapop-delete-steps";
 import { buildVestiaireDeleteListingSteps } from "@/lib/workflows/vestiaire/vestiaire-delete-steps";
@@ -84,6 +89,9 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildGetWallapopItemSteps(p.itemExternalId),
   UPDATE_WALLAPOP_ITEM: (p) =>
     buildUpdateWallapopItemSteps(p.itemExternalId),
+  FETCH_WALLA_CHATS: () => buildFetchWallapopChatsSteps(),
+  FETCH_WALLA_CHAT_MESSAGES: () => buildFetchWallapopChatMessagesSteps(),
+  SEND_WALLA_CHAT_MESSAGE: () => buildSendWallapopChatMessageSteps(),
 
   SEARCH_VESTIAIRE_ACCOUNT: () =>
     buildSearchVestiaireAccountSteps(),

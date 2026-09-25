@@ -40,6 +40,10 @@ export type StepType =
   | 'GET_WALLA_ITEM'
   | 'DELETE_WALLA'
   | 'UPDATE_WALLA_ITEM'
+  | 'GET_WALLA_CHATS'
+  | 'GET_WALLA_CHAT'
+  | 'GET_WALLA_CHAT_TOKEN'
+  | 'SEND_WALLA_CHAT_MESSAGE'
   // Vestiaire Collective
   | 'GET_VEST_USER_ID'
   | 'GET_VEST_BRANDS'
@@ -173,6 +177,17 @@ export interface WorkflowState {
   wallaNextSince?: string
   wallaNextUrl?: string
   wallaNextStart?: number
+  wallaChatUserHash?: string
+  wallaInbox?: any[]
+  wallaInboxNext?: string
+  wallaInboxPages?: number
+  wallaChatRaw?: any
+  wallaChatToken?: string
+  wallaChatPubKey?: string
+  wallaChatSubKey?: string
+  wallaChatOrigin?: string
+  wallaChatTokenTried?: string[]
+  wallaChatSendResult?: any
 
   // Vestiaire Collective
   vestiaireId?: string

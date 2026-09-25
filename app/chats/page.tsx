@@ -16,12 +16,15 @@ import {
   fetchDepopChats,
   fetchDepopChatMessages,
   sendDepopChatMessage,
+  fetchWallapopChats,
+  fetchWallapopChatMessages,
+  sendWallapopChatMessage,
 } from "@/lib/external-integrations";
 
 // Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
 const STORAGE_KEY = "rl:chats";
 
-type Platform = "vestiaire" | "vinted" | "depop";
+type Platform = "vestiaire" | "vinted" | "depop" | "wallapop";
 
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
@@ -57,9 +60,15 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   vestiaire: "Vestiaire Collective",
   vinted: "Vinted",
   depop: "Depop",
+  wallapop: "Wallapop",
 };
 
-const SYNCABLE_PLATFORMS = new Set<Platform>(["vestiaire", "vinted", "depop"]);
+const SYNCABLE_PLATFORMS = new Set<Platform>([
+  "vestiaire",
+  "vinted",
+  "depop",
+  "wallapop",
+]);
 
 export default function ChatsPage() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -99,6 +108,11 @@ export default function ChatsPage() {
     }
   };
 
+  // Nota: syncPlatform NO toca el estado `chats` directamente, solo hace
+  // fetch y devuelve los chats obtenidos; es el caller (handleAccountsSelected)
+  // quien mezcla y guarda el estado. Mantener este patrón para todas las
+  // plataformas (incluida Wallapop) evita que una sincronización se pierda
+  // silenciosamente al combinarse con otra.
   const syncPlatform = async (
     platform: Platform,
     accountId: string
@@ -110,6 +124,8 @@ export default function ChatsPage() {
         res = await fetchVestiaireChats();
       } else if (platform === "vinted") {
         res = await fetchVintedChats();
+      } else if (platform === "wallapop") {
+        res = await fetchWallapopChats();
       } else {
         const ownExternalId = await resolveAccountExternalId(platform, accountId);
         res = await fetchDepopChats(ownExternalId);
@@ -206,8 +222,10 @@ export default function ChatsPage() {
           chat.platform === "vinted"
             ? await fetchVintedChatMessages(channel)
             : chat.platform === "depop"
-            ? await fetchDepopChatMessages(channel, chat.ownUserId)
-            : await fetchVestiaireChatMessages(channel);
+              ? await fetchDepopChatMessages(channel, chat.ownUserId)
+              : chat.platform === "wallapop"
+                ? await fetchWallapopChatMessages(channel)
+                : await fetchVestiaireChatMessages(channel);
         if (!res.ok) {
           if (!silent) toast.error(res.message);
           return;
@@ -307,12 +325,17 @@ export default function ChatsPage() {
         selectedChat.platform === "vinted"
           ? await sendVintedChatMessage(channel, text)
           : selectedChat.platform === "depop"
-          ? await sendDepopChatMessage(
-              channel,
-              selectedChat.recipientUserId as string | number,
-              text
-            )
-          : await sendVestiaireChatMessage(channel, text);
+            ? await sendDepopChatMessage(
+                channel,
+                selectedChat.recipientUserId as string | number,
+                text
+              )
+            : selectedChat.platform === "wallapop"
+              ? await sendWallapopChatMessage(channel, text, {
+                  toUserHash: selectedChat.senderId,
+                  fromUserHash: selectedChat.ownUserHash,
+                })
+              : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message);
         return;
