@@ -23,12 +23,35 @@ export function extractErrorMessage(result: any, fallback: string): string {
     result?.message,
   ]
   for (const value of candidates) {
-    if (typeof value === 'string' && value.trim()) return value
+    if (typeof value === 'string' && value.trim()) return formatExtensionError(value)
     if (value && typeof value === 'object' && typeof value.message === 'string' && value.message.trim()) {
-      return value.message
+      return formatExtensionError(value.message)
     }
   }
   return fallback
+}
+
+function formatExtensionError(raw: string): string {
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (parsed.status) {
+        const body =
+          typeof parsed.body === 'string'
+            ? parsed.body
+            : parsed.body
+              ? JSON.stringify(parsed.body)
+              : ''
+        const detail = body.replace(/\s+/g, ' ').slice(0, 160)
+        return detail ? `HTTP ${parsed.status}: ${detail}` : `HTTP ${parsed.status}`
+      }
+      if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim()
+    } catch {
+      // keep the raw string
+    }
+  }
+  return trimmed.length > 280 ? `${trimmed.slice(0, 280)}…` : trimmed
 }
 
 async function getToken(): Promise<string | null> {
