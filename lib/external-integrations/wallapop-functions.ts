@@ -478,14 +478,19 @@ export async function updateWallapopItem(
   }
 }
 
-export async function fetchWallapopChats(): Promise<{
+export async function fetchWallapopChats(opts?: { sinceTs?: number }): Promise<{
   ok: boolean
   message: string
   chats?: Chat[]
   ownUserHash?: string
 }> {
+  const sinceTs = opts?.sinceTs
   try {
-    const result = await runFlow('FETCH_WALLA_CHATS', { platform: 'wallapop', stayInBackground: true })
+    const result = await runFlow('FETCH_WALLA_CHATS', {
+      platform: 'wallapop',
+      stayInBackground: true,
+      sinceTs,
+    })
     const state = result?.result?.state
     if (!state?.wallaInbox && !state?.wallaChatUserHash && !state?.userId) {
       return {
@@ -495,19 +500,24 @@ export async function fetchWallapopChats(): Promise<{
     }
 
     const ownUserHash = state.wallaChatUserHash
-    const chats = mapWallapopInbox(state.wallaInbox ?? [], ownUserHash)
-    if (!chats.length && !ownUserHash && !state.userId) {
+    const allChats = mapWallapopInbox(state.wallaInbox ?? [], ownUserHash)
+
+    if (!allChats.length && !ownUserHash && !state.userId) {
       return {
         ok: false,
         message: 'No hay sesión de Wallapop. Abre Wallapop e inicia sesión, luego vuelve a sincronizar.',
       }
     }
 
+    const chats = sinceTs
+      ? allChats.filter((c) => (new Date(c.lastMessageAt ?? 0).getTime() || 0) >= sinceTs)
+      : allChats
+
     return {
       ok: true,
       message: chats.length
         ? `Se cargaron ${chats.length} conversaciones de Wallapop`
-        : 'No hay conversaciones en Wallapop',
+        : 'No hay conversaciones de Wallapop en el rango elegido',
       chats,
       ownUserHash,
     }

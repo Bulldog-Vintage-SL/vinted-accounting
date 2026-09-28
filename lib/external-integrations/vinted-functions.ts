@@ -468,22 +468,28 @@ export async function updateVintedItem(
   }
 }
 
-export async function fetchVintedChats(): Promise<{
+export async function fetchVintedChats(opts?: { sinceTs?: number }): Promise<{
   ok: boolean
   message: string
   chats?: Chat[]
   notices?: { id: string; text: string; updatedAt: string }[]
 }> {
+  const sinceTs = opts?.sinceTs
   try {
-    const result = await runFlow('FETCH_VINTED_CHATS', { platform: 'vinted' })
+    const result = await runFlow('FETCH_VINTED_CHATS', { platform: 'vinted', sinceTs })
     const state = result?.result?.state
     if (!state?.vintedInbox) {
       return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Vinted') }
     }
-    const { chats, notices } = mapVintedInbox(state.vintedInbox)
-    return {
+    const { chats: allChats, notices } = mapVintedInbox(state.vintedInbox)
+
+    const chats = sinceTs
+      ? allChats.filter((c) => (new Date(c.lastMessageAt ?? 0).getTime() || 0) >= sinceTs)
+      : allChats
+
+    return {  
       ok: true,
-      message: chats.length ? `Se cargaron ${chats.length} conversaciones de Vinted` : 'No hay conversaciones en Vinted',
+      message: chats.length ? `Se cargaron ${chats.length} conversaciones de Vinted` : 'No hay conversaciones en Vinted en el rango elegido',
       chats,
       notices,
     }
@@ -512,7 +518,7 @@ export async function fetchVintedChatMessages(conversationId: string): Promise<{
     return { ok: false, message: extractErrorMessage(err, 'Error inesperado al cargar el chat') }
   }
 }
- 
+
 export async function sendVintedChatMessage(conversationId: string, text: string): Promise<{
   ok: boolean
   message: string
@@ -542,28 +548,28 @@ export async function sendVintedChatMessage(conversationId: string, text: string
     return { ok: false, message: extractErrorMessage(err, 'Error inesperado al enviar el mensaje') }
   }
 }
- 
+
 const isSystemConv = (c: any) =>
   c.opposite_user?.badge === 'moderator' || c.opposite_user?.login === 'Vinted'
- 
+
 const pickThumb = (photo: any, type: string) =>
   photo?.thumbnails?.find((t: any) => t.type === type)?.url ?? photo?.url ?? undefined
- 
+
 export function mapVintedInbox(inbox: any[]): {
   chats: Chat[]
   notices: { id: string; text: string; updatedAt: string }[]
 } {
   const chats: Chat[] = []
   const notices: { id: string; text: string; updatedAt: string }[] = []
- 
+
   for (const c of inbox ?? []) {
     if (isSystemConv(c)) {
       notices.push({ id: String(c.id), text: c.description ?? '', updatedAt: c.updated_at })
       continue
     }
- 
+
     chats.push({
-      id: `vinted-${c.id}`,                
+      id: `vinted-${c.id}`,
       platform: 'vinted',
       contactName: c.opposite_user?.login ?? 'Usuario de Vinted',
       contactAvatarUrl: pickThumb(c.opposite_user?.photo, 'thumb100'),
@@ -573,52 +579,44 @@ export function mapVintedInbox(inbox: any[]): {
       unreadCount: c.unread ? 1 : 0,
       messages: [],
       messagesLoaded: false,
-      channelId: String(c.id),                 
+      channelId: String(c.id),
       externalUrl: `https://www.vinted.es/inbox/${c.id}`,
     })
   }
   return { chats, notices }
 }
- 
+
 const toIso = (v: any) => {
   const d = new Date(v)
   return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
 }
- 
-// Códigos de status confirmados por captura real de la API de Vinted:
-//   10 = Pendiente, 40 = Cancelada/Rechazada.
-// El código de "Aceptada" aún no se ha capturado; cuando aparezca uno,
-// añádelo aquí (probablemente 20 o 30).
+
 const OFFER_STATUS_MAP: Record<number, OfferStatusKind> = {
   10: "pending",
   40: "rejected",
 }
- 
+
 function classifyOfferStatus(status: number, statusTitle: string): OfferStatusKind {
   if (status in OFFER_STATUS_MAP) return OFFER_STATUS_MAP[status]
-  // Fallback por texto, por si aparece un código nuevo no mapeado todavía.
   const t = (statusTitle ?? '').toLowerCase()
   if (t.includes('pendient')) return 'pending'
   if (t.includes('acept')) return 'accepted'
   if (t.includes('rechaz') || t.includes('cancel') || t.includes('expir') || t.includes('caduc')) return 'rejected'
   return 'other'
 }
- 
-// Vinted ya manda un "template.style" para status_message/action_message
-// (gray_box, red_box, clear_box, ...). Lo reducimos a 3 estilos propios.
+
 function classifySystemEventStyle(templateStyle: string | undefined, eventGroup: string | undefined): SystemEventStyle {
   const s = (templateStyle ?? '').toLowerCase()
   if (s.includes('red')) return 'danger'
   if (s.includes('gray') || s.includes('grey')) return 'warning'
-  // Algunos event_group son claramente negativos aunque el template sea "clear_box"
   if (eventGroup === 'cancelation') return 'danger'
   return 'neutral'
 }
- 
+
 export function mapVintedMessages(conv: any): ChatMessage[] {
   const otherId = String(conv?.opposite_user?.id ?? '')
   const items: ChatMessage[] = []
- 
+
   for (const m of conv?.messages ?? []) {
     if (m.entity_type === 'message') {
       const e = m.entity ?? {}
@@ -634,7 +632,7 @@ export function mapVintedMessages(conv: any): ChatMessage[] {
       })
       continue
     }
- 
+
     if (m.entity_type === 'offer_request_message') {
       const e = m.entity ?? {}
       const senderId = String(e.user_id ?? '')
@@ -656,12 +654,9 @@ export function mapVintedMessages(conv: any): ChatMessage[] {
       })
       continue
     }
- 
+
     if (m.entity_type === 'status_message' || m.entity_type === 'action_message') {
       const e = m.entity ?? {}
-      // Estos mensajes no tienen remitente real: son eventos del sistema,
-      // así que se muestran centrados (isOwn = false y sin burbuja lateral
-      // se resuelve en el componente por la presencia de systemEvent).
       const systemEvent: SystemEventInfo = {
         title: e.title ?? '',
         subtitle: e.subtitle,
@@ -678,9 +673,7 @@ export function mapVintedMessages(conv: any): ChatMessage[] {
       })
       continue
     }
- 
-    // Cualquier otro entity_type desconocido se sigue descartando.
   }
- 
+
   return items.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
 }
