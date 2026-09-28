@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { ChatList } from "./components/ChatList";
 import { ChatWindow } from "./components/ChatWindow";
 import type { Chat } from "./types";
+import { useAccountSelector } from "@/hooks/useAccountSelector";
 import {
   fetchVestiaireChats,
   fetchVestiaireChatMessages,
@@ -12,6 +13,9 @@ import {
   fetchVintedChats,
   fetchVintedChatMessages,
   sendVintedChatMessage,
+  fetchDepopChats,
+  fetchDepopChatMessages,
+  sendDepopChatMessage,
   fetchWallapopChats,
   fetchWallapopChatMessages,
   sendWallapopChatMessage,
@@ -20,7 +24,7 @@ import {
 // Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
 const STORAGE_KEY = "rl:chats";
 
-type Platform = "vestiaire" | "vinted" | "wallapop";
+type Platform = "vestiaire" | "vinted" | "depop" | "wallapop";
 
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
@@ -47,11 +51,24 @@ const lastMessageTs = (chat: Chat) =>
 
 const byLastMessageDesc = (a: Chat, b: Chat) => lastMessageTs(b) - lastMessageTs(a);
 
+// Las ofertas de Depop se mapean como "chats" de un único mensaje ya resuelto
+// (ver mapDepopOffers): no tienen endpoint de mensajes, no hay que hacer
+// polling sobre ellas y no admiten respuesta de texto.
+const isOfferChat = (chat?: Chat | null) => Boolean(chat?.isOffer);
+
 const PLATFORM_LABELS: Record<Platform, string> = {
   vestiaire: "Vestiaire Collective",
   vinted: "Vinted",
+  depop: "Depop",
   wallapop: "Wallapop",
 };
+
+const SYNCABLE_PLATFORMS = new Set<Platform>([
+  "vestiaire",
+  "vinted",
+  "depop",
+  "wallapop",
+]);
 
 export default function ChatsPage() {
   const [chats, setChats] = useState<Chat[]>([]);
@@ -61,6 +78,8 @@ export default function ChatsPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const loadingChatIdRef = useRef<string | null>(null);
+
+  const { openSelector } = useAccountSelector();
 
   useEffect(() => {
     const cached = loadCachedChats();
@@ -72,61 +91,123 @@ export default function ChatsPage() {
 
   const selectedChat = chats.find((c) => c.id === selectedChatId) ?? null;
 
-  const handleSync = async (platform: Platform) => {
-    // Bloquea si ya hay una sincronización en curso (de esta u otra plataforma)
-    if (syncingPlatform) return;
+  // El selector de cuentas solo nos da { accountId, platform }, así que para
+  // saber el external_id de la cuenta elegida (necesario para Depop, ver
+  // más abajo) hay que resolverlo aparte contra el mismo endpoint que usa
+  // AccountSelectorModal.
+  const resolveAccountExternalId = async (
+    platform: Platform,
+    accountId: string
+  ): Promise<string | undefined> => {
+    try {
+      const res = await fetch(`/api/accounts?platform=${platform}`);
+      const data = await res.json();
+      return data.find((a: any) => a.id === accountId)?.external_id;
+    } catch {
+      return undefined;
+    }
+  };
 
+  // Nota: syncPlatform NO toca el estado `chats` directamente, solo hace
+  // fetch y devuelve los chats obtenidos; es el caller (handleAccountsSelected)
+  // quien mezcla y guarda el estado. Mantener este patrón para todas las
+  // plataformas (incluida Wallapop) evita que una sincronización se pierda
+  // silenciosamente al combinarse con otra.
+  const syncPlatform = async (
+    platform: Platform,
+    accountId: string
+  ): Promise<{ chats: Chat[] } | null> => {
     setSyncingPlatform(platform);
     try {
-      // Vestiaire / Vinted / Wallapop: misma fusión de lista, avisos solo en Vinted.
-      const res =
-        platform === "vestiaire"
-          ? await fetchVestiaireChats()
-          : platform === "vinted"
-            ? await fetchVintedChats()
-            : await fetchWallapopChats();
+      let res;
+      if (platform === "vestiaire") {
+        res = await fetchVestiaireChats();
+      } else if (platform === "vinted") {
+        res = await fetchVintedChats();
+      } else if (platform === "wallapop") {
+        res = await fetchWallapopChats();
+      } else {
+        const ownExternalId = await resolveAccountExternalId(platform, accountId);
+        res = await fetchDepopChats(ownExternalId);
+      }
 
       if (!res.ok) {
         toast.error(
           res.message ||
             `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
         );
-        return;
+        return null;
       }
-
-      const next = [
-        ...chats.filter((c) => c.platform !== platform),
-        ...(res.chats ?? []),
-      ].sort(byLastMessageDesc);
-
-      setChats(next);
-      saveCachedChats(next);
-      setSelectedChatId((current) =>
-        current && next.some((chat) => chat.id === current)
-          ? current
-          : next[0]?.id ?? null
-      );
 
       toast.success(res.message);
 
-      if (platform === "vinted" && "notices" in res) {
-        // Avisos de Vinted (p. ej. cuenta restringida)
+      // Avisos (p. ej. cuenta restringida / mensaje oficial de bienvenida)
+      if ("notices" in res) {
         res.notices
           ?.filter((n) => /restring/i.test(n.text))
           .forEach((n) =>
-            toast.error(n.text, { id: `vinted-notice-${n.id}`, duration: 8000 })
+            toast.error(n.text, { id: `${platform}-notice-${n.id}`, duration: 8000 })
           );
       }
+
+      return { chats: res.chats ?? [] };
     } catch (err: any) {
       toast.error(err?.message ?? `Error al sincronizar ${PLATFORM_LABELS[platform]}`);
+      return null;
     } finally {
       setSyncingPlatform(null);
     }
   };
 
+  const handleAccountsSelected = useCallback(
+    async (accounts: { accountId: string; platform: string }[]) => {
+      const relevant = accounts.filter(
+        (a): a is { accountId: string; platform: Platform } =>
+          SYNCABLE_PLATFORMS.has(a.platform as Platform)
+      );
+      if (relevant.length === 0) return;
+
+      // Si se eligen varias cuentas de la misma plataforma, hoy por hoy solo
+      // podemos sincronizar la sesión activa en el navegador (la extensión
+      // no soporta multi-cuenta simultánea), así que usamos la primera.
+      const byPlatform = new Map<Platform, string>();
+      for (const a of relevant) {
+        if (!byPlatform.has(a.platform)) byPlatform.set(a.platform, a.accountId);
+      }
+
+      let working = chats;
+      for (const [platform, accountId] of byPlatform) {
+        const result = await syncPlatform(platform, accountId);
+        if (!result) continue;
+        working = [
+          ...working.filter((c) => c.platform !== platform),
+          ...result.chats,
+        ].sort(byLastMessageDesc);
+      }
+
+      setChats(working);
+      saveCachedChats(working);
+      setSelectedChatId((current) =>
+        current && working.some((chat) => chat.id === current)
+          ? current
+          : working[0]?.id ?? null
+      );
+    },
+    [chats]
+  );
+
+  const handleSync = () => {
+    if (syncingPlatform) return;
+    openSelector(handleAccountsSelected);
+  };
+
   const loadMessages = useCallback(
     async (chat: Chat, opts?: { force?: boolean; silent?: boolean }) => {
       const { force = false, silent = false } = opts ?? {};
+      // Las ofertas ya vienen resueltas en el mapeo y no tienen endpoint de
+      // mensajes: nunca se cargan, ni siquiera con "force" (polling). Además
+      // así no se resetea unreadCount sin que el usuario haya resuelto la oferta.
+      if (isOfferChat(chat)) return;
       // "force" se usa para el polling: ignora la caché de messagesLoaded.
       // "silent" evita el spinner y los toasts de error, para no molestar
       // con una petición de fondo que el usuario no ha pedido.
@@ -140,9 +221,11 @@ export default function ChatsPage() {
         const res =
           chat.platform === "vinted"
             ? await fetchVintedChatMessages(channel)
-            : chat.platform === "wallapop"
-              ? await fetchWallapopChatMessages(channel)
-              : await fetchVestiaireChatMessages(channel);
+            : chat.platform === "depop"
+              ? await fetchDepopChatMessages(channel, chat.ownUserId)
+              : chat.platform === "wallapop"
+                ? await fetchWallapopChatMessages(channel)
+                : await fetchVestiaireChatMessages(channel);
         if (!res.ok) {
           if (!silent) toast.error(res.message);
           return;
@@ -209,6 +292,7 @@ export default function ChatsPage() {
   // Polling: cada 10s se refresca en silencio la conversación que el usuario
   // tiene abierta, para simular actualizaciones en tiempo real sin recargar
   // toda la lista de chats ni pedir de nuevo la sincronización con la extensión.
+  // Las ofertas se saltan: no son conversaciones reales y no hay nada que refrescar.
   useEffect(() => {
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
@@ -218,7 +302,7 @@ export default function ChatsPage() {
       if (!currentId) return;
 
       const chat = chatsRef.current.find((c) => c.id === currentId);
-      if (!chat) return;
+      if (!chat || isOfferChat(chat)) return;
 
       void loadMessages(chat, { force: true, silent: true });
     }, 10000);
@@ -228,18 +312,30 @@ export default function ChatsPage() {
 
   const handleSend = async (text: string) => {
     if (!selectedChat) return;
+    // Red de seguridad: la UI ya deshabilita el input para las ofertas, pero
+    // no hay endpoint de mensajes para ellas (solo aceptar/rechazar/contraofertar).
+    if (isOfferChat(selectedChat)) {
+      toast.error("Las ofertas de Depop no admiten respuestas por chat.");
+      return;
+    }
     setSending(true);
     try {
       const channel = selectedChat.channelId || selectedChat.id;
       const res =
         selectedChat.platform === "vinted"
           ? await sendVintedChatMessage(channel, text)
-          : selectedChat.platform === "wallapop"
-            ? await sendWallapopChatMessage(channel, text, {
-                toUserHash: selectedChat.senderId,
-                fromUserHash: selectedChat.ownUserHash,
-              })
-            : await sendVestiaireChatMessage(channel, text);
+          : selectedChat.platform === "depop"
+            ? await sendDepopChatMessage(
+                channel,
+                selectedChat.recipientUserId as string | number,
+                text
+              )
+            : selectedChat.platform === "wallapop"
+              ? await sendWallapopChatMessage(channel, text, {
+                  toUserHash: selectedChat.senderId,
+                  fromUserHash: selectedChat.ownUserHash,
+                })
+              : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message);
         return;
@@ -277,14 +373,15 @@ export default function ChatsPage() {
         chats={chats}
         selectedChatId={selectedChatId}
         onSelect={setSelectedChatId}
-        onSyncPlatform={handleSync}
-        syncingPlatform={syncingPlatform}
+        onSync={handleSync}
+        syncing={syncingPlatform !== null}
         hideOnMobile={Boolean(selectedChatId)}
       />
       <ChatWindow
         chat={selectedChat}
         messagesLoading={messagesLoading}
         sending={sending}
+        readOnly={isOfferChat(selectedChat)}
         onSend={handleSend}
         onBack={() => setSelectedChatId(null)}
       />
