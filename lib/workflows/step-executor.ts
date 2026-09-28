@@ -33,6 +33,7 @@ import {
   extractWallaConversation,
   extractWallaInboxNext,
   extractWallaOtherUserHash,
+  pickWallaUserHash,
   wallaConversationHasMessages,
 } from './wallapop/wallapop-chat-steps'
 import stringSimilarity from 'string-similarity'
@@ -275,7 +276,9 @@ export function processStepResult(
       s.profileLink = result.url_share
       s.email = result.email
       s.uploadId = crypto.randomUUID()
-      s.wallaChatUserHash = result.hash ?? result.user_hash ?? result.userHash ?? s.wallaChatUserHash
+      s.wallaChatUserHash =
+        pickWallaUserHash(result.hash, result.user_hash, result.userHash, result.id) ||
+        s.wallaChatUserHash
       const loc = result.location
       if (loc && typeof loc === 'object') {
         const latitude = loc.approximated_latitude ?? loc.latitude
@@ -353,6 +356,9 @@ export function processStepResult(
       )
       const extracted = extractWallaConversation(result, wantedHash)
       if (extracted) s.wallaChatRaw = extracted
+      s.wallaChatUserHash =
+        pickWallaUserHash(result?.user_hash, result?.userHash, result?.hash, s.wallaChatUserHash) ||
+        s.wallaChatUserHash
       const fromInbox = String(completed.request.url || '').includes('/inbox')
       if (wantedHash && fromInbox && !wallaConversationHasMessages(s.wallaChatRaw)) {
         const nextFrom = extractWallaInboxNext(result)
@@ -1009,7 +1015,9 @@ export function processStepResult(
 
     case 'SEND_WALLA_CHAT_MESSAGE': {
       const payload = s.originalPayload ?? {}
-      const fromHash = String(s.wallaChatUserHash || payload.fromUserHash || '')
+      const fromHash = String(
+        pickWallaUserHash(s.wallaChatUserHash, payload.fromUserHash, s.userId) || ''
+      )
       const toHash = String(
         payload.toUserHash || extractWallaOtherUserHash(s.wallaChatRaw, fromHash) || ''
       )

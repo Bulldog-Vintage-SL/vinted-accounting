@@ -21,6 +21,21 @@ export const WALLA_CHAT_TOKEN_URLS = [
   'https://api.wallapop.com/bff/messaging/token',
 ]
 
+export function asWallaUserHash(value: any): string | undefined {
+  if (value == null || value === '') return undefined
+  const hash = String(value)
+  if (/^[a-z0-9]{8,}$/i.test(hash) && !/^\d+$/.test(hash)) return hash
+  return undefined
+}
+
+export function pickWallaUserHash(...candidates: any[]): string | undefined {
+  for (const candidate of candidates) {
+    const hash = asWallaUserHash(candidate)
+    if (hash) return hash
+  }
+  return undefined
+}
+
 const CHAT_BACKGROUND_REQUEST = {
   skipDelay: true,
   runInBackground: true,
