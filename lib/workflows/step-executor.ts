@@ -68,17 +68,11 @@ function truncateForPlatform(
   const limit = PLATFORM_LIMITS[platform]?.[field]
   if (limit == null || text.length <= limit) return text
 
-  // Cortamos duro al límite y luego retrocedemos hasta el último espacio,
-  // así no partimos ninguna palabra por la mitad.
   const hardCut = text.slice(0, limit)
   const lastSpace = hardCut.lastIndexOf(' ')
 
-  // Si no hay ningún espacio dentro del límite (título de una sola palabra
-  // muy larga), no queda otra que cortar a saco.
   let result = lastSpace > 0 ? hardCut.slice(0, lastSpace) : hardCut
 
-  // Limpiamos puntuación/espacios residuales que puedan quedar al final
-  // tras el recorte (p. ej. una coma justo antes del espacio cortado).
   result = result.replace(/[\s,.;:!?-]+$/, '')
 
   return result
@@ -188,8 +182,15 @@ export function processStepResult(
       }
       s.vintedInbox = Array.from(byId.values())
 
+      const sinceTs: number | undefined = s.originalPayload?.sinceTs
+      const oldestTs = (result.conversations ?? []).reduce((min: number, c: any) => {
+        const t = Date.parse(c.updated_at)
+        return Number.isFinite(t) ? Math.min(min, t) : min
+      }, Infinity)
+      const reachedCutoff = sinceTs != null && oldestTs < sinceTs
+
       const page = pag.current_page ?? 1
-      if (page < (pag.total_pages ?? 1)) {
+      if (!reachedCutoff && page < (pag.total_pages ?? 1)) {
         s.chatsPage = page + 1
         steps.splice(currentStep + 1, 0, {
           id: crypto.randomUUID(),
@@ -205,7 +206,6 @@ export function processStepResult(
       const conv = result.conversation
       s.vintedChatRaw = conv
 
-      // Igual que hace la web de Vinted al abrir el chat
       if (conv && conv.read_by_current_user === false) {
         steps.splice(currentStep + 1, 0, {
           id: crypto.randomUUID(),
@@ -337,8 +337,17 @@ export function processStepResult(
       }
       s.wallaInbox = Array.from(byHash.values())
       s.wallaInboxPages = (s.wallaInboxPages ?? 0) + 1
+
+      const sinceTs: number | undefined = s.originalPayload?.sinceTs
+      const reachedCutoff =
+        sinceTs != null &&
+        pageItems.some((conv) => {
+          const t = getWallaConvTs(conv)
+          return t != null && t < sinceTs
+        })
+
       const nextFrom = extractWallaInboxNext(result)
-      if (nextFrom && pageItems.length > 0 && (s.wallaInboxPages ?? 0) < WALLA_INBOX_MAX_PAGES) {
+      if (!reachedCutoff && nextFrom && pageItems.length > 0 && (s.wallaInboxPages ?? 0) < WALLA_INBOX_MAX_PAGES) {
         s.wallaInboxNext = nextFrom
         steps.splice(currentStep + 1, 0, {
           id: crypto.randomUUID(),
@@ -743,8 +752,16 @@ export function processStepResult(
       }
       s.depopInbox = Array.from(byId.values())
 
+      const sinceTs: number | undefined = s.originalPayload?.sinceTs
+      const reachedCutoff =
+        sinceTs != null &&
+        objs.some((c: any) => {
+          const t = getDepopConvTs(c)
+          return t != null && t < sinceTs
+        })
+
       const pageInfo = result.page_info ?? {}
-      if (pageInfo.has_more && pageInfo.last) {
+      if (!reachedCutoff && pageInfo.has_more && pageInfo.last) {
         s.depopChatsCursor = pageInfo.last
         steps.splice(currentStep + 1, 0, {
           id: crypto.randomUUID(),
@@ -1983,4 +2000,21 @@ function normalizeBrand(str: string): string {
     .replace(/[^a-z0-9 ]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function getWallaConvTs(conv: any): number | null {
+  const msgs = conv?.messages?.messages
+  if (!Array.isArray(msgs) || msgs.length === 0) return null
+  let max = -Infinity
+  for (const m of msgs) {
+    const t = Number(m?.timestamp)
+    if (Number.isFinite(t) && t > max) max = t
+  }
+  return Number.isFinite(max) ? max : null
+}
+
+function getDepopConvTs(c: any): number | null {
+  if (c?.last_message_timestamp == null) return null
+  const t = Number(c.last_message_timestamp) * 1000
+  return Number.isFinite(t) ? t : null
 }

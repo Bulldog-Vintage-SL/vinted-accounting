@@ -444,24 +444,35 @@ export async function updateDepopItem(
     }
 }
 
-export async function fetchDepopChats(ownUserId?: string | number): Promise<{
+export async function fetchDepopChats(
+    ownUserId?: string | number,
+    opts?: { sinceTs?: number }
+): Promise<{
     ok: boolean
     message: string
     chats?: Chat[]
     notices?: { id: string; text: string; updatedAt: string }[]
 }> {
+    const sinceTs = opts?.sinceTs
     try {
-        const result = await runFlow('FETCH_DEPOP_CHATS', { platform: 'depop' })
+        const result = await runFlow('FETCH_DEPOP_CHATS', { platform: 'depop', sinceTs })
         const state = result?.result?.state
         if (!state?.depopInbox && !state?.depopOffers) {
             return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Depop') }
         }
-        const { chats: inboxChats, notices } = mapDepopInbox(state.depopInbox ?? [], ownUserId)
+        const { chats: allInboxChats, notices } = mapDepopInbox(state.depopInbox ?? [], ownUserId)
+
+        const inboxChats = sinceTs
+            ? allInboxChats.filter((c) => (new Date(c.lastMessageAt ?? 0).getTime() || 0) >= sinceTs)
+            : allInboxChats
         const offerChats = mapDepopOffers(state.depopOffers ?? [])
         const chats = [...inboxChats, ...offerChats]
+
         return {
             ok: true,
-            message: chats.length ? `Se cargaron ${chats.length} conversaciones de Depop` : 'No hay conversaciones en Depop',
+            message: chats.length
+                ? `Se cargaron ${chats.length} conversaciones de Depop`
+                : 'No hay conversaciones de Depop en el rango elegido',
             chats,
             notices,
         }

@@ -7,6 +7,12 @@ import { ChatWindow } from "./components/ChatWindow";
 import type { Chat } from "./types";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   fetchVestiaireChats,
   fetchVestiaireChatMessages,
   sendVestiaireChatMessage,
@@ -25,6 +31,10 @@ import {
 // cachés con nombres genéricos ("Usuario de Wallapop") o hilos vacíos del mapper viejo.
 const CACHE_VERSION = 2
 const STORAGE_KEY = `rl:chats:v${CACHE_VERSION}`
+
+// Rango de días que se puede elegir al sincronizar (se filtra por lastMessageAt)
+const MAX_SYNC_DAYS = 20;
+const DEFAULT_SYNC_DAYS = 7;
 
 type Platform = "vestiaire" | "vinted" | "depop" | "wallapop";
 
@@ -85,6 +95,15 @@ export default function ChatsPage() {
   const loadingChatIdRef = useRef<string | null>(null);
   const failedLoadIdsRef = useRef<Set<string>>(new Set());
 
+  // Modal previo al selector de cuentas: cuántos días hacia atrás importar
+  const [daysModalOpen, setDaysModalOpen] = useState(false);
+  const [daysInput, setDaysInput] = useState(String(DEFAULT_SYNC_DAYS));
+  // Días confirmados pendientes de abrir el selector de cuentas. El selector
+  // se abre en onCloseAutoFocus, cuando el modal de días ya se ha cerrado del
+  // todo; si se abriera en el mismo tick, la devolución de foco de Radix al
+  // botón de sincronizar cerraría el selector recién abierto.
+  const pendingDaysRef = useRef<number | null>(null);
+
   const { openSelector } = useAccountSelector();
 
   useEffect(() => {
@@ -114,14 +133,10 @@ export default function ChatsPage() {
     }
   };
 
-  // Nota: syncPlatform NO toca el estado `chats` directamente, solo hace
-  // fetch y devuelve los chats obtenidos; es el caller (handleAccountsSelected)
-  // quien mezcla y guarda el estado. Mantener este patrón para todas las
-  // plataformas (incluida Wallapop) evita que una sincronización se pierda
-  // silenciosamente al combinarse con otra.
   const syncPlatform = async (
     platform: Platform,
-    accountId: string
+    accountId: string,
+    sinceTs: number
   ): Promise<{ chats: Chat[] } | null> => {
     setSyncingPlatform(platform);
     try {
@@ -129,12 +144,12 @@ export default function ChatsPage() {
       if (platform === "vestiaire") {
         res = await fetchVestiaireChats();
       } else if (platform === "vinted") {
-        res = await fetchVintedChats();
+        res = await fetchVintedChats({ sinceTs });
       } else if (platform === "wallapop") {
-        res = await fetchWallapopChats();
+        res = await fetchWallapopChats({ sinceTs });
       } else {
         const ownExternalId = await resolveAccountExternalId(platform, accountId);
-        res = await fetchDepopChats(ownExternalId);
+        res = await fetchDepopChats(ownExternalId, { sinceTs });
       }
 
       if (!res.ok) {
@@ -147,7 +162,6 @@ export default function ChatsPage() {
 
       toast.success(res.message);
 
-      // Avisos (p. ej. cuenta restringida / mensaje oficial de bienvenida)
       if ("notices" in res) {
         res.notices
           ?.filter((n) => /restring/i.test(n.text))
@@ -166,28 +180,32 @@ export default function ChatsPage() {
   };
 
   const handleAccountsSelected = useCallback(
-    async (accounts: { accountId: string; platform: string }[]) => {
+    async (accounts: { accountId: string; platform: string }[], days: number) => {
       const relevant = accounts.filter(
         (a): a is { accountId: string; platform: Platform } =>
           SYNCABLE_PLATFORMS.has(a.platform as Platform)
       );
       if (relevant.length === 0) return;
 
-      // Si se eligen varias cuentas de la misma plataforma, hoy por hoy solo
-      // podemos sincronizar la sesión activa en el navegador (la extensión
-      // no soporta multi-cuenta simultánea), así que usamos la primera.
       const byPlatform = new Map<Platform, string>();
       for (const a of relevant) {
         if (!byPlatform.has(a.platform)) byPlatform.set(a.platform, a.accountId);
       }
 
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+
       let working = chats;
       for (const [platform, accountId] of byPlatform) {
-        const result = await syncPlatform(platform, accountId);
+        const result = await syncPlatform(platform, accountId, cutoff);
         if (!result) continue;
+
+        const recent = result.chats.filter(
+          (c) => isOfferChat(c) || lastMessageTs(c) >= cutoff
+        );
+
         working = [
           ...working.filter((c) => c.platform !== platform),
-          ...result.chats,
+          ...recent,
         ].sort(byLastMessageDesc);
       }
 
@@ -203,9 +221,25 @@ export default function ChatsPage() {
     [chats]
   );
 
+  // Paso 1: al pulsar sincronizar se pregunta primero el nº de días
   const handleSync = () => {
     if (syncingPlatform) return;
-    openSelector(handleAccountsSelected);
+    pendingDaysRef.current = null;
+    setDaysModalOpen(true);
+  };
+
+  // Paso 2: se validan los días (1..MAX_SYNC_DAYS), se guardan y se cierra el
+  // modal. El selector de cuentas se abre en onCloseAutoFocus del DialogContent.
+  const confirmDays = () => {
+    const parsed = Math.floor(Number(daysInput));
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      toast.error("Introduce un número de días válido");
+      return;
+    }
+    const days = Math.min(parsed, MAX_SYNC_DAYS);
+    setDaysInput(String(days));
+    pendingDaysRef.current = days;
+    setDaysModalOpen(false);
   };
 
   const loadMessages = useCallback(
@@ -401,6 +435,68 @@ export default function ChatsPage() {
         onSend={handleSend}
         onBack={() => setSelectedChatId(null)}
       />
+
+      <Dialog open={daysModalOpen} onOpenChange={setDaysModalOpen}>
+        <DialogContent
+          className="!max-w-[400px] w-full rounded-xl p-0 overflow-hidden"
+          onCloseAutoFocus={(e) => {
+            const days = pendingDaysRef.current;
+            if (days === null) return; // cerrado con Cancelar/Escape: comportamiento normal
+            e.preventDefault(); // evita que el foco vuelva al botón y cierre el selector
+            pendingDaysRef.current = null;
+            openSelector((accounts) => handleAccountsSelected(accounts, days));
+          }}
+        >
+          <div className="p-6 border-b border-gray-200">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-gray-800">
+                Importar chats de los últimos…
+              </DialogTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                Máximo {MAX_SYNC_DAYS} días.
+              </p>
+            </DialogHeader>
+          </div>
+
+          <div className="p-6 flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={MAX_SYNC_DAYS}
+              value={daysInput}
+              autoFocus
+              onChange={(e) => setDaysInput(e.target.value)}
+              onBlur={() => {
+                const n = Math.floor(Number(daysInput));
+                if (Number.isFinite(n))
+                  setDaysInput(String(Math.min(Math.max(n, 1), MAX_SYNC_DAYS)));
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.repeat || e.nativeEvent.isComposing) return;
+                e.preventDefault();
+                confirmDays();
+              }}
+              className="w-24 rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            />
+            <span className="text-sm text-gray-600">días</span>
+          </div>
+
+          <div className="p-4 border-t border-gray-200 flex gap-3">
+            <button
+              onClick={() => setDaysModalOpen(false)}
+              className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition cursor-pointer font-medium"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={confirmDays}
+              className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition cursor-pointer font-medium"
+            >
+              Continuar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
