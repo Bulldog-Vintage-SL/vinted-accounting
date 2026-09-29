@@ -481,13 +481,15 @@ export async function fetchVintedChats(opts?: { sinceTs?: number }): Promise<{
     if (!state?.vintedInbox) {
       return { ok: false, message: extractErrorMessage(result, 'No se pudieron obtener los chats de Vinted') }
     }
-    const { chats: allChats, notices } = mapVintedInbox(state.vintedInbox)
+    const { chats: allChats, notices: allNotices } = mapVintedInbox(state.vintedInbox)
 
-    const chats = sinceTs
-      ? allChats.filter((c) => (new Date(c.lastMessageAt ?? 0).getTime() || 0) >= sinceTs)
-      : allChats
+    const ts = (v?: string | null) => new Date(v ?? 0).getTime() || 0
+    const inRange = (v?: string | null) => !sinceTs || ts(v) >= sinceTs
 
-    return {  
+    const chats = allChats.filter((c) => inRange(c.lastMessageAt))
+    const notices = allNotices.filter((n) => inRange(n.updatedAt))
+
+    return {
       ok: true,
       message: chats.length ? `Se cargaron ${chats.length} conversaciones de Vinted` : 'No hay conversaciones en Vinted en el rango elegido',
       chats,
