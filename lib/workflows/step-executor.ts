@@ -32,6 +32,8 @@ import {
   extractWallaChatToken,
   extractWallaConversation,
   extractWallaInboxNext,
+  extractWallaOtherUserHash,
+  pickWallaUserHash,
   wallaConversationHasMessages,
 } from './wallapop/wallapop-chat-steps'
 import stringSimilarity from 'string-similarity'
@@ -274,7 +276,9 @@ export function processStepResult(
       s.profileLink = result.url_share
       s.email = result.email
       s.uploadId = crypto.randomUUID()
-      s.wallaChatUserHash = result.hash ?? result.user_hash ?? result.userHash ?? s.wallaChatUserHash
+      s.wallaChatUserHash =
+        pickWallaUserHash(result.hash, result.user_hash, result.userHash, result.id) ||
+        s.wallaChatUserHash
       const loc = result.location
       if (loc && typeof loc === 'object') {
         const latitude = loc.approximated_latitude ?? loc.latitude
@@ -361,6 +365,9 @@ export function processStepResult(
       )
       const extracted = extractWallaConversation(result, wantedHash)
       if (extracted) s.wallaChatRaw = extracted
+      s.wallaChatUserHash =
+        pickWallaUserHash(result?.user_hash, result?.userHash, result?.hash, s.wallaChatUserHash) ||
+        s.wallaChatUserHash
       const fromInbox = String(completed.request.url || '').includes('/inbox')
       if (wantedHash && fromInbox && !wallaConversationHasMessages(s.wallaChatRaw)) {
         const nextFrom = extractWallaInboxNext(result)
@@ -1025,25 +1032,48 @@ export function processStepResult(
 
     case 'SEND_WALLA_CHAT_MESSAGE': {
       const payload = s.originalPayload ?? {}
-      const fromHash = String(s.wallaChatUserHash || payload.fromUserHash || '')
-      const toHash = String(payload.toUserHash || '')
+      const fromHash = String(
+        pickWallaUserHash(s.wallaChatUserHash, payload.fromUserHash, s.userId) || ''
+      )
+      const toHash = String(
+        payload.toUserHash || extractWallaOtherUserHash(s.wallaChatRaw, fromHash) || ''
+      )
       const conversationHash = String(payload.conversationHash || payload.channelId || '')
       const token = String(s.wallaChatToken || '')
+      const missing = [
+        !fromHash && 'tu usuario',
+        !toHash && 'destinatario',
+        !conversationHash && 'conversación',
+      ].filter(Boolean)
+      next.request.publish = {
+        fromUserHash: fromHash,
+        toUserHash: toHash,
+        conversationHash,
+        text: String(payload.text ?? ''),
+        token,
+        publishKey: s.wallaChatPubKey || WALLA_PUBNUB_PUBLISH_KEY,
+        subscribeKey: s.wallaChatSubKey || WALLA_PUBNUB_SUBSCRIBE_KEY,
+        origin: s.wallaChatOrigin,
+      }
+      next.request.method = 'GET'
+      next.request.noAuth = true
+      next.request.skipDelay = true
+      next.request.runInBackground = true
       if (fromHash && toHash && conversationHash && token) {
         next.request.url = buildWallapopPublishUrl({
-          publishKey: s.wallaChatPubKey || WALLA_PUBNUB_PUBLISH_KEY,
-          subscribeKey: s.wallaChatSubKey || WALLA_PUBNUB_SUBSCRIBE_KEY,
+          publishKey: next.request.publish.publishKey!,
+          subscribeKey: next.request.publish.subscribeKey!,
           token,
           fromUserHash: fromHash,
           toUserHash: toHash,
           conversationHash,
-          text: String(payload.text ?? ''),
+          text: next.request.publish.text!,
           origin: s.wallaChatOrigin,
         })
-        next.request.method = 'GET'
-        next.request.noAuth = true
-        next.request.skipDelay = true
-        next.request.runInBackground = true
+      } else {
+        next.request.missingReason = missing.length
+          ? `No se puede enviar: falta ${missing.join(', ')}. Sincroniza Wallapop y recarga la pestaña.`
+          : 'No hay token de chat de Wallapop. Recarga la pestaña de Wallapop e inténtalo.'
       }
       break
     }

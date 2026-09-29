@@ -10,6 +10,7 @@ import {
   mapWallapopInbox,
   mapWallapopMessages,
   mapWallapopSendResult,
+  pickWallaUserHash,
 } from '@/lib/workflows/wallapop/wallapop-chat-steps'
 import { sleep } from '../utils'
 
@@ -499,7 +500,7 @@ export async function fetchWallapopChats(opts?: { sinceTs?: number }): Promise<{
       }
     }
 
-    const ownUserHash = state.wallaChatUserHash
+    const ownUserHash = pickWallaUserHash(state.wallaChatUserHash, state.userId)
     const allChats = mapWallapopInbox(state.wallaInbox ?? [], ownUserHash)
 
     if (!allChats.length && !ownUserHash && !state.userId) {

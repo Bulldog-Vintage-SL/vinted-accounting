@@ -27,8 +27,10 @@ import {
   sendWallapopChatMessage,
 } from "@/lib/external-integrations";
 
-// Antes "rl:vestiaire-chats": ahora la caché guarda chats de varias plataformas
-const STORAGE_KEY = "rl:chats";
+// Antes "rl:vestiaire-chats" / "rl:chats": bump de versión para invalidar
+// cachés con nombres genéricos ("Usuario de Wallapop") o hilos vacíos del mapper viejo.
+const CACHE_VERSION = 2
+const STORAGE_KEY = `rl:chats:v${CACHE_VERSION}`
 
 // Rango de días que se puede elegir al sincronizar (se filtra por lastMessageAt)
 const MAX_SYNC_DAYS = 20;
@@ -39,9 +41,12 @@ type Platform = "vestiaire" | "vinted" | "depop" | "wallapop";
 function loadCachedChats(): Chat[] {
   if (typeof window === "undefined") return [];
   try {
+    sessionStorage.removeItem("rl:chats");
+    sessionStorage.removeItem("rl:vestiaire-chats");
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
+    if (parsed?.version !== CACHE_VERSION) return [];
     return Array.isArray(parsed?.chats) ? parsed.chats : [];
   } catch {
     return [];
@@ -50,7 +55,7 @@ function loadCachedChats(): Chat[] {
 
 function saveCachedChats(chats: Chat[]) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ chats }));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ version: CACHE_VERSION, chats }));
   } catch {
     // Ignore quota / private mode.
   }
@@ -88,6 +93,7 @@ export default function ChatsPage() {
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const loadingChatIdRef = useRef<string | null>(null);
+  const failedLoadIdsRef = useRef<Set<string>>(new Set());
 
   // Modal previo al selector de cuentas: cuántos días hacia atrás importar
   const [daysModalOpen, setDaysModalOpen] = useState(false);
@@ -205,6 +211,7 @@ export default function ChatsPage() {
 
       setChats(working);
       saveCachedChats(working);
+      failedLoadIdsRef.current.clear();
       setSelectedChatId((current) =>
         current && working.some((chat) => chat.id === current)
           ? current
@@ -261,10 +268,12 @@ export default function ChatsPage() {
                 ? await fetchWallapopChatMessages(channel)
                 : await fetchVestiaireChatMessages(channel);
         if (!res.ok) {
+          failedLoadIdsRef.current.add(chat.id);
           if (!silent) toast.error(res.message);
           return;
         }
 
+        failedLoadIdsRef.current.delete(chat.id);
         setChats((prev) => {
           const next = prev.map((item) =>
             item.id === chat.id
@@ -286,6 +295,7 @@ export default function ChatsPage() {
           return next;
         });
       } catch (err: any) {
+        failedLoadIdsRef.current.add(chat.id);
         if (!silent) toast.error(err?.message ?? "Error al cargar el hilo");
       } finally {
         if (loadingChatIdRef.current === chat.id) loadingChatIdRef.current = null;
@@ -323,23 +333,22 @@ export default function ChatsPage() {
     sendingRef.current = sending;
   }, [sending]);
 
-  // Polling: cada 10s se refresca en silencio la conversación que el usuario
-  // tiene abierta, para simular actualizaciones en tiempo real sin recargar
-  // toda la lista de chats ni pedir de nuevo la sincronización con la extensión.
-  // Las ofertas se saltan: no son conversaciones reales y no hay nada que refrescar.
+  // Polling: cada 30s se refresca en silencio la conversación abierta.
+  // No se polla si el último load falló (hasta que el usuario vuelva a
+  // seleccionar el chat) ni si la pestaña está en segundo plano.
   useEffect(() => {
     const interval = setInterval(() => {
       if (typeof document !== "undefined" && document.hidden) return;
       if (syncingPlatformRef.current || sendingRef.current) return;
 
       const currentId = selectedChatIdRef.current;
-      if (!currentId) return;
+      if (!currentId || failedLoadIdsRef.current.has(currentId)) return;
 
       const chat = chatsRef.current.find((c) => c.id === currentId);
-      if (!chat || isOfferChat(chat)) return;
+      if (!chat || isOfferChat(chat) || !chat.messagesLoaded) return;
 
       void loadMessages(chat, { force: true, silent: true });
-    }, 10000);
+    }, 30000);
 
     return () => clearInterval(interval);
   }, [loadMessages]);
@@ -371,7 +380,7 @@ export default function ChatsPage() {
                 })
               : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
-        toast.error(res.message);
+        toast.error(res.message || "No se pudo enviar el mensaje");
         return;
       }
 
@@ -406,7 +415,14 @@ export default function ChatsPage() {
       <ChatList
         chats={chats}
         selectedChatId={selectedChatId}
-        onSelect={setSelectedChatId}
+        onSelect={(chatId) => {
+          failedLoadIdsRef.current.delete(chatId);
+          setSelectedChatId(chatId);
+          const chat = chats.find((c) => c.id === chatId);
+          if (chat && !chat.messagesLoaded && !isOfferChat(chat)) {
+            void loadMessages(chat);
+          }
+        }}
         onSync={handleSync}
         syncing={syncingPlatform !== null}
         hideOnMobile={Boolean(selectedChatId)}

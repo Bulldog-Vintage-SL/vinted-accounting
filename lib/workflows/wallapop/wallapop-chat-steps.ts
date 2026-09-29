@@ -21,6 +21,21 @@ export const WALLA_CHAT_TOKEN_URLS = [
   'https://api.wallapop.com/bff/messaging/token',
 ]
 
+export function asWallaUserHash(value: any): string | undefined {
+  if (value == null || value === '') return undefined
+  const hash = String(value)
+  if (/^[a-z0-9]{8,}$/i.test(hash) && !/^\d+$/.test(hash)) return hash
+  return undefined
+}
+
+export function pickWallaUserHash(...candidates: any[]): string | undefined {
+  for (const candidate of candidates) {
+    const hash = asWallaUserHash(candidate)
+    if (hash) return hash
+  }
+  return undefined
+}
+
 const CHAT_BACKGROUND_REQUEST = {
   skipDelay: true,
   runInBackground: true,
@@ -100,6 +115,16 @@ export function buildSendWallapopChatMessageSteps(): WorkflowStep[] {
       type: 'GET_USER_ME',
       request: {
         url: 'https://api.wallapop.com/api/v3/users/me',
+        method: 'GET',
+        ...CHAT_BACKGROUND_REQUEST,
+      },
+    },
+    {
+      id: crypto.randomUUID(),
+      platform: 'wallapop',
+      type: 'GET_WALLA_CHAT',
+      request: {
+        url: buildWallapopInboxUrl(undefined, 50),
         method: 'GET',
         ...CHAT_BACKGROUND_REQUEST,
       },
@@ -194,6 +219,32 @@ export function extractWallaInboxNext(result: any): string | undefined {
   return typeof next === 'string' && next.length > 0 ? next : undefined
 }
 
+function looksLikeWallaImToken(value: any): value is string {
+  return typeof value === 'string' && value.length > 60 && (/^qEF/i.test(value) || value.length > 120)
+}
+
+function deepFindWallaImToken(value: any, depth = 0): string | undefined {
+  if (value == null || depth > 6) return undefined
+  if (looksLikeWallaImToken(value)) return value
+  if (typeof value !== 'object') return undefined
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = deepFindWallaImToken(item, depth + 1)
+      if (found) return found
+    }
+    return undefined
+  }
+  for (const item of Object.values(value)) {
+    const found = deepFindWallaImToken(item, depth + 1)
+    if (found) return found
+  }
+  return undefined
+}
+
+export function extractWallaOtherUserHash(conv: any, ownHash?: string): string | undefined {
+  return userHash(otherUser(conv, ownHash))
+}
+
 export function extractWallaChatToken(result: any): {
   token?: string
   publishKey?: string
@@ -213,6 +264,7 @@ export function extractWallaChatToken(result: any): {
     (typeof result?.data?.token === 'string' && result.data.token) ||
     (typeof result?.data?.auth_key === 'string' && result.data.auth_key) ||
     (typeof result?.data?.authKey === 'string' && result.data.authKey) ||
+    deepFindWallaImToken(result) ||
     undefined
 
   const origin =
