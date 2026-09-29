@@ -36,24 +36,6 @@ export function buildWallapopSteps(listing: any): WorkflowStep[] {
     request: { url: 'DYNAMIC', method: 'GET' }
   })
 
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'wallapop',
-    type: 'GET_WALLA_COMPONENTS',
-    request: {
-      url: 'https://api.wallapop.com/api/v3/items/upload/components',
-      method: 'POST',
-      body: {}
-    }
-  })
-
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'wallapop',
-    type: 'GET_WALLA_WEIGHT_TIERS',
-    request: { url: 'DYNAMIC', method: 'GET' }
-  })
-
   const wallapopPhotos: string[] =
     listing.photoSelection?.['wallapop']?.length
       ? listing.photoSelection['wallapop']

@@ -313,8 +313,9 @@ export function processStepResult(
       break
 
     case 'GET_WALLA_WEIGHT_TIERS': {
-      const suggested = result.weight_tiers?.find((t: any) => t.suggested)
-      s.wallaMaxWeightKg = suggested?.max_weight_in_kg ?? 1
+      const tiers: any[] = result.weight_tiers ?? []
+      const suggested = tiers.find((t: any) => t.suggested) ?? tiers[0]
+      s.wallaMaxWeightKg = Number(suggested?.max_weight_in_kg ?? 1)
       break
     }
     case 'CREATE_WALLA_ITEM':
@@ -1537,6 +1538,11 @@ function getWallaSizeId(components: any[], sizeTitle: string): string {
   return match?.id ?? '32'
 }
 
+const WALLA_COST_CONFIGURATION = {
+  BUYER_PAYS: '814429d6-7844-471d-97af-196cd4020f26',
+  SELLER_PAYS: '04cf65ea-42f5-11ed-b878-0242ac120002',
+}
+
 // JSON en un FormData
 function buildCreateWallaItemBody(s: WorkflowState) {
   const l = s.originalPayload.listing
@@ -1602,9 +1608,9 @@ function buildCreateWallaItemBody(s: WorkflowState) {
     },
     location: s.wallaLocation,
     delivery: {
-      allowed_by_user: false,
-      max_weight_kg: null,
-      cost_configuration_id: null
+      allowed_by_user: true,
+      max_weight_kg: s.wallaMaxWeightKg ?? 1,
+      cost_configuration_id: WALLA_COST_CONFIGURATION.BUYER_PAYS
     }
   }
 }
