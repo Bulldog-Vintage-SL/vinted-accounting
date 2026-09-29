@@ -169,7 +169,7 @@ export async function reuploadVestiaireItem(
 // Buscar cuenta de Vestiaire Collective
 export async function searchVestiaireAccount() {
   try {
-    const result = await runFlow("SEARCH_VESTIAIRE_ACCOUNT", {platform: 'vestiaire'});
+    const result = await runFlow("SEARCH_VESTIAIRE_ACCOUNT", { platform: 'vestiaire' });
 
     if (!result?.result?.state) {
       return {
@@ -489,14 +489,19 @@ export function isRejectedByVestiaire(brand: string | null | undefined): boolean
   return false
 }
 
-export async function fetchVestiaireChats(): Promise<{
+export async function fetchVestiaireChats(opts?: { sinceTs?: number }): Promise<{
   ok: boolean
   message: string
   chats?: Chat[]
   ownUserId?: string
 }> {
+  const sinceTs = opts?.sinceTs
   try {
-    const result = await runFlow('FETCH_VEST_CHATS', { platform: 'vestiaire', stayInBackground: true })
+    const result = await runFlow('FETCH_VEST_CHATS', {
+      platform: 'vestiaire',
+      stayInBackground: true,
+      sinceTs,
+    })
     const state = result?.result?.state
     if (!state) {
       return {
@@ -505,19 +510,23 @@ export async function fetchVestiaireChats(): Promise<{
       }
     }
 
-    const chats = mergeVestiaireInbox(state.vestFeedChats, state.vestApiChannels)
-    if (!chats.length && !state.userId && !state.vestiaireId) {
+    const allChats = mergeVestiaireInbox(state.vestFeedChats, state.vestApiChannels)
+    if (!allChats.length && !state.userId && !state.vestiaireId) {
       return {
         ok: false,
         message: 'No hay sesión de Vestiaire. Abre Vestiaire Collective e inicia sesión, luego vuelve a sincronizar.',
       }
     }
 
+    const chats = sinceTs
+      ? allChats.filter((c) => (new Date(c.lastMessageAt ?? 0).getTime() || 0) >= sinceTs)
+      : allChats
+
     return {
       ok: true,
       message: chats.length
         ? `Se cargaron ${chats.length} conversaciones de Vestiaire`
-        : 'No hay conversaciones en Vestiaire',
+        : 'No hay conversaciones de Vestiaire en el rango elegido',
       chats,
       ownUserId: state.vestChatUserId || state.userId || state.vestiaireId,
     }

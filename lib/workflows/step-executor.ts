@@ -447,11 +447,21 @@ export function processStepResult(
     case 'GET_VEST_CHATS': {
       const pageItems: any[] = result?.data ?? result?.items ?? []
       s.vestFeedChats = [...(s.vestFeedChats ?? []), ...pageItems]
+
+      const sinceTs: number | undefined = s.originalPayload?.sinceTs
+      const reachedCutoff =
+        sinceTs != null &&
+        pageItems.some((c: any) => {
+          const t = getVestConvTs(c)
+          return t != null && t < sinceTs
+        })
+
       const limit = result?.meta?.limit ?? VESTIAIRE_CHAT_FEED_LIMIT
       const offset = result?.meta?.offset ?? s.vestChatNextOffset ?? 0
       const count = result?.meta?.count ?? s.vestFeedChats.length
       const nextOffset = offset + pageItems.length
-      if (pageItems.length >= limit && nextOffset < count) {
+
+      if (!reachedCutoff && pageItems.length >= limit && nextOffset < count) {
         s.vestChatNextOffset = nextOffset
         steps.splice(currentStep + 1, 0, {
           id: crypto.randomUUID(),
@@ -2017,4 +2027,32 @@ function getDepopConvTs(c: any): number | null {
   if (c?.last_message_timestamp == null) return null
   const t = Number(c.last_message_timestamp) * 1000
   return Number.isFinite(t) ? t : null
+}
+
+function toEpochMs(raw: unknown): number | null {
+  if (raw == null) return null
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  const t = Number.isFinite(n) ? (n < 1e12 ? n * 1000 : n) : Date.parse(String(raw))
+  return Number.isFinite(t) ? t : null
+}
+
+function getVestConvTs(conv: any): number | null {
+  // Feed de notificaciones de Vestiaire: `date` es el momento del último mensaje
+  const fromFeed = toEpochMs(conv?.date)
+  if (fromFeed != null) return fromFeed
+
+  // Canal de Stream: { channel: { last_message_at }, messages: [...] }
+  const ch = conv?.channel ?? conv
+  const fromChannel = toEpochMs(ch?.last_message_at ?? conv?.last_message_at)
+  if (fromChannel != null) return fromChannel
+
+  const msgs = Array.isArray(conv?.messages) ? conv.messages : []
+  let max = -Infinity
+  for (const m of msgs) {
+    const t = toEpochMs(m?.created_at)
+    if (t != null && t > max) max = t
+  }
+  if (Number.isFinite(max)) return max
+
+  return toEpochMs(ch?.updated_at)
 }
