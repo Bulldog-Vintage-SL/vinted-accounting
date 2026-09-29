@@ -142,7 +142,7 @@ export default function ChatsPage() {
     try {
       let res;
       if (platform === "vestiaire") {
-        res = await fetchVestiaireChats();
+        res = await fetchVestiaireChats({ sinceTs });
       } else if (platform === "vinted") {
         res = await fetchVintedChats({ sinceTs });
       } else if (platform === "wallapop") {
@@ -155,7 +155,7 @@ export default function ChatsPage() {
       if (!res.ok) {
         toast.error(
           res.message ||
-            `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
+          `Asegúrate de tener la pestaña de ${PLATFORM_LABELS[platform]} abierta e iniciada sesión.`
         );
         return null;
       }
@@ -278,17 +278,17 @@ export default function ChatsPage() {
           const next = prev.map((item) =>
             item.id === chat.id
               ? {
-                  ...item,
-                  messages: res.messages?.length ? res.messages : item.messages,
-                  messagesLoaded: true,
-                  unreadCount: 0,
-                  lastMessagePreview:
-                    res.messages?.[res.messages.length - 1]?.content ??
-                    item.lastMessagePreview,
-                  lastMessageAt:
-                    res.messages?.[res.messages.length - 1]?.createdAt ??
-                    item.lastMessageAt,
-                }
+                ...item,
+                messages: res.messages?.length ? res.messages : item.messages,
+                messagesLoaded: true,
+                unreadCount: 0,
+                lastMessagePreview:
+                  res.messages?.[res.messages.length - 1]?.content ??
+                  item.lastMessagePreview,
+                lastMessageAt:
+                  res.messages?.[res.messages.length - 1]?.createdAt ??
+                  item.lastMessageAt,
+              }
               : item
           );
           saveCachedChats(next);
@@ -369,15 +369,15 @@ export default function ChatsPage() {
           ? await sendVintedChatMessage(channel, text)
           : selectedChat.platform === "depop"
             ? await sendDepopChatMessage(
-                channel,
-                selectedChat.recipientUserId as string | number,
-                text
-              )
+              channel,
+              selectedChat.recipientUserId as string | number,
+              text
+            )
             : selectedChat.platform === "wallapop"
               ? await sendWallapopChatMessage(channel, text, {
-                  toUserHash: selectedChat.senderId,
-                  fromUserHash: selectedChat.ownUserHash,
-                })
+                toUserHash: selectedChat.senderId,
+                fromUserHash: selectedChat.ownUserHash,
+              })
               : await sendVestiaireChatMessage(channel, text);
       if (!res.ok || !res.sent) {
         toast.error(res.message || "No se pudo enviar el mensaje");
@@ -388,16 +388,16 @@ export default function ChatsPage() {
         const next = prev.map((item) =>
           item.id === selectedChat.id
             ? {
-                ...item,
-                messages: [
-                  ...item.messages.filter((m) => !m.id.endsWith("-preview")),
-                  res.sent!,
-                ],
-                lastMessagePreview: res.sent!.content,
-                lastMessageAt: res.sent!.createdAt,
-                unreadCount: 0,
-                messagesLoaded: true,
-              }
+              ...item,
+              messages: [
+                ...item.messages.filter((m) => !m.id.endsWith("-preview")),
+                res.sent!,
+              ],
+              lastMessagePreview: res.sent!.content,
+              lastMessageAt: res.sent!.createdAt,
+              unreadCount: 0,
+              messagesLoaded: true,
+            }
             : item
         );
         saveCachedChats(next);
