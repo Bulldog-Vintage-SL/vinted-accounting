@@ -95,6 +95,9 @@ export default function ChatsPage() {
   const loadingChatIdRef = useRef<string | null>(null);
   const failedLoadIdsRef = useRef<Set<string>>(new Set());
 
+  // Selección múltiple en la lista (para "Responder con IA")
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
   // Modal previo al selector de cuentas: cuántos días hacia atrás importar
   const [daysModalOpen, setDaysModalOpen] = useState(false);
   const [daysInput, setDaysInput] = useState(String(DEFAULT_SYNC_DAYS));
@@ -115,6 +118,22 @@ export default function ChatsPage() {
   }, []);
 
   const selectedChat = chats.find((c) => c.id === selectedChatId) ?? null;
+
+  const toggleCheck = useCallback((chatId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatId)) next.delete(chatId);
+      else next.add(chatId);
+      return next;
+    });
+  }, []);
+
+  const clearChecked = useCallback(() => setCheckedIds(new Set()), []);
+
+  const handleReplyWithAI = () => {
+    const ids = Array.from(checkedIds);
+    // TODO: lógica de respuesta con IA
+  };
 
   // El selector de cuentas solo nos da { accountId, platform }, así que para
   // saber el external_id de la cuenta elegida (necesario para Depop, ver
@@ -211,6 +230,11 @@ export default function ChatsPage() {
 
       setChats(working);
       saveCachedChats(working);
+      // Evita IDs huérfanos en la selección múltiple tras sincronizar
+      setCheckedIds((prev) => {
+        const ids = new Set(working.map((c) => c.id));
+        return new Set([...prev].filter((id) => ids.has(id)));
+      });
       failedLoadIdsRef.current.clear();
       setSelectedChatId((current) =>
         current && working.some((chat) => chat.id === current)
@@ -426,6 +450,10 @@ export default function ChatsPage() {
         onSync={handleSync}
         syncing={syncingPlatform !== null}
         hideOnMobile={Boolean(selectedChatId)}
+        checkedIds={checkedIds}
+        onToggleCheck={toggleCheck}
+        onClearChecked={clearChecked}
+        onReplyWithAI={handleReplyWithAI}
       />
       <ChatWindow
         chat={selectedChat}
