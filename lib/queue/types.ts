@@ -4,7 +4,7 @@
 
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'retrying'
 
-export type JobAction = 'upload' | 'delete' | 'import' | 'deletePublication' | 'reuploadPublication'
+export type JobAction = 'upload' | 'delete' | 'import' | 'deletePublication' | 'reuploadPublication' | 'replyChat'
 
 export interface ActionPayload {
   upload: {}
@@ -12,6 +12,7 @@ export interface ActionPayload {
   import: {}
   deletePublication: {}
   reuploadPublication: {}
+  replyChat: {}
 }
 
 export interface MissingField {

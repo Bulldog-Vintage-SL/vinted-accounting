@@ -26,6 +26,11 @@ import {
   fetchWallapopChatMessages,
   sendWallapopChatMessage,
 } from "@/lib/external-integrations";
+import { useMemo } from "react";
+import { useQueue } from "@/hooks/useQueue"; // ajusta la ruta
+import { ReplyProgressModal } from "./components/ReplyProgressModal";
+import type { ReplyChatEntity, ReplyChatResult } from "@/lib/chats/chat-api";
+
 
 // Antes "rl:vestiaire-chats" / "rl:chats": bump de versión para invalidar
 // cachés con nombres genéricos ("Usuario de Wallapop") o hilos vacíos del mapper viejo.
@@ -130,15 +135,6 @@ export default function ChatsPage() {
 
   const clearChecked = useCallback(() => setCheckedIds(new Set()), []);
 
-  const handleReplyWithAI = () => {
-    const ids = Array.from(checkedIds);
-    // TODO: lógica de respuesta con IA
-  };
-
-  // El selector de cuentas solo nos da { accountId, platform }, así que para
-  // saber el external_id de la cuenta elegida (necesario para Depop, ver
-  // más abajo) hay que resolverlo aparte contra el mismo endpoint que usa
-  // AccountSelectorModal.
   const resolveAccountExternalId = async (
     platform: Platform,
     accountId: string
@@ -434,6 +430,64 @@ export default function ChatsPage() {
     }
   };
 
+  const { enqueue, jobs, retryJob, onEvent } = useQueue<ReplyChatEntity>();
+  const [replyBatchIds, setReplyBatchIds] = useState<Set<string>>(new Set());
+  const [replyModalOpen, setReplyModalOpen] = useState(false);
+
+  const batchJobs = useMemo(
+    () => jobs.filter((j) => replyBatchIds.has(j.id)),
+    [jobs, replyBatchIds]
+  );
+
+  const handleReplyWithAI = () => {
+    const targets = chats.filter((c) => checkedIds.has(c.id) && !isOfferChat(c));
+    if (targets.length === 0) return;
+
+    const enqueued = enqueue(
+      "replyChat",
+      targets.map((chat) => ({ chat })),
+      {},
+      ({ chat }) => chat.listingTitle ? `${chat.contactName} · ${chat.listingTitle}` : chat.contactName
+    );
+    setReplyBatchIds(new Set(enqueued.map((j) => j.id)));
+    setReplyModalOpen(true);
+    clearChecked();
+  };
+
+  // reintenta solo los fallidos del lote, conservando el orden
+  const retryBatchFailed = () =>
+    [...batchJobs].reverse().filter((j) => j.status === "failed").forEach(retryJob);
+
+  // al enviarse cada respuesta, refresca el chat en la lista
+  useEffect(
+    () =>
+      onEvent((event) => {
+        if (event.type !== "job:success" || event.job.action !== "replyChat") return;
+        const { chat } = event.job.entity as ReplyChatEntity;
+        const { sent, messages } = (event.job.result ?? {}) as ReplyChatResult;
+        if (!messages) return;
+
+        setChats((prev) => {
+          const next = prev.map((item) => {
+            if (item.id !== chat.id) return item;
+            const thread = sent ? [...messages, sent] : messages;
+            const lastMsg = thread[thread.length - 1];
+            return {
+              ...item,
+              messages: thread,
+              messagesLoaded: true,
+              unreadCount: 0,
+              lastMessagePreview: lastMsg?.content ?? item.lastMessagePreview,
+              lastMessageAt: lastMsg?.createdAt ?? item.lastMessageAt,
+            };
+          });
+          saveCachedChats(next);
+          return next;
+        });
+      }),
+    [onEvent]
+  );
+
   return (
     <div className="h-[calc(100vh-4rem)] lg:h-screen flex overflow-hidden">
       <ChatList
@@ -525,6 +579,12 @@ export default function ChatsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ReplyProgressModal
+        open={replyModalOpen}
+        onOpenChange={setReplyModalOpen}
+        jobs={batchJobs}
+        onRetryFailed={retryBatchFailed}
+      />
     </div>
   );
 }
