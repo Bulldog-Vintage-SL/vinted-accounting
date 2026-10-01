@@ -339,7 +339,7 @@ const deleteExecutor: Executor<Listing> = async (job) => {
 }
 
 const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
-  const { chat } = job.entity
+  const { chat, options } = job.entity
   if (chat.isOffer) throw new Error('Las ofertas no admiten respuesta por chat')
 
   // Siempre se recarga el hilo: contexto fresco y evita responder dos veces
@@ -349,7 +349,8 @@ const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
 
   const last = [...messages].reverse().find((m) => !m.systemEvent)
   if (!last) throw new Error('Conversación sin mensajes')
-  if (last.isOwn) {
+
+  if (last.isOwn && !options?.replyToOwn) {
     return { skipped: true, reason: 'El último mensaje ya es tuyo', messages } satisfies ReplyChatResult
   }
 
@@ -361,6 +362,8 @@ const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
       contactName: chat.contactName,
       listingTitle: chat.listingTitle,
       messages: buildResponseContext(messages),
+      followUp: Boolean(last.isOwn),
+      instructions: options?.instructions,
     }),
   }, 60000)
   const data = await res.json()

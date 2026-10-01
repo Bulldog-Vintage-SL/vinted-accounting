@@ -18,11 +18,6 @@ import {
 
 export type ChatMessage = Chat['messages'][number]
 
-// Entidad y resultado del job 'replyChat'
-export interface ReplyChatEntity {
-  chat: Chat
-}
-
 export interface ReplyChatResult {
   replied?: true
   skipped?: true
@@ -31,6 +26,16 @@ export interface ReplyChatResult {
   sent?: ChatMessage
   messages?: ChatMessage[]
 }
+
+export type ReplyChatOptions = {
+  replyToOwn: boolean;
+  instructions?: string;
+};
+
+export type ReplyChatEntity = {
+  chat: Chat;
+  options?: ReplyChatOptions;
+};
 
 export function loadChatMessages(chat: Chat) {
   const channel = chat.channelId || chat.id

@@ -29,7 +29,7 @@ import {
 import { useMemo } from "react";
 import { useQueue } from "@/hooks/useQueue"; // ajusta la ruta
 import { ReplyProgressModal } from "./components/ReplyProgressModal";
-import type { ReplyChatEntity, ReplyChatResult } from "@/lib/chats/chat-api";
+import type { ReplyChatEntity, ReplyChatResult, ReplyChatOptions } from "@/lib/chats/chat-api";
 
 
 // Antes "rl:vestiaire-chats" / "rl:chats": bump de versión para invalidar
@@ -439,21 +439,29 @@ export default function ChatsPage() {
     [jobs, replyBatchIds]
   );
 
-  const handleReplyWithAI = () => {
-    const targets = chats.filter((c) => checkedIds.has(c.id) && !isOfferChat(c));
-    if (targets.length === 0) return;
+  const replyTargets = useMemo(
+    () => chats.filter((c) => checkedIds.has(c.id) && !isOfferChat(c)),
+    [chats, checkedIds]
+  );
 
-    const enqueued = enqueue(
-      "replyChat",
-      targets.map((chat) => ({ chat })),
-      {},
-      ({ chat }) => chat.listingTitle ? `${chat.contactName} · ${chat.listingTitle}` : chat.contactName
-    );
-    setReplyBatchIds(new Set(enqueued.map((j) => j.id)));
+  // Abre el modal en la fase de configuración (sin jobs todavía)
+  const handleReplyWithAI = () => {
+    if (replyTargets.length === 0) return;
+    setReplyBatchIds(new Set());
     setReplyModalOpen(true);
-    clearChecked();
   };
 
+  const handleStartReply = (options: ReplyChatOptions) => {
+    const enqueued = enqueue(
+      "replyChat",
+      replyTargets.map((chat) => ({ chat, options })),
+      {},
+      ({ chat }) =>
+        chat.listingTitle ? `${chat.contactName} · ${chat.listingTitle}` : chat.contactName
+    );
+    setReplyBatchIds(new Set(enqueued.map((j) => j.id)));
+    clearChecked();
+  };
   // reintenta solo los fallidos del lote, conservando el orden
   const retryBatchFailed = () =>
     [...batchJobs].reverse().filter((j) => j.status === "failed").forEach(retryJob);
@@ -584,6 +592,8 @@ export default function ChatsPage() {
         onOpenChange={setReplyModalOpen}
         jobs={batchJobs}
         onRetryFailed={retryBatchFailed}
+        targetCount={replyTargets.length}
+        onStart={handleStartReply}
       />
     </div>
   );
