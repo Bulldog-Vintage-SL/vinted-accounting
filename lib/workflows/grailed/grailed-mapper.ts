@@ -11,31 +11,46 @@ const GRAILED_CONDITION_MAP: Record<typeof CONDITION_OPTIONS[number], string> = 
 }
 
 const COLOR_MAP: Record<string, string> = {
-  negro: 'black',
-  gris: 'gray',
-  blanco: 'white',
-  crema: 'beige',
-  beige: 'beige',
-  naranja: 'orange',
-  coral: 'orange',
-  rojo: 'red',
-  burdeos: 'red',
-  fucsia: 'pink',
-  rosa: 'pink',
-  morado: 'purple',
-  lila: 'purple',
-  azul: 'blue',
-  turquesa: 'teal',
-  menta: 'green',
-  verde: 'green',
-  caqui: 'khaki',
-  marron: 'brown',
-  mostaza: 'yellow',
-  amarillo: 'yellow',
-  plateado: 'silver',
-  dorado: 'gold',
-  varios: 'multi',
-  transparente: 'other',
+  negro: 'Black',
+  black: 'Black',
+  gris: 'Gray',
+  gray: 'Gray',
+  grey: 'Gray',
+  blanco: 'White',
+  white: 'White',
+  crema: 'Beige',
+  beige: 'Beige',
+  naranja: 'Orange',
+  orange: 'Orange',
+  coral: 'Orange',
+  rojo: 'Red',
+  red: 'Red',
+  burdeos: 'Red',
+  fucsia: 'Pink',
+  rosa: 'Pink',
+  pink: 'Pink',
+  morado: 'Purple',
+  purple: 'Purple',
+  lila: 'Purple',
+  azul: 'Blue',
+  blue: 'Blue',
+  navy: 'Blue',
+  turquesa: 'Green',
+  menta: 'Green',
+  verde: 'Green',
+  green: 'Green',
+  caqui: 'Brown',
+  marron: 'Brown',
+  brown: 'Brown',
+  mostaza: 'Yellow',
+  amarillo: 'Yellow',
+  yellow: 'Yellow',
+  plateado: 'Silver',
+  silver: 'Silver',
+  dorado: 'Gold',
+  gold: 'Gold',
+  varios: 'Multi',
+  multi: 'Multi',
 }
 
 const ITEM_TYPE_KEYWORDS: Record<string, string[]> = {
@@ -57,7 +72,10 @@ const ITEM_TYPE_KEYWORDS: Record<string, string[]> = {
   bota: ['boots'],
   bolso: ['bags', 'bags_and_luggage'],
   sombrero: ['hats'],
-  gorra: ['hats', 'caps'],
+  gorra: ['hats'],
+  cap: ['hats'],
+  hat: ['hats'],
+  beanie: ['hats'],
   traje: ['suits', 'tailoring'],
   blazer: ['blazers'],
   accesorio: ['accessories'],
@@ -150,7 +168,7 @@ function flattenCategoryLeaves(
       const path = (node.path ?? node.category_path ?? pathParts.join('.'))
         .toString()
         .replace(/^menswear\.|^womenswear\./, '')
-      if (path || node.id) {
+      if (path.includes('.')) {
         leaves.push({
           id: String(node.id ?? path),
           name,
@@ -168,23 +186,18 @@ function flattenCategoryLeaves(
 }
 
 export function extractGrailedCategoryTree(result: any): any[] {
-  if (Array.isArray(result)) return result
-  if (Array.isArray(result?.data)) return result.data
-  if (Array.isArray(result?.categories)) return result.categories
-  if (result?.data && typeof result.data === 'object') {
-    return Object.entries(result.data).map(([name, value]) => ({
-      name,
-      children: Array.isArray(value) ? value : nodeChildren(value),
+  const nested = result?.data?.categories ?? result?.categories
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    return Object.entries(nested).map(([key, value]: [string, any]) => ({
+      ...(value && typeof value === 'object' ? value : {}),
+      name: value?.name ?? key,
+      path: value?.path ?? key,
+      subcategories: value?.subcategories ?? value?.children ?? [],
     }))
   }
-  if (result && typeof result === 'object') {
-    return Object.entries(result)
-      .filter(([, value]) => value && typeof value === 'object')
-      .map(([name, value]) => ({
-        name,
-        children: Array.isArray(value) ? value : nodeChildren(value),
-      }))
-  }
+  if (Array.isArray(nested)) return nested
+  if (Array.isArray(result)) return result
+  if (Array.isArray(result?.data)) return result.data
   return []
 }
 
@@ -198,7 +211,7 @@ export function resolveGrailedCategory(
   const haystack = normalizeGrailedText(`${params.itemType ?? ''} ${params.title ?? ''}`)
 
   const keywords = Object.entries(ITEM_TYPE_KEYWORDS)
-    .filter(([key]) => haystack.includes(key))
+    .filter(([key]) => new RegExp(`(?:^|[^a-z0-9])${key}(?:$|[^a-z0-9])`).test(haystack))
     .flatMap(([, values]) => values)
 
   let best:
@@ -211,7 +224,7 @@ export function resolveGrailedCategory(
     const nameNorm = normalizeGrailedText(leaf.name)
     let score = 0
 
-    if (leafDept === department) score += 1.5
+    if (leafDept === department) score += 0.4
     for (const kw of keywords) {
       const kwNorm = normalizeGrailedText(kw)
       if (pathNorm.includes(kwNorm) || nameNorm.includes(kwNorm)) score += 3
@@ -228,46 +241,56 @@ export function resolveGrailedCategory(
     }
   }
 
-  if (best && (best.path || best.id) && best.score > 0.4) {
+  if (best && String(best.path).includes('.') && best.score >= 1.5) {
     return {
       id: best.id,
-      path: best.path || 'tops.t_shirts',
+      path: best.path,
       department: best.department === 'womenswear' ? 'womenswear' : 'menswear',
       name: best.name,
     }
   }
 
   return {
-    id: best?.id ?? '',
-    path: 'tops.t_shirts',
+    id: best?.id ?? 'tops.short_sleeve_shirts',
+    path: 'tops.short_sleeve_shirts',
     department,
-    name: best?.name ?? 'T-Shirts',
+    name: best?.name ?? 'Short Sleeve T-Shirts',
   }
 }
 
 export function pickGrailedDesignerIds(
   result: any,
-  brand: string | undefined | null
+  brand: string | undefined | null,
+  title?: string | null
 ): number[] {
   const designers = asList(result)
-  const target = normalizeGrailedText(brand)
   if (!designers.length) return []
+
+  const targets = [brand, title]
+    .filter(Boolean)
+    .map((value) => normalizeGrailedText(String(value)))
 
   const scored = designers
     .map((d: any) => {
       const id = Number(d.id ?? d.designer_id ?? d.designerId)
       const name = String(d.name ?? d.slug ?? '')
-      const score = target
-        ? stringSimilarity.compareTwoStrings(target, normalizeGrailedText(name))
-        : 0
+      const nameNorm = normalizeGrailedText(name)
+      if (!Number.isFinite(id) || nameNorm.length < 2 || nameNorm === '0') {
+        return { id, name, score: -1 }
+      }
+      let score = 0
+      for (const target of targets) {
+        score = Math.max(score, stringSimilarity.compareTwoStrings(target, nameNorm))
+        if (target.includes(nameNorm) || nameNorm.includes(target)) {
+          score = Math.max(score, 0.85)
+        }
+      }
       return { id, name, score }
     })
-    .filter((d: { id: number }) => Number.isFinite(d.id))
+    .filter((d: { score: number }) => d.score >= 0.5)
     .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
 
-  if (!scored.length) return []
-  if (scored[0].score >= 0.35 || !target) return [scored[0].id]
-  return [scored[0].id]
+  return scored[0] ? [scored[0].id] : []
 }
 
 export function pickGrailedExactSize(
@@ -306,6 +329,9 @@ export function pickGrailedExactSize(
 export function pickGrailedReturnAddressId(user: any): number | null {
   const payload = user?.data ?? user ?? {}
   const addresses =
+    (Array.isArray(user) ? user : null) ??
+    (Array.isArray(user?.data) ? user.data : null) ??
+    (Array.isArray(payload?.data) ? payload.data : null) ??
     payload.postal_addresses ??
     payload.postalAddresses ??
     payload.addresses ??
@@ -315,7 +341,7 @@ export function pickGrailedReturnAddressId(user: any): number | null {
 
   const list = Array.isArray(addresses) ? addresses : []
   const preferred =
-    list.find((a: any) => a?.default || a?.is_default || a?.isDefault || a?.return) ??
+    list.find((a: any) => a?.default || a?.is_default || a?.isDefault || a?.return || a?.default_return) ??
     payload.default_return_address ??
     payload.return_address ??
     list[0]
@@ -346,13 +372,13 @@ export function pickGrailedShipping(result: any): Record<string, any> {
   }
 
   return {
-    us: { enabled: true, amount: 0 },
-    ca: { enabled: true, amount: 2000 },
-    uk: { enabled: true, amount: 2500 },
-    eu: { enabled: true, amount: 2000 },
-    asia: { enabled: true, amount: 3000 },
-    au: { enabled: true, amount: 3000 },
-    other: { enabled: true, amount: 3000 },
+    us: { enabled: true, amount: 30 },
+    ca: { enabled: true, amount: 30 },
+    uk: { enabled: true, amount: 15 },
+    eu: { enabled: true, amount: 15 },
+    asia: { enabled: true, amount: 25 },
+    au: { enabled: true, amount: 20 },
+    other: { enabled: true, amount: 50 },
   }
 }
 
@@ -383,6 +409,7 @@ export function pickGrailedListing(result: any): { id: string; url: string } {
 export function buildGrailedDraftBody(s: {
   originalPayload?: any
   grailedCategoryPath?: string
+  grailedDepartment?: 'menswear' | 'womenswear'
   grailedDesignerIds?: number[]
   grailedCondition?: string
   grailedColor?: string
@@ -393,37 +420,36 @@ export function buildGrailedDraftBody(s: {
   grailedShipping?: Record<string, any>
 }): Record<string, any> {
   const listing = s.originalPayload?.listing ?? {}
-  const price = toGrailedCents(listing.price)
-  const shipping = s.grailedShipping ?? pickGrailedShipping(null)
-  const usAmount = Number(shipping?.us?.amount ?? 0)
-  const traits: Array<{ name: string; value: string }> = []
-  if (s.grailedColor) traits.push({ name: 'color', value: s.grailedColor })
+  const color = s.grailedColor || mapGrailedColor(listing.colors) || 'Black'
+  const categoryPath = String(s.grailedCategoryPath || '').includes('.')
+    ? s.grailedCategoryPath
+    : 'tops.short_sleeve_shirts'
+  const size = /accessories/.test(String(categoryPath))
+    ? 'one size'
+    : (s.grailedSize ?? listing.attributes?.size ?? 'l')
+  const n = Number(listing.price)
+  const price = String(Number.isFinite(n) && n > 0 ? Math.round(n) : 1)
 
-  const body: Record<string, any> = {
+  return {
     buynow: true,
-    category_path: s.grailedCategoryPath || 'tops.t_shirts',
+    category_path: categoryPath,
     condition: s.grailedCondition || mapGrailedCondition(listing.condition),
     description: String(listing.description ?? ''),
-    designers: s.grailedDesignerIds?.length ? s.grailedDesignerIds : [],
+    designers: (s.grailedDesignerIds ?? []).map((id) => ({ id })),
     duplicate_listing: false,
     hidden_from_algolia: false,
     makeoffer: true,
     measurements: [],
-    minimum_price: null,
     photos: s.grailedPhotos ?? [],
     price,
-    shipping,
-    shipping_label: { free_shipping: usAmount === 0 },
-    size: s.grailedSize ?? listing.attributes?.size ?? null,
-    exact_size: s.grailedExactSize ?? null,
+    return_address_id: s.grailedReturnAddressId,
+    shipping: s.grailedShipping && Object.keys(s.grailedShipping).length
+      ? s.grailedShipping
+      : pickGrailedShipping(null),
+    shipping_label: {},
+    size,
     styles: [],
     title: String(listing.title ?? ''),
-    traits,
+    traits: [{ name: 'color', value: color }],
   }
-
-  if (s.grailedReturnAddressId) {
-    body.return_address_id = s.grailedReturnAddressId
-  }
-
-  return body
 }

@@ -49,7 +49,6 @@ import {
   pickGrailedShipping,
   pickGrailedUserId,
   resolveGrailedCategory,
-  toGrailedCents,
 } from './grailed/grailed-mapper'
 import {
   buildGrailedWardrobeUrl,
@@ -796,14 +795,21 @@ export function processStepResult(
       s.grailedDepartment = resolved.department
       s.grailedCondition = mapGrailedCondition(s.originalPayload?.listing?.condition)
       s.grailedColor = mapGrailedColor(s.originalPayload?.listing?.colors)
+      if (String(resolved.path).startsWith('accessories')) {
+        s.grailedSize = 'one size'
+      }
       break
     }
 
     case 'GET_GRAILED_DESIGNERS': {
-      const ids = pickGrailedDesignerIds(result, s.originalPayload?.listing?.attributes?.brand)
+      const ids = pickGrailedDesignerIds(
+        result,
+        s.originalPayload?.listing?.attributes?.brand,
+        s.originalPayload?.listing?.title
+      )
       if (!ids.length) {
         throw new Error(
-          `No se encontró el diseñador "${s.originalPayload?.listing?.attributes?.brand}" en Grailed`
+          `No se encontró el diseñador "${s.originalPayload?.listing?.attributes?.brand || s.originalPayload?.listing?.title}" en Grailed. Pon una marca que exista en Grailed.`
         )
       }
       s.grailedDesignerIds = ids
@@ -811,14 +817,12 @@ export function processStepResult(
     }
 
     case 'GET_GRAILED_USER':
-      s.userId = pickGrailedUserId(result) || s.userId
-      s.accountName =
-        result?.username ??
-        result?.data?.username ??
-        result?.name ??
-        s.accountName
-      s.email = result?.email ?? result?.data?.email ?? s.email
       s.grailedReturnAddressId = pickGrailedReturnAddressId(result)
+      if (!s.grailedReturnAddressId) {
+        throw new Error(
+          'Grailed no tiene dirección de devolución. Añádela en www.grailed.com (cuenta → direcciones) y reintenta.'
+        )
+      }
       break
 
     case 'GET_GRAILED_EXACT_SIZES': {
@@ -1404,26 +1408,49 @@ export function processStepResult(
       if (!s.userId) {
         throw new Error('No hay sesión de Grailed. Abre www.grailed.com e inicia sesión.')
       }
-      next.request.url = `${GRAILED_API_BASE}/api/users/${encodeURIComponent(String(s.userId))}`
+      next.request.url =
+        `${GRAILED_API_BASE}/api/users/${encodeURIComponent(String(s.userId))}` +
+        '/postal_addresses?limit=1&default_return=true'
       break
 
     case 'GET_GRAILED_EXACT_SIZES':
-      next.request.url = `${GRAILED_API_BASE}/api/config/exact_sizes/${encodeURIComponent(s.grailedCategoryId || '1')}`
+      next.request.url = `${GRAILED_API_BASE}/api/config/exact_sizes/${encodeURIComponent(s.grailedCategoryPath || s.grailedCategoryId || '1')}`
       break
 
     case 'GET_GRAILED_SHIPPING': {
+      if (!s.grailedReturnAddressId) {
+        throw new Error(
+          'Grailed no tiene dirección de devolución. Añádela en www.grailed.com (cuenta → direcciones) y reintenta.'
+        )
+      }
       const params = new URLSearchParams()
       if (s.grailedCategoryPath) params.set('category_path', s.grailedCategoryPath)
-      if (s.grailedReturnAddressId) params.set('from_address_id', String(s.grailedReturnAddressId))
-      params.set('price', toGrailedCents(s.originalPayload?.listing?.price))
+      params.set('from_address_id', String(s.grailedReturnAddressId))
+      const price = Number(s.originalPayload?.listing?.price)
+      params.set('price', String(Number.isFinite(price) && price > 0 ? Math.round(price) : 1))
       next.request.url = `${GRAILED_API_BASE}/api/shipping_configs?${params.toString()}`
       break
     }
 
     case 'CREATE_GRAILED_DRAFT': {
+      if (!s.grailedReturnAddressId) {
+        throw new Error(
+          'Grailed no tiene dirección de devolución. Añádela en www.grailed.com (cuenta → direcciones) y reintenta.'
+        )
+      }
       const body = buildGrailedDraftBody(s)
       body.title = truncateForPlatform(body.title, 'grailed', 'title')
       body.description = truncateForPlatform(body.description, 'grailed', 'description')
+      console.log('CREATE_GRAILED_DRAFT body', JSON.stringify({
+        category_path: body.category_path,
+        traits: body.traits,
+        size: body.size,
+        price: body.price,
+        designers: body.designers,
+        return_address_id: body.return_address_id,
+        photos: body.photos?.length,
+      }))
+      next.request.url = `${GRAILED_API_BASE}/api/listings`
       next.request.body = body
       break
     }

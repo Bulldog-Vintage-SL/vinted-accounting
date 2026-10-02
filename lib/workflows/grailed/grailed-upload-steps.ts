@@ -4,7 +4,7 @@ import { GRAILED_API_BASE } from './grailed-mapper'
 
 export function buildGrailedUploadSteps(listing: any): WorkflowStep[] {
   const steps: WorkflowStep[] = []
-  const brand = String(listing?.attributes?.brand ?? '').trim()
+  const brand = String(listing?.attributes?.brand ?? listing?.title ?? '').trim()
 
   steps.push({
     id: crypto.randomUUID(),
@@ -41,16 +41,6 @@ export function buildGrailedUploadSteps(listing: any): WorkflowStep[] {
     id: crypto.randomUUID(),
     platform: 'grailed',
     type: 'GET_GRAILED_USER',
-    request: {
-      url: '',
-      method: 'GET',
-    },
-  })
-
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'grailed',
-    type: 'GET_GRAILED_EXACT_SIZES',
     request: {
       url: '',
       method: 'GET',
