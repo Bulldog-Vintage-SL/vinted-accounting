@@ -14,7 +14,7 @@ export class MissingFieldsError extends Error {
   }
 }
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'ebay' | 'shopify'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'ebay' | 'shopify'
 
 export const VESTIAIRE_MIN_PRICE = 16
 
@@ -77,6 +77,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   wallapop: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   vestiaire: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender', 'vestiaire_min_price'],
   depop: ['description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
+  grailed: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   ebay: ['title', 'description', 'price', 'photo_url'],
   shopify: ['title', 'description', 'price', 'photo_url'],
 }

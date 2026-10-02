@@ -36,6 +36,21 @@ import {
   pickWallaUserHash,
   wallaConversationHasMessages,
 } from './wallapop/wallapop-chat-steps'
+import {
+  GRAILED_API_BASE,
+  buildGrailedDraftBody,
+  mapGrailedColor,
+  mapGrailedCondition,
+  pickGrailedDesignerIds,
+  pickGrailedDraftId,
+  pickGrailedExactSize,
+  pickGrailedListing,
+  pickGrailedReturnAddressId,
+  pickGrailedShipping,
+  pickGrailedUserId,
+  resolveGrailedCategory,
+  toGrailedCents,
+} from './grailed/grailed-mapper'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
 
@@ -51,6 +66,7 @@ const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = 
   wallapop: { title: 50, description: 640 },
   vestiaire: { title: 100, description: 3000 },
   depop: { title: 1000, description: 1000 },
+  grailed: { title: 80, description: 2000 },
 }
 
 /**
@@ -755,6 +771,81 @@ export function processStepResult(
     case 'UPDATE_DEPOP_ITEM':
       s.depopUpdateDone = true
       break
+
+    case 'GET_GRAILED_USER_ID':
+      s.userId = pickGrailedUserId(result) || result.userId
+      s.username = result.username ?? result.accountName
+      s.accountName = result.accountName ?? result.username
+      s.profileLink = result.profileLink
+      s.email = result.email
+      break
+
+    case 'GET_GRAILED_CATEGORIES': {
+      const resolved = resolveGrailedCategory(result, {
+        gender: s.originalPayload?.listing?.gender,
+        itemType: s.originalPayload?.listing?.item_type,
+        title: s.originalPayload?.listing?.title,
+      })
+      s.grailedCategoryId = resolved.id
+      s.grailedCategoryPath = resolved.path
+      s.grailedDepartment = resolved.department
+      s.grailedCondition = mapGrailedCondition(s.originalPayload?.listing?.condition)
+      s.grailedColor = mapGrailedColor(s.originalPayload?.listing?.colors)
+      break
+    }
+
+    case 'GET_GRAILED_DESIGNERS': {
+      const ids = pickGrailedDesignerIds(result, s.originalPayload?.listing?.attributes?.brand)
+      if (!ids.length) {
+        throw new Error(
+          `No se encontró el diseñador "${s.originalPayload?.listing?.attributes?.brand}" en Grailed`
+        )
+      }
+      s.grailedDesignerIds = ids
+      break
+    }
+
+    case 'GET_GRAILED_USER':
+      s.userId = pickGrailedUserId(result) || s.userId
+      s.accountName =
+        result?.username ??
+        result?.data?.username ??
+        result?.name ??
+        s.accountName
+      s.email = result?.email ?? result?.data?.email ?? s.email
+      s.grailedReturnAddressId = pickGrailedReturnAddressId(result)
+      break
+
+    case 'GET_GRAILED_EXACT_SIZES': {
+      const sizes = pickGrailedExactSize(result, s.originalPayload?.listing?.attributes?.size)
+      s.grailedSize = sizes.size
+      s.grailedExactSize = sizes.exactSize
+      break
+    }
+
+    case 'UPLOAD_GRAILED_PHOTO':
+      s.grailedPhotos = [...(s.grailedPhotos ?? []), result]
+      break
+
+    case 'GET_GRAILED_SHIPPING':
+      s.grailedShipping = pickGrailedShipping(result)
+      break
+
+    case 'CREATE_GRAILED_DRAFT': {
+      const draftId = pickGrailedDraftId(result)
+      if (!draftId) {
+        throw new Error('Grailed no devolvió el id del borrador')
+      }
+      s.grailedDraftId = draftId
+      break
+    }
+
+    case 'SUBMIT_GRAILED_DRAFT': {
+      const listing = pickGrailedListing(result)
+      s.grailedListingId = listing.id
+      s.grailedPublicationUrl = listing.url
+      break
+    }
     case 'GET_DEPOP_CHATS': {
       const objs = result.objects ?? []
       const byId = new Map<string, any>()
@@ -1279,6 +1370,42 @@ export function processStepResult(
         ...next.request.body,
         verification_token: s.depopVerificationToken
       }
+      break
+
+    case 'GET_GRAILED_USER':
+      if (!s.userId) {
+        throw new Error('No hay sesión de Grailed. Abre www.grailed.com e inicia sesión.')
+      }
+      next.request.url = `${GRAILED_API_BASE}/api/users/${encodeURIComponent(String(s.userId))}`
+      break
+
+    case 'GET_GRAILED_EXACT_SIZES':
+      next.request.url = `${GRAILED_API_BASE}/api/config/exact_sizes/${encodeURIComponent(s.grailedCategoryId || '1')}`
+      break
+
+    case 'GET_GRAILED_SHIPPING': {
+      const params = new URLSearchParams()
+      if (s.grailedCategoryPath) params.set('category_path', s.grailedCategoryPath)
+      if (s.grailedReturnAddressId) params.set('from_address_id', String(s.grailedReturnAddressId))
+      params.set('price', toGrailedCents(s.originalPayload?.listing?.price))
+      next.request.url = `${GRAILED_API_BASE}/api/shipping_configs?${params.toString()}`
+      break
+    }
+
+    case 'CREATE_GRAILED_DRAFT': {
+      const body = buildGrailedDraftBody(s)
+      body.title = truncateForPlatform(body.title, 'grailed', 'title')
+      body.description = truncateForPlatform(body.description, 'grailed', 'description')
+      next.request.body = body
+      break
+    }
+
+    case 'SUBMIT_GRAILED_DRAFT':
+      if (!s.grailedDraftId) {
+        throw new Error('Falta el id del borrador de Grailed')
+      }
+      next.request.url = `${GRAILED_API_BASE}/api/listing_drafts/${encodeURIComponent(s.grailedDraftId)}/submit`
+      next.request.body = {}
       break
 
 

@@ -8,6 +8,7 @@ import type { Publication } from "@/app/inventory/publications/types";
 import { formatPlatformName } from "@/libs/inventory/display";
 import {
   syncDepopAccount,
+  syncGrailedAccount,
   syncVestiaireAccount,
   syncVintedAccount,
   syncWallapopAccount,
@@ -66,12 +67,13 @@ const FALLBACK_PLATFORMS = [
   "wallapop",
   "vestiaire",
   "depop",
+  "grailed",
   "ebay",
   "shopify",
   "manual",
 ];
 
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed"]);
 
 export function toQueuePublication(pub: MarkSoldPublication, listing: Listing): Publication {
   return {
@@ -106,6 +108,7 @@ function runAccountSync(group: AccountGroup) {
     return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
   }
   if (group.platform === "depop") return syncDepopAccount(group.external_id ?? group.accountId);
+  if (group.platform === "grailed") return syncGrailedAccount(group.external_id ?? group.accountId);
   return Promise.resolve({ ok: false, message: "Plataforma no soportada" });
 }
 

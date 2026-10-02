@@ -8,7 +8,8 @@ import {
   searchVintedAccount,
   searchWallapopAccount,
   searchVestiaireAccount,
-  searchDepopAccount
+  searchDepopAccount,
+  searchGrailedAccount
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -153,6 +154,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
               />
               <PlatformOption
                 disabled={pending}
+                loading={pendingPlatform === "grailed"}
+                onClick={() => handleSelect("grailed")}
+                icon="/icons/grailed.svg"
+                label="Grailed"
+              />
+              <PlatformOption
+                disabled={pending}
                 onClick={() => handleSelect("shopify")}
                 icon="/icons/shopify.svg"
                 label="Shopify"
@@ -223,6 +231,9 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "depop") {
     return searchDepopAccount();
+  }
+  if (platform === "grailed") {
+    return searchGrailedAccount();
   }
 
   return {

@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed'
 
 export type StepType =
   // Vinted
@@ -93,6 +93,16 @@ export type StepType =
   | 'SEND_DEPOP_CHAT_REPLY'
   | 'GET_DEPOP_OFFER_PRODUCTS'
   | 'GET_DEPOP_PRODUCT_OFFERS'
+  // Grailed
+  | 'GET_GRAILED_USER_ID'
+  | 'GET_GRAILED_USER'
+  | 'GET_GRAILED_CATEGORIES'
+  | 'GET_GRAILED_DESIGNERS'
+  | 'GET_GRAILED_EXACT_SIZES'
+  | 'UPLOAD_GRAILED_PHOTO'
+  | 'GET_GRAILED_SHIPPING'
+  | 'CREATE_GRAILED_DRAFT'
+  | 'SUBMIT_GRAILED_DRAFT'
 
 
 
@@ -260,5 +270,21 @@ export interface WorkflowState {
   depopChatSendResult?: any
   depopOfferProducts?: any[]
   depopOffers?: any[]
+
+  // Grailed
+  grailedDesignerIds?: number[]
+  grailedCategoryPath?: string
+  grailedCategoryId?: string
+  grailedDepartment?: 'menswear' | 'womenswear'
+  grailedSize?: string | null
+  grailedExactSize?: string | null
+  grailedPhotos?: any[]
+  grailedReturnAddressId?: number | null
+  grailedShipping?: Record<string, any>
+  grailedDraftId?: string
+  grailedListingId?: string
+  grailedPublicationUrl?: string
+  grailedCondition?: string
+  grailedColor?: string | null
 
 }

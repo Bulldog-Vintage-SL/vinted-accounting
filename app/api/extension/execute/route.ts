@@ -56,6 +56,11 @@ import {
   buildFetchDepopChatMessagesSteps,
   buildSendDepopChatMessageSteps
 } from "@/lib/workflows/depop/depop-chat-steps"
+import {
+  buildSearchGrailedAccountSteps,
+  buildSyncGrailedAccountSteps,
+} from "@/lib/workflows/grailed/grailed-sync-steps";
+import { buildGrailedUploadSteps } from "@/lib/workflows/grailed/grailed-upload-steps";
 
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 import connectMongo from "@/libs/mongoose";
@@ -130,6 +135,13 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   FETCH_DEPOP_CHATS: () => buildFetchDepopChatsSteps(),
   FETCH_DEPOP_CHAT_MESSAGES: (p) => buildFetchDepopChatMessagesSteps(p.conversationId),
   SEND_DEPOP_CHAT_MESSAGE: (p) => buildSendDepopChatMessageSteps(p.recipientUserId, p.text),
+
+  SEARCH_GRAILED_ACCOUNT: () =>
+    buildSearchGrailedAccountSteps(),
+  SYNC_GRAILED_ACCOUNT: (p) =>
+    buildSyncGrailedAccountSteps(p.externalId),
+  UPLOAD_GRAILED_ITEM: (p) =>
+    buildGrailedUploadSteps(p.listing),
   
 };
 

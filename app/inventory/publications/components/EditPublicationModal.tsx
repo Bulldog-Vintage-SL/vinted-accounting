@@ -8,6 +8,7 @@ import {
     syncWallapopAccount,
     syncVestiaireAccount,
     syncDepopAccount,
+    syncGrailedAccount,
     getVintedItem,
     getWallapopItem,
     getDepopItem,
@@ -32,6 +33,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
     depop: "Depop",
+    grailed: "Grailed",
     ebay: "eBay",
 };
 
@@ -220,6 +222,7 @@ export function EditPublicationModal({
         if (platform === "vinted") return syncVintedAccount(accountExternalId);
         if (platform === "wallapop") return syncWallapopAccount(accountExternalId);
         if (platform === "depop") return syncDepopAccount(accountExternalId);
+        if (platform === "grailed") return syncGrailedAccount(accountExternalId);
         return syncVestiaireAccount(accountExternalId, accountVestiaireId);
     };
 
@@ -279,6 +282,15 @@ export function EditPublicationModal({
                     return;
                 }
                 resItem = await getDepopItem(slug);
+            } else if (platform === "grailed") {
+                setFields({
+                    title: publication.listing?.title ?? "",
+                    description: "",
+                    price: publication.price != null ? String(publication.price) : "",
+                });
+                setStep("edit");
+                setIsLoadingItem(false);
+                return;
             }
 
             if (resItem?.ok && resItem.item) {
@@ -449,6 +461,13 @@ export function EditPublicationModal({
                     description: fields.description.trim(),
                     price: priceNumber,
                 });
+            } else if (platform === "grailed") {
+                pushToast({
+                    type: "error",
+                    message: "La edición de publicaciones de Grailed todavía no está disponible",
+                });
+                setIsUpdating(false);
+                return;
             } else {
                 resUpdate = await updateVestiaireItem(accountExternalId, publication.external_id, publication.id, {
                     title: "",

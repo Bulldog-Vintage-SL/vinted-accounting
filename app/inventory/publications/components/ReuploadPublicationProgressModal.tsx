@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle } from "lucide-react"
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations/'
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast"
 import type { Job, JobStatus } from '@/lib/queue/types'
 import { Publication } from '../types'
@@ -14,10 +14,11 @@ const PLATFORM_NAMES: Record<string, string> = {
   vestiaire: "Vestiaire Collective",
   shopify: "Shopify",
   depop: "Depop",
+  grailed: "Grailed",
   ebay: "eBay",
 }
 
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"])
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed"])
 
 interface AccountGroup {
   key: string
@@ -132,6 +133,7 @@ function ReuploadPublicationProgressModal<T>({
     if (group.platform === "wallapop") return syncWallapopAccount(group.external_id ?? group.accountId)
     if (group.platform === "vestiaire") return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null)
     if (group.platform === "depop") return syncDepopAccount(group.external_id ?? group.accountId)
+    if (group.platform === "grailed") return syncGrailedAccount(group.external_id ?? group.accountId)
     return Promise.resolve({ ok: false, message: "Plataforma no soportada" })
   }
 

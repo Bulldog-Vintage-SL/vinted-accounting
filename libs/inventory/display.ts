@@ -16,6 +16,7 @@ export const PLATFORM_NAMES: Record<string, string> = {
   ebay: "eBay",
   shopify: "Shopify",
   depop: "Depop",
+  grailed: "Grailed",
   manual: "Manual",
 };
 
@@ -26,6 +27,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   ebay: "/icons/ebay.svg",
   shopify: "/icons/shopify.svg",
   depop: "/icons/depop.jpeg",
+  grailed: "/icons/grailed.svg",
 };
 
 export const PLATFORM_ORDER = [
@@ -33,6 +35,7 @@ export const PLATFORM_ORDER = [
   "wallapop",
   "vestiaire",
   "depop",
+  "grailed",
   "ebay",
   "shopify",
 ] as const;

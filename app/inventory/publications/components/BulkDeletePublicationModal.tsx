@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, Trash2, Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount } from '@/lib/external-integrations/';
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
 
@@ -20,10 +20,11 @@ const PLATFORM_NAMES: Record<string, string> = {
     wallapop: "Wallapop",
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
-    depop: "Depop"
+    depop: "Depop",
+    grailed: "Grailed",
 };
 
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop"]);
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed"]);
 
 interface AccountGroup {
     key: string;
@@ -120,6 +121,7 @@ export function BulkDeletePublicationModal({
         if (group.platform === "wallapop") return syncWallapopAccount(group.external_id ?? group.accountId);
         if (group.platform === "vestiaire") return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
         if (group.platform === "depop") return syncDepopAccount(group.external_id ?? group.accountId);
+        if (group.platform === "grailed") return syncGrailedAccount(group.external_id ?? group.accountId);
         return Promise.resolve({ ok: false, message: "Plataforma no soportada" });
     };
 

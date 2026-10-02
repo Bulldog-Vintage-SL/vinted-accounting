@@ -25,6 +25,13 @@ const FLOATING_ICONS = [
     delay: "0.8s",
   },
   {
+    src: "/icons/grailed.svg",
+    alt: "Grailed",
+    className: "top-[14%] left-[4%]",
+    animation: "animate-[hero-float-tilt_4s_ease-in-out_infinite]",
+    delay: "1.5s",
+  },
+  {
     src: "/icons/vestiaire.jpeg",
     alt: "Vestiaire Collective",
     className: "bottom-[10%] right-[6%]",
