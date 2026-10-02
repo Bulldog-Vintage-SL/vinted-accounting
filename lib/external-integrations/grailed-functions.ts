@@ -164,3 +164,76 @@ export async function syncGrailedAccount(externalId: string) {
     }
   }
 }
+
+export async function importGrailedWardrobe(accountId: string) {
+  try {
+    const resAcc = await fetch(`/api/accounts/${accountId}`)
+    const account = await resAcc.json()
+    const externalId = (account.external_id ?? account.externalId)?.toString()
+
+    if (!externalId) {
+      return { ok: false, message: 'La cuenta de Grailed no tiene id de usuario' }
+    }
+
+    const result = await runFlow('IMPORT_GRAILED_WARDROBE', {
+      externalId,
+      platform: 'grailed',
+    })
+
+    const items = result?.result?.state?.items
+    if (!items) {
+      return { ok: false, message: 'No se pudieron obtener los artículos de Grailed' }
+    }
+
+    const slimItems = items.map((item: any) => ({
+      id: item.id ?? item.listing_id,
+      title: item.title ?? item.name,
+      description: item.description ?? '',
+      price: item.price ?? item.price_i ?? item.sold_price,
+      size: item.size ?? item.pretty_size,
+      condition: item.condition,
+      designers: (item.designers ?? []).map((d: any) => ({
+        id: d.id,
+        name: d.name,
+      })),
+      photos: (item.photos ?? item.images ?? []).map((photo: any) => ({
+        url: photo?.url ?? photo?.image_url ?? photo,
+      })),
+      coverPhoto: item.cover_photo?.url ?? item.cover_photo ?? item.photo_url,
+      sold: Boolean(item.sold),
+      slug: item.pretty_path ?? item.path ?? item.slug,
+    }))
+
+    const BATCH_SIZE = 25
+    let lastData: any = null
+
+    for (let i = 0; i < slimItems.length; i += BATCH_SIZE) {
+      const batch = slimItems.slice(i, i + BATCH_SIZE)
+      const resApi = await fetch('/api/listings/import/grailed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId,
+          wardrobe: batch,
+          timestamp: Date.now(),
+        }),
+      })
+      const data = await resApi.json()
+      if (!resApi.ok || data.status !== 'success') {
+        return { ok: false, message: data.message || 'Error guardando artículos de Grailed' }
+      }
+      lastData = data
+    }
+
+    return {
+      ok: true,
+      message: lastData?.message ?? 'Armario importado correctamente',
+      data: lastData,
+    }
+  } catch (err: any) {
+    return {
+      ok: false,
+      message: err?.message || 'Error inesperado',
+    }
+  }
+}

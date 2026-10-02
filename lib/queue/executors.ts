@@ -9,7 +9,7 @@ import type { Listing } from '@/app/inventory/listings/types'
 import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
-  importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe,
+  importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
@@ -92,6 +92,11 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
     const res = await importDepopWardrobe(accountId)
     if (!res?.ok) throw new Error(`Depop import: ${res?.message || 'Error desconocido'}`)
     return { imported: true, platform: 'depop' }
+  }
+  else if (platform === 'grailed') {
+    const res = await importGrailedWardrobe(accountId)
+    if (!res?.ok) throw new Error(`Grailed import: ${res?.message || 'Error desconocido'}`)
+    return { imported: true, platform: 'grailed' }
   }
   else if (platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/import', {

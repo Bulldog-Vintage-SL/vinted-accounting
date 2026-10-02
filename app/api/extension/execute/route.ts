@@ -61,6 +61,7 @@ import {
   buildSyncGrailedAccountSteps,
 } from "@/lib/workflows/grailed/grailed-sync-steps";
 import { buildGrailedUploadSteps } from "@/lib/workflows/grailed/grailed-upload-steps";
+import { buildImportGrailedWardrobeSteps } from "@/lib/workflows/grailed/grailed-import-steps";
 
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 import connectMongo from "@/libs/mongoose";
@@ -142,6 +143,8 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildSyncGrailedAccountSteps(p.externalId),
   UPLOAD_GRAILED_ITEM: (p) =>
     buildGrailedUploadSteps(p.listing),
+  IMPORT_GRAILED_WARDROBE: (p) =>
+    buildImportGrailedWardrobeSteps(p.externalId),
   
 };
 

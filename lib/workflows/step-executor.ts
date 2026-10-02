@@ -51,6 +51,11 @@ import {
   resolveGrailedCategory,
   toGrailedCents,
 } from './grailed/grailed-mapper'
+import {
+  buildGrailedWardrobeUrl,
+  extractGrailedListings,
+  grailedWardrobeHasMore,
+} from './grailed/grailed-import-steps'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
 
@@ -846,6 +851,29 @@ export function processStepResult(
       s.grailedPublicationUrl = listing.url
       break
     }
+
+    case 'GET_GRAILED_WARDROBE': {
+      s.userId = s.userId ?? s.originalPayload?.externalId
+      const pageItems = extractGrailedListings(result)
+      const existingIds = new Set((s.items ?? []).map((item: any) => String(item.id ?? item.listing_id)))
+      const newItems = pageItems.filter((item: any) => {
+        const id = item?.id ?? item?.listing_id
+        return id != null && !existingIds.has(String(id))
+      })
+      s.items = [...(s.items ?? []), ...newItems]
+      const page = s.grailedWardrobePage ?? 1
+      s.grailedHasMore = grailedWardrobeHasMore(result, pageItems.length, page)
+      if (s.grailedHasMore && newItems.length > 0) {
+        s.grailedWardrobePage = page + 1
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_GRAILED_WARDROBE',
+          platform: 'grailed',
+          request: { url: '', method: 'GET' },
+        })
+      }
+      break
+    }
     case 'GET_DEPOP_CHATS': {
       const objs = result.objects ?? []
       const byId = new Map<string, any>()
@@ -1406,6 +1434,13 @@ export function processStepResult(
       }
       next.request.url = `${GRAILED_API_BASE}/api/listing_drafts/${encodeURIComponent(s.grailedDraftId)}/submit`
       next.request.body = {}
+      break
+
+    case 'GET_GRAILED_WARDROBE':
+      if (!next.request.url) {
+        const userId = String(s.userId ?? s.originalPayload?.externalId ?? '')
+        next.request.url = buildGrailedWardrobeUrl(userId, s.grailedWardrobePage ?? 1)
+      }
       break
 
 

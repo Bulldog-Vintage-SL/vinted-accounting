@@ -88,7 +88,7 @@ const docSections: DocSection[] = [
       "Listing = tu producto guardado en Reventa Libertad (como una ficha en un cuaderno).",
       "Publicación = ese mismo producto ya colgado en una tienda concreta (como una foto pegada en el escaparate de Vinted).",
       "Flujo típico: conectar cuenta → importar lo que ya tienes o crear producto → publicar → editar o borrar desde Publicaciones.",
-      "Algunas tiendas usan la extensión de Chrome (Vinted, Wallapop, Vestiaire, Depop). Otras usan login directo en la web (Shopify, eBay).",
+      "Algunas tiendas usan la extensión de Chrome (Vinted, Wallapop, Vestiaire, Depop, Grailed). Otras usan login directo en la web (Shopify, eBay).",
     ],
     subsections: [
       {
@@ -139,6 +139,16 @@ const docSections: DocSection[] = [
           "Conectar: extensión + sesión en depop.com.",
           "Importar: trae los productos de tu tienda Depop.",
           "Publicar y gestionar: mismo flujo que Vinted y Wallapop (listing → publicar → publicaciones).",
+        ],
+      },
+      {
+        id: "grailed-cross",
+        title: "Grailed",
+        points: [
+          "Conectar: Ajustes → Cuentas vinculadas → Añadir cuenta → Grailed, con www.grailed.com abierto e iniciada sesión.",
+          "Importar: Inventario → Añadir producto → Importar armario → eliges tu cuenta de Grailed.",
+          "Publicar: creas o editas un listing y pulsas Publicar. Eliges la cuenta de Grailed.",
+          "Hace falta la extensión 1.1.12 o superior. Si no enlaza la cuenta, recarga Grailed y la extensión.",
         ],
       },
       {

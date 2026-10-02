@@ -103,6 +103,7 @@ export type StepType =
   | 'GET_GRAILED_SHIPPING'
   | 'CREATE_GRAILED_DRAFT'
   | 'SUBMIT_GRAILED_DRAFT'
+  | 'GET_GRAILED_WARDROBE'
 
 
 
@@ -286,5 +287,7 @@ export interface WorkflowState {
   grailedPublicationUrl?: string
   grailedCondition?: string
   grailedColor?: string | null
+  grailedWardrobePage?: number
+  grailedHasMore?: boolean
 
 }
