@@ -27,7 +27,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   ebay: "/icons/ebay.svg",
   shopify: "/icons/shopify.svg",
   depop: "/icons/depop.jpeg",
-  grailed: "/icons/grailed.svg",
+  grailed: "/icons/grailed.png",
 };
 
 export const PLATFORM_ORDER = [

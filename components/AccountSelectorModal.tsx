@@ -19,7 +19,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   shopify: "/icons/shopify.svg",
   ebay: "/icons/ebay.svg",
   depop: "/icons/depop.jpeg",
-  grailed: "/icons/grailed.svg",
+  grailed: "/icons/grailed.png",
   unknown: "/icons/default.svg",
 };
 

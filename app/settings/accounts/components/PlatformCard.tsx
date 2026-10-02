@@ -82,7 +82,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     vestiaire: "/icons/vestiaire.jpeg",
     shopify: "/icons/shopify.svg",
     depop: "/icons/depop.jpeg",
-    grailed: "/icons/grailed.svg",
+    grailed: "/icons/grailed.png",
     ebay: "/icons/ebay.svg",
     unknown: "/icons/vinted.svg",
   };

@@ -25,7 +25,7 @@ const FLOATING_ICONS = [
     delay: "0.8s",
   },
   {
-    src: "/icons/grailed.svg",
+    src: "/icons/grailed.png",
     alt: "Grailed",
     className: "top-[14%] left-[4%]",
     animation: "animate-[hero-float-tilt_4s_ease-in-out_infinite]",

@@ -156,7 +156,7 @@ export default function AddAccountModal({ open, onClose }: Props) {
                 disabled={pending}
                 loading={pendingPlatform === "grailed"}
                 onClick={() => handleSelect("grailed")}
-                icon="/icons/grailed.svg"
+                icon="/icons/grailed.png"
                 label="Grailed"
               />
               <PlatformOption
