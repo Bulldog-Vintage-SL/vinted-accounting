@@ -15,6 +15,11 @@ import {
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
   reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
+import {
+  loadChatMessages, sendChatMessage, buildResponseContext,
+  type ReplyChatEntity, type ReplyChatResult,
+} from '@/lib/chats/chat-api'
+import { resolveListing, toPromptListing } from '@/lib/chats/listings'
 
 // Entidad para upload
 interface UploadEntity {
@@ -344,6 +349,46 @@ const deleteExecutor: Executor<Listing> = async (job) => {
   return { deleted: true }
 }
 
+const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
+  const { chat, options } = job.entity
+  if (chat.isOffer) throw new Error('Las ofertas no admiten respuesta por chat')
+
+  // Siempre se recarga el hilo: contexto fresco y evita responder dos veces
+  const loaded = await loadChatMessages(chat)
+  if (!loaded.ok) throw new Error(loaded.message || 'No se pudo cargar la conversación')
+  const messages = loaded.messages?.length ? loaded.messages : chat.messages
+  const listing = await resolveListing(loaded.listing ?? chat.listing)
+
+  const last = [...messages].reverse().find((m) => !m.systemEvent)
+  if (!last) throw new Error('Conversación sin mensajes')
+
+  if (last.isOwn && !options?.replyToOwn) {
+    return { skipped: true, reason: 'El último mensaje ya es tuyo', messages } satisfies ReplyChatResult
+  }
+
+  const res = await fetchWithTimeout('/api/response-suggestions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      platform: chat.platform,
+      contactName: chat.contactName,
+      listingTitle: listing?.title ?? chat.listingTitle,
+      listing: toPromptListing(listing),
+      messages: buildResponseContext(messages),
+      followUp: Boolean(last.isOwn),
+      instructions: options?.instructions,
+    }),
+  }, 60000)
+  const data = await res.json()
+  if (!res.ok || !data?.reply) throw new Error(`IA: ${data?.error || 'Sin respuesta'}`)
+
+  const sent = await sendChatMessage(chat, data.reply)
+  if (!sent.ok || !sent.sent) throw new Error(sent.message || 'No se pudo enviar el mensaje')
+
+  return { replied: true, reply: data.reply, sent: sent.sent, messages } satisfies ReplyChatResult
+}
+
+
 // Acciones masivas
 export const executors: Record<JobAction, Executor<any>> = {
   upload: uploadExecutor,
@@ -351,4 +396,5 @@ export const executors: Record<JobAction, Executor<any>> = {
   import: importExecutor,
   deletePublication: deletePublicationExecutor,
   reuploadPublication: reuploadPublicationExecutor,
+  replyChat: replyChatExecutor
 }

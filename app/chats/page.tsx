@@ -26,6 +26,12 @@ import {
   fetchWallapopChatMessages,
   sendWallapopChatMessage,
 } from "@/lib/external-integrations";
+import { useMemo } from "react";
+import { useQueue } from "@/hooks/useQueue"; // ajusta la ruta
+import { ReplyProgressModal } from "./components/ReplyProgressModal";
+import type { ReplyChatEntity, ReplyChatResult, ReplyChatOptions } from "@/lib/chats/chat-api";
+import { loadChatMessages } from '@/lib/chats/chat-api'
+
 
 // Antes "rl:vestiaire-chats" / "rl:chats": bump de versión para invalidar
 // cachés con nombres genéricos ("Usuario de Wallapop") o hilos vacíos del mapper viejo.
@@ -95,6 +101,9 @@ export default function ChatsPage() {
   const loadingChatIdRef = useRef<string | null>(null);
   const failedLoadIdsRef = useRef<Set<string>>(new Set());
 
+  // Selección múltiple en la lista (para "Responder con IA")
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
   // Modal previo al selector de cuentas: cuántos días hacia atrás importar
   const [daysModalOpen, setDaysModalOpen] = useState(false);
   const [daysInput, setDaysInput] = useState(String(DEFAULT_SYNC_DAYS));
@@ -116,10 +125,17 @@ export default function ChatsPage() {
 
   const selectedChat = chats.find((c) => c.id === selectedChatId) ?? null;
 
-  // El selector de cuentas solo nos da { accountId, platform }, así que para
-  // saber el external_id de la cuenta elegida (necesario para Depop, ver
-  // más abajo) hay que resolverlo aparte contra el mismo endpoint que usa
-  // AccountSelectorModal.
+  const toggleCheck = useCallback((chatId: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(chatId)) next.delete(chatId);
+      else next.add(chatId);
+      return next;
+    });
+  }, []);
+
+  const clearChecked = useCallback(() => setCheckedIds(new Set()), []);
+
   const resolveAccountExternalId = async (
     platform: Platform,
     accountId: string
@@ -211,6 +227,11 @@ export default function ChatsPage() {
 
       setChats(working);
       saveCachedChats(working);
+      // Evita IDs huérfanos en la selección múltiple tras sincronizar
+      setCheckedIds((prev) => {
+        const ids = new Set(working.map((c) => c.id));
+        return new Set([...prev].filter((id) => ids.has(id)));
+      });
       failedLoadIdsRef.current.clear();
       setSelectedChatId((current) =>
         current && working.some((chat) => chat.id === current)
@@ -258,15 +279,7 @@ export default function ChatsPage() {
       loadingChatIdRef.current = chat.id;
       if (!silent) setMessagesLoading(true);
       try {
-        const channel = chat.channelId || chat.id;
-        const res =
-          chat.platform === "vinted"
-            ? await fetchVintedChatMessages(channel)
-            : chat.platform === "depop"
-              ? await fetchDepopChatMessages(channel, chat.ownUserId)
-              : chat.platform === "wallapop"
-                ? await fetchWallapopChatMessages(channel)
-                : await fetchVestiaireChatMessages(channel);
+        const res = await loadChatMessages(chat);
         if (!res.ok) {
           failedLoadIdsRef.current.add(chat.id);
           if (!silent) toast.error(res.message);
@@ -288,6 +301,7 @@ export default function ChatsPage() {
                 lastMessageAt:
                   res.messages?.[res.messages.length - 1]?.createdAt ??
                   item.lastMessageAt,
+                listing: res.listing ?? item.listing,
               }
               : item
           );
@@ -410,6 +424,72 @@ export default function ChatsPage() {
     }
   };
 
+  const { enqueue, jobs, retryJob, onEvent } = useQueue<ReplyChatEntity>();
+  const [replyBatchIds, setReplyBatchIds] = useState<Set<string>>(new Set());
+  const [replyModalOpen, setReplyModalOpen] = useState(false);
+
+  const batchJobs = useMemo(
+    () => jobs.filter((j) => replyBatchIds.has(j.id)),
+    [jobs, replyBatchIds]
+  );
+
+  const replyTargets = useMemo(
+    () => chats.filter((c) => checkedIds.has(c.id) && !isOfferChat(c)),
+    [chats, checkedIds]
+  );
+
+  // Abre el modal en la fase de configuración (sin jobs todavía)
+  const handleReplyWithAI = () => {
+    if (replyTargets.length === 0) return;
+    setReplyBatchIds(new Set());
+    setReplyModalOpen(true);
+  };
+
+  const handleStartReply = (options: ReplyChatOptions) => {
+    const enqueued = enqueue(
+      "replyChat",
+      replyTargets.map((chat) => ({ chat, options })),
+      {},
+      ({ chat }) =>
+        chat.listingTitle ? `${chat.contactName} · ${chat.listingTitle}` : chat.contactName
+    );
+    setReplyBatchIds(new Set(enqueued.map((j) => j.id)));
+    clearChecked();
+  };
+  // reintenta solo los fallidos del lote, conservando el orden
+  const retryBatchFailed = () =>
+    [...batchJobs].reverse().filter((j) => j.status === "failed").forEach(retryJob);
+
+  // al enviarse cada respuesta, refresca el chat en la lista
+  useEffect(
+    () =>
+      onEvent((event) => {
+        if (event.type !== "job:success" || event.job.action !== "replyChat") return;
+        const { chat } = event.job.entity as ReplyChatEntity;
+        const { sent, messages } = (event.job.result ?? {}) as ReplyChatResult;
+        if (!messages) return;
+
+        setChats((prev) => {
+          const next = prev.map((item) => {
+            if (item.id !== chat.id) return item;
+            const thread = sent ? [...messages, sent] : messages;
+            const lastMsg = thread[thread.length - 1];
+            return {
+              ...item,
+              messages: thread,
+              messagesLoaded: true,
+              unreadCount: 0,
+              lastMessagePreview: lastMsg?.content ?? item.lastMessagePreview,
+              lastMessageAt: lastMsg?.createdAt ?? item.lastMessageAt,
+            };
+          });
+          saveCachedChats(next);
+          return next;
+        });
+      }),
+    [onEvent]
+  );
+
   return (
     <div className="h-[calc(100vh-4rem)] lg:h-screen flex overflow-hidden">
       <ChatList
@@ -426,6 +506,10 @@ export default function ChatsPage() {
         onSync={handleSync}
         syncing={syncingPlatform !== null}
         hideOnMobile={Boolean(selectedChatId)}
+        checkedIds={checkedIds}
+        onToggleCheck={toggleCheck}
+        onClearChecked={clearChecked}
+        onReplyWithAI={handleReplyWithAI}
       />
       <ChatWindow
         chat={selectedChat}
@@ -497,6 +581,14 @@ export default function ChatsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <ReplyProgressModal
+        open={replyModalOpen}
+        onOpenChange={setReplyModalOpen}
+        jobs={batchJobs}
+        onRetryFailed={retryBatchFailed}
+        targetCount={replyTargets.length}
+        onStart={handleStartReply}
+      />
     </div>
   );
 }

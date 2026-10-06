@@ -8,6 +8,7 @@ const DEFAULT_ACTION_DELAYS: Partial<Record<JobAction, number>> = {
   delete: 0,
   import: 500,
   deletePublication: 2500,
+  replyChat: 300
 }
 
 type ActionDelayMap = Partial<Record<JobAction, number>>
@@ -136,6 +137,8 @@ export class Queue<T = unknown> {
   resume() { this._paused = false; this.tick() }
 
   retryJobs(jobs: Job<JobAction, T>[]) {
+    const ids = new Set(jobs.map(j => j.id))
+    this.completed = this.completed.filter(c => !ids.has(c.id))
     const reset: Job<JobAction, T>[] = jobs.map(j => ({
       ...j,
       status: 'pending' as JobStatus,
@@ -164,7 +167,7 @@ export class Queue<T = unknown> {
     this.emit({ type: 'queue:updated' } as any)
     this.tick()
   }
-  
+
   ackJob(listingId: string) {
     const ack = this.pendingAcks.get(listingId)
     if (ack) {
@@ -188,6 +191,7 @@ export class Queue<T = unknown> {
 
   private getPlatform(job: Job<JobAction, T>): string | null {
     const entity = job.entity as any
+    if (job.action === 'replyChat') return entity?.chat?.platform || null
     if (job.action === 'upload') return entity?.account?.platform || entity?.platform || null
     if (job.action === 'deletePublication' || job.action === 'import') return entity?.platform || null
     return null
