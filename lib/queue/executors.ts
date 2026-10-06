@@ -15,13 +15,11 @@ import {
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
   reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
-
 import {
   loadChatMessages, sendChatMessage, buildResponseContext,
   type ReplyChatEntity, type ReplyChatResult,
 } from '@/lib/chats/chat-api'
-
-
+import { resolveListing, toPromptListing } from '@/lib/chats/listings'
 
 // Entidad para upload
 interface UploadEntity {
@@ -346,6 +344,7 @@ const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
   const loaded = await loadChatMessages(chat)
   if (!loaded.ok) throw new Error(loaded.message || 'No se pudo cargar la conversación')
   const messages = loaded.messages?.length ? loaded.messages : chat.messages
+  const listing = await resolveListing(loaded.listing ?? chat.listing)
 
   const last = [...messages].reverse().find((m) => !m.systemEvent)
   if (!last) throw new Error('Conversación sin mensajes')
@@ -360,7 +359,8 @@ const replyChatExecutor: Executor<ReplyChatEntity> = async (job) => {
     body: JSON.stringify({
       platform: chat.platform,
       contactName: chat.contactName,
-      listingTitle: chat.listingTitle,
+      listingTitle: listing?.title ?? chat.listingTitle,
+      listing: toPromptListing(listing),
       messages: buildResponseContext(messages),
       followUp: Boolean(last.isOwn),
       instructions: options?.instructions,

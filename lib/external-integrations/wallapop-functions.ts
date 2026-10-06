@@ -4,7 +4,7 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
-import type { Chat, ChatMessage } from '@/app/chats/types'
+import type { Chat, ChatMessage, ChatMessagesResult, ListingContext } from '@/app/chats/types'
 import {
   isWallapopPublishOk,
   mapWallapopInbox,
@@ -530,12 +530,9 @@ export async function fetchWallapopChats(opts?: { sinceTs?: number }): Promise<{
   }
 }
 
-export async function fetchWallapopChatMessages(conversationHash: string): Promise<{
-  ok: boolean
-  message: string
-  messages?: ChatMessage[]
-  ownUserHash?: string
-}> {
+export async function fetchWallapopChatMessages(
+  conversationHash: string
+): Promise<ChatMessagesResult & { ownUserHash?: string }> {
   try {
     const result = await runFlow('FETCH_WALLA_CHAT_MESSAGES', {
       platform: 'wallapop',
@@ -555,12 +552,27 @@ export async function fetchWallapopChatMessages(conversationHash: string): Promi
       message: 'Mensajes cargados',
       messages: mapWallapopMessages(raw, ownUserHash),
       ownUserHash,
+      listing: mapWallapopListing(raw),
     }
   } catch (err: any) {
     return {
       ok: false,
       message: extractErrorMessage(err, 'Error inesperado al cargar el chat'),
     }
+  }
+}
+
+export function mapWallapopListing(conv: any): ListingContext | undefined {
+  const item = conv?.item ?? conv?.conversation?.item
+  if (!item?.hash) return undefined
+  const price = item.price?.amount != null ? Number(item.price.amount) : NaN
+  return {
+    platform: 'wallapop',
+    externalId: String(item.hash),
+    title: item.title || undefined,
+    price: Number.isFinite(price) ? price : undefined,
+    currency: item.price?.currency,
+    userSide: typeof item.is_mine === 'boolean' ? (item.is_mine ? 'seller' : 'buyer') : undefined,
   }
 }
 

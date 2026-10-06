@@ -28,9 +28,35 @@ export interface ChatMessage {
   systemEvent?: SystemEventInfo; // presente para status_message / action_message
 }
 
+export type ChatPlatform = "vinted" | "wallapop" | "depop" | "vestiaire" | "shopify";
+
+// Prenda vinculada a una conversación. Cada plataforma rellena lo que pueda:
+// el mapper de mensajes da la referencia (id, título, precio) y el
+// enriquecedor (lib/chats/listing.ts) completa descripción y precio actual.
+export interface ListingContext {
+  platform: ChatPlatform;
+  externalId?: string;        // id de la prenda en la plataforma
+  externalIds?: string[];     // solo si es un lote
+  isBundle?: boolean;
+  title?: string;
+  description?: string;
+  price?: number | null;
+  currency?: string;
+  url?: string;
+  userSide?: "seller" | "buyer";
+}
+
+// Resultado común de todos los fetchers de mensajes
+export interface ChatMessagesResult {
+  ok: boolean;
+  message: string;
+  messages?: ChatMessage[];
+  listing?: ListingContext;
+}
+
 export interface Chat {
   id: string;
-  platform: "vinted" | "wallapop" | "depop" | "vestiaire" | "shopify";
+  platform: ChatPlatform;
   contactName: string;
   contactAvatarUrl?: string;
   listingTitle?: string;
@@ -47,4 +73,5 @@ export interface Chat {
   isOffer?: boolean;
   recipientUserId?: string | number;
   ownUserId?: string | number;
+  listing?: ListingContext;   // referencia de la prenda (sin enriquecer)
 }

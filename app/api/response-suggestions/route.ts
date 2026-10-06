@@ -53,6 +53,9 @@ const ReplySchema = z.object({
 const MAX_THREAD_MESSAGES = 20;
 // Máximo de caracteres de las indicaciones extra del vendedor
 const MAX_INSTRUCTIONS_LENGTH = 500;
+// Límites del contexto de la prenda
+const MAX_LISTING_TITLE_LENGTH = 200;
+const MAX_LISTING_DESCRIPTION_LENGTH = 500;
 
 const FOLLOW_UP_INSTRUCTIONS =
   "IMPORTANTE: el último mensaje de la conversación es TUYO y el comprador todavía no ha contestado. " +
@@ -71,6 +74,7 @@ type ContextMessage = {
 
 const isOwnMessage = (m: ContextMessage) =>
   m.isOwn === true ||
+  m.role === "own" || // lo que manda buildResponseContext
   m.role === "assistant" ||
   m.role === "seller" ||
   m.sender === "me" ||
@@ -90,10 +94,56 @@ function buildThreadContext(messages: unknown): string {
     .join("\n");
 }
 
+// Datos de la prenda vinculada al chat (los rellena cada plataforma; todo opcional)
+type PromptListing = {
+  title?: string;
+  description?: string;
+  price?: number;
+  currency?: string;
+  isBundle?: boolean;
+};
+
+// Valida y recorta lo que llega del cliente: nunca se fía del body tal cual
+function parseListing(raw: unknown): PromptListing | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+
+  const str = (v: unknown, max: number) =>
+    typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+
+  const listing: PromptListing = {
+    title: str(r.title, MAX_LISTING_TITLE_LENGTH),
+    description: str(r.description, MAX_LISTING_DESCRIPTION_LENGTH),
+    price: typeof r.price === "number" && Number.isFinite(r.price) ? r.price : undefined,
+    currency: str(r.currency, 5),
+    isBundle: r.isBundle === true,
+  };
+
+  return listing.title || listing.description || listing.price !== undefined
+    ? listing
+    : undefined;
+}
+
+function formatListing(l: PromptListing | undefined, fallbackTitle?: string): string {
+  const title = l?.title ?? fallbackTitle;
+  const lines: string[] = [];
+
+  if (title) lines.push(`Producto: ${title}${l?.isBundle ? " (lote de varias prendas)" : ""}`);
+  else lines.push("Producto: no indicado");
+
+  if (l?.price !== undefined) {
+    lines.push(`Precio publicado actual: ${l.price} ${l.currency === "EUR" || !l.currency ? "€" : l.currency}`);
+  }
+  if (l?.description) lines.push(`Descripción publicada: ${l.description}`);
+
+  return lines.join("\n");
+}
+
 async function generateReply(input: {
   platform?: string;
   contactName?: string;
   listingTitle?: string;
+  listing?: PromptListing;
   threadContext: string;
   followUp?: boolean;
   instructions?: string;
@@ -109,7 +159,8 @@ async function generateReply(input: {
             "de compradores en marketplaces (Vinted, Depop, Wallapop, Vestiaire Collective). " +
             "Responde SIEMPRE al último mensaje del comprador, de forma natural, cercana y breve (1-3 frases). " +
             "Responde en el mismo idioma en el que escribe el comprador. " +
-            "No inventes datos que no aparezcan en la conversación (medidas, estado, envíos, descuentos, plazos). " +
+            "Puedes apoyarte en los datos del producto (título, precio y descripción publicados) y en la conversación, " +
+            "pero no inventes nada que no aparezca en ellos (medidas, estado, envíos, descuentos, plazos). " +
             "Si te piden algo que no puedes confirmar con la información disponible, di que lo compruebas y respondes enseguida. " +
             "No aceptes ni propongas rebajas de precio por tu cuenta ni saques la conversación fuera de la plataforma " +
             "(nada de WhatsApp, Bizum, PayPal externo, etc.). " +
@@ -128,7 +179,7 @@ async function generateReply(input: {
           content:
             `Plataforma: ${input.platform ?? "desconocida"}\n` +
             `Comprador: ${input.contactName ?? "desconocido"}\n` +
-            `Producto: ${input.listingTitle ?? "no indicado"}\n\n` +
+            `${formatListing(input.listing, input.listingTitle)}\n\n` +
             `Conversación (de más antiguo a más reciente):\n${input.threadContext}\n\n` +
             (input.followUp
               ? "Redacta el mensaje de seguimiento del vendedor."
@@ -151,6 +202,7 @@ export async function POST(req: Request) {
     const platform = typeof body.platform === "string" ? body.platform : undefined;
     const contactName = typeof body.contactName === "string" ? body.contactName : undefined;
     const listingTitle = typeof body.listingTitle === "string" ? body.listingTitle : undefined;
+    const listing = parseListing(body.listing);
     const followUp = body.followUp === true;
     const instructions =
       typeof body.instructions === "string" && body.instructions.trim()
@@ -166,6 +218,7 @@ export async function POST(req: Request) {
       platform,
       contactName,
       listingTitle,
+      listing,
       threadContext,
       followUp,
       instructions,

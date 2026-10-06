@@ -30,6 +30,7 @@ import { useMemo } from "react";
 import { useQueue } from "@/hooks/useQueue"; // ajusta la ruta
 import { ReplyProgressModal } from "./components/ReplyProgressModal";
 import type { ReplyChatEntity, ReplyChatResult, ReplyChatOptions } from "@/lib/chats/chat-api";
+import { loadChatMessages } from '@/lib/chats/chat-api'
 
 
 // Antes "rl:vestiaire-chats" / "rl:chats": bump de versión para invalidar
@@ -278,15 +279,7 @@ export default function ChatsPage() {
       loadingChatIdRef.current = chat.id;
       if (!silent) setMessagesLoading(true);
       try {
-        const channel = chat.channelId || chat.id;
-        const res =
-          chat.platform === "vinted"
-            ? await fetchVintedChatMessages(channel)
-            : chat.platform === "depop"
-              ? await fetchDepopChatMessages(channel, chat.ownUserId)
-              : chat.platform === "wallapop"
-                ? await fetchWallapopChatMessages(channel)
-                : await fetchVestiaireChatMessages(channel);
+        const res = await loadChatMessages(chat);
         if (!res.ok) {
           failedLoadIdsRef.current.add(chat.id);
           if (!silent) toast.error(res.message);
@@ -308,6 +301,7 @@ export default function ChatsPage() {
                 lastMessageAt:
                   res.messages?.[res.messages.length - 1]?.createdAt ??
                   item.lastMessageAt,
+                listing: res.listing ?? item.listing,
               }
               : item
           );

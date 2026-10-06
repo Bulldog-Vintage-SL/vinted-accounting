@@ -4,8 +4,7 @@ import { uploadPhoto } from '@/utils/uploadPhoto'
 import { transformListingImages } from '../images/processListingImages'
 import type { Listing } from '@/app/inventory/listings/types'
 import type { UploadResult } from '@/lib/external-integrations/validators'
-import type { Chat } from '@/app/chats/types'
-import type { ChatMessage } from '@/app/chats/types'
+import type { Chat, ChatMessage, ChatMessagesResult, ListingContext } from '@/app/chats/types'
 import type { OfferInfo, OfferStatusKind, SystemEventInfo, SystemEventStyle } from '@/app/chats/types';
 import { sleep } from '../utils'
 
@@ -501,11 +500,7 @@ export async function fetchVintedChats(opts?: { sinceTs?: number }): Promise<{
 }
 
 
-export async function fetchVintedChatMessages(conversationId: string): Promise<{
-  ok: boolean
-  message: string
-  messages?: ChatMessage[]
-}> {
+export async function fetchVintedChatMessages(conversationId: string): Promise<ChatMessagesResult> {
   try {
     const result = await runFlow('FETCH_VINTED_CHAT_MESSAGES', {
       platform: 'vinted',
@@ -515,9 +510,36 @@ export async function fetchVintedChatMessages(conversationId: string): Promise<{
     if (!raw) {
       return { ok: false, message: extractErrorMessage(result, 'No se pudieron cargar los mensajes') }
     }
-    return { ok: true, message: 'Mensajes cargados', messages: mapVintedMessages(raw) }
+    return {
+      ok: true,
+      message: 'Mensajes cargados',
+      messages: mapVintedMessages(raw),
+      listing: mapVintedListing(raw),
+    }
   } catch (err: any) {
     return { ok: false, message: extractErrorMessage(err, 'Error inesperado al cargar el chat') }
+  }
+}
+
+// Referencia de la prenda a partir de la conversación (sin peticiones extra)
+export function mapVintedListing(conv: any): ListingContext | undefined {
+  const t = conv?.transaction
+  if (!t?.item_id) return undefined
+  const ids = (t.item_ids ?? [t.item_id]).map(String)
+  const price = Number(t.offer_price?.amount)
+  return {
+    platform: 'vinted',
+    externalId: String(t.item_id),
+    externalIds: ids.length > 1 ? ids : undefined,
+    isBundle: Boolean(t.is_bundle) || ids.length > 1,
+    title: t.item_title || undefined,
+    url: t.item_url || undefined,
+    price: Number.isFinite(price) ? price : undefined,
+    currency: t.offer_price?.currency_code,
+    userSide:
+      t.current_user_side === 'seller' || t.current_user_side === 'buyer'
+        ? t.current_user_side
+        : undefined,
   }
 }
 

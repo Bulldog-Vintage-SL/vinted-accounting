@@ -4,7 +4,7 @@
   Ajusta el import de tipos a la ruta real de tu carpeta de chats.
 */
 
-import type { Chat } from '@/app/chats/types'
+import type { Chat, ChatMessagesResult } from '@/app/chats/types'
 import {
   fetchVestiaireChatMessages,
   sendVestiaireChatMessage,
@@ -37,7 +37,7 @@ export type ReplyChatEntity = {
   options?: ReplyChatOptions;
 };
 
-export function loadChatMessages(chat: Chat) {
+export function loadChatMessages(chat: Chat): Promise<ChatMessagesResult> {
   const channel = chat.channelId || chat.id
   switch (chat.platform) {
     case 'vinted':
