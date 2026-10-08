@@ -23,6 +23,7 @@ export type StepType =
   | 'GET_CHAT'
   | 'MARK_CHAT_READ'
   | 'SEND_CHAT_REPLY'
+  | 'SEARCH_VINTED_CATALOG'
   // Compartido
   | 'GET_USER_ME'
   | 'GET_USER_ID'
@@ -44,6 +45,7 @@ export type StepType =
   | 'GET_WALLA_CHAT'
   | 'GET_WALLA_CHAT_TOKEN'
   | 'SEND_WALLA_CHAT_MESSAGE'
+  | 'SEARCH_WALLA_CATALOG'
   // Vestiaire Collective
   | 'GET_VEST_USER_ID'
   | 'GET_VEST_BRANDS'
@@ -162,6 +164,7 @@ export interface WorkflowState {
   items?: any[]
   listingLifecycleId?: string
   persistentId?: string
+  searchPage?: any
 
   // Vinted
   photoIds: number[]
