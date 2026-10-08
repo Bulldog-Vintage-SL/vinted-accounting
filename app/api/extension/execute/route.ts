@@ -62,6 +62,8 @@ import {
 } from "@/lib/workflows/grailed/grailed-sync-steps";
 import { buildGrailedUploadSteps } from "@/lib/workflows/grailed/grailed-upload-steps";
 import { buildImportGrailedWardrobeSteps } from "@/lib/workflows/grailed/grailed-import-steps";
+import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
+import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
 
 import { getUserFromRequest } from "@/libs/accounts/get-user";
 import connectMongo from "@/libs/mongoose";
@@ -145,7 +147,9 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildGrailedUploadSteps(p.listing),
   IMPORT_GRAILED_WARDROBE: (p) =>
     buildImportGrailedWardrobeSteps(p.externalId),
-  
+
+  SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
+  SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),
 };
 
 // Claves que nunca deben acabar en el log de errores, aunque vengan

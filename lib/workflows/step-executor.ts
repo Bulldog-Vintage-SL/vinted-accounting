@@ -55,6 +55,10 @@ import {
   extractGrailedListings,
   grailedWardrobeHasMore,
 } from './grailed/grailed-import-steps'
+import {
+  normalizeVintedSearchResult,
+  normalizeWallapopSearchResult,
+} from './search/normalize'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
 
@@ -193,6 +197,27 @@ export function processStepResult(
     case 'GET_VINT_ITEM':
       s.vintedItem = result.item
       break
+
+    case 'SEARCH_VINTED_CATALOG': {
+      const payload = s.originalPayload ?? {}
+      s.searchPage = normalizeVintedSearchResult(
+        result,
+        Number(payload.page) || 1,
+        Number(payload.perPage) || 24
+      )
+      break
+    }
+
+    case 'SEARCH_WALLA_CATALOG': {
+      const payload = s.originalPayload ?? {}
+      s.searchPage = normalizeWallapopSearchResult(
+        result,
+        Number(payload.page) || 1,
+        Number(payload.perPage) || 24,
+        payload.searchId ?? null
+      )
+      break
+    }
 
     case 'GET_CHATS': {
       const pag = result.pagination ?? {}
