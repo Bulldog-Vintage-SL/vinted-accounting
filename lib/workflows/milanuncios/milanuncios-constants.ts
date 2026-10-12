@@ -3,9 +3,6 @@ export const MILANUNCIOS_CLASSIFIEDS = 'https://classifieds.gw.milanuncios.com'
 export const MILANUNCIOS_USERPROFILES = 'https://userprofiles.gw.milanuncios.com'
 export const MILANUNCIOS_IMAGES = 'https://images.milanuncios.com'
 
-export const MILANUNCIOS_FORM_VERSION = 14
-export const MILANUNCIOS_FORM_EXPERIMENT = 'sizes'
-
 /** Fallback leaf categories under Moda y complementos */
 export const MILANUNCIOS_FALLBACK_CATEGORY = {
   hombre: '528', // Otra ropa de hombre

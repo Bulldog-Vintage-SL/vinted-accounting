@@ -2,6 +2,7 @@ import connectMongo from "@/libs/mongoose";
 import Account from "@/models/Account";
 import { getAuthenticatedUserId } from "@/libs/accounts/get-user";
 import mongoose from "mongoose";
+import { normalizeMilanunciosUserId } from "@/lib/workflows/milanuncios/milanuncios-mapper";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,10 @@ export async function POST(req: Request) {
   }
 
   const accountData = await req.json();
-  if (!accountData?.externalId) {
+  const externalId =
+    normalizeMilanunciosUserId(accountData?.externalId) ||
+    (accountData?.externalId != null ? String(accountData.externalId) : null);
+  if (!externalId) {
     return Response.json(
       { status: "error", message: "No se ha encontrado una cuenta activa" },
       { status: 400 }
@@ -24,8 +28,15 @@ export async function POST(req: Request) {
 
   try {
     await connectMongo();
+    // Limpia cuentas previas guardadas con el id Segment (sdrn:...).
+    await Account.deleteMany({
+      userId,
+      platform: "milanuncios",
+      externalId: { $regex: /^sdrn:/i },
+    });
+
     const existing = await Account.findOne({
-      externalId: String(accountData.externalId),
+      externalId,
       platform: "milanuncios",
       userId,
     });
@@ -44,11 +55,11 @@ export async function POST(req: Request) {
 
     await Account.create({
       userId: new mongoose.Types.ObjectId(userId),
-      externalId: String(accountData.externalId),
+      externalId,
       platform: "milanuncios",
       syncStatus: "OK",
       lastSync: new Date(),
-      profileLink: accountData.profileLink ?? null,
+      profileLink: accountData.profileLink ?? `https://www.milanuncios.com/usuario/${externalId}`,
       accountName: accountData.accountName ?? null,
     });
 

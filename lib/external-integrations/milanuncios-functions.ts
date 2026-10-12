@@ -1,6 +1,7 @@
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
 import { runFlow, extractErrorMessage } from './extensionBridge'
 import type { UploadResult } from '@/lib/external-integrations/validators'
+import { normalizeMilanunciosUserId } from '@/lib/workflows/milanuncios/milanuncios-mapper'
 
 export async function uploadMilanunciosItem(listing: any, accountId: string): Promise<UploadResult> {
   try {
@@ -67,13 +68,16 @@ export async function searchMilanunciosAccount() {
       }
     }
 
-    const { userId, accountName, profileLink } = result.result.state
+    const userId = normalizeMilanunciosUserId(result.result.state.userId)
     if (!userId) {
       return {
         ok: false,
         message: 'No hay sesión de Milanuncios. Abre www.milanuncios.com e inicia sesión.',
       }
     }
+
+    const accountName = result.result.state.accountName
+    const profileLink = `https://www.milanuncios.com/usuario/${userId}`
 
     const res = await fetch('/api/accounts/milanuncios', {
       method: 'POST',

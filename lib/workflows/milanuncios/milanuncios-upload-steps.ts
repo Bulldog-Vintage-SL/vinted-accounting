@@ -2,8 +2,6 @@ import type { WorkflowStep } from '../types'
 import { PLATFORM_PHOTO_LIMITS } from '@/app/inventory/listings/types'
 import {
   MILANUNCIOS_CLASSIFIEDS,
-  MILANUNCIOS_FORM_EXPERIMENT,
-  MILANUNCIOS_FORM_VERSION,
   MILANUNCIOS_USERPROFILES,
 } from './milanuncios-constants'
 
@@ -41,10 +39,11 @@ export function buildMilanunciosUploadSteps(listing: any): WorkflowStep[] {
     },
   })
 
+  // Orden SPA: location → POST draft {userId,categoryId} → profile → PUT draft
   steps.push({
     id: crypto.randomUUID(),
     platform: 'milanuncios',
-    type: 'GET_MA_FORM_SCHEMA',
+    type: 'GET_MA_LOCATION',
     request: {
       url: 'DYNAMIC',
       method: 'GET',
@@ -72,16 +71,7 @@ export function buildMilanunciosUploadSteps(listing: any): WorkflowStep[] {
     },
   })
 
-  steps.push({
-    id: crypto.randomUUID(),
-    platform: 'milanuncios',
-    type: 'UPDATE_MA_DRAFT',
-    request: {
-      url: `${MILANUNCIOS_CLASSIFIEDS}/api/v2/classifieds/draft`,
-      method: 'PUT',
-      body: {},
-    },
-  })
+  // El anuncio completo va en POST /classifieds (no en PUT /draft).
 
   const photos: string[] =
     listing.photoSelection?.milanuncios?.length
@@ -130,14 +120,6 @@ export function buildMilanunciosUploadSteps(listing: any): WorkflowStep[] {
   return steps
 }
 
-export function buildMilanunciosFormSchemaUrl(categoryId: string): string {
-  const params = new URLSearchParams({
-    formVersion: String(MILANUNCIOS_FORM_VERSION),
-    experimentKey: MILANUNCIOS_FORM_EXPERIMENT,
-  })
-  return `${MILANUNCIOS_CLASSIFIEDS}/v2/form/pta/${encodeURIComponent(categoryId)}?${params}`
-}
-
 export function buildMilanunciosPtaFormUrl(categoryId: string): string {
   return `${MILANUNCIOS_CLASSIFIEDS}/v1/pta-form/${encodeURIComponent(categoryId)}?fields=form_id`
 }
@@ -149,6 +131,10 @@ export function buildMilanunciosMediaDraftUrl(userId: string, adId: string): str
 
 export function buildMilanunciosPublicProfileUrl(userId: string): string {
   return `${MILANUNCIOS_USERPROFILES}/v1/users/${encodeURIComponent(userId)}/profiles/public`
+}
+
+export function buildMilanunciosCurrentLocationUrl(userId: string): string {
+  return `${MILANUNCIOS_CLASSIFIEDS}/api/v1/users/${encodeURIComponent(userId)}/locations/current`
 }
 
 export function buildMilanunciosPublicationRequirementsUrl(adId: string): string {

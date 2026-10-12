@@ -399,16 +399,32 @@ export async function POST(req: Request) {
 }
 
 function enrichStep(step: any, payload: any) {
-  if (step.type !== "UPLOAD_PHOTO") return step;
+  if (step.type === "UPLOAD_PHOTO") {
+    return {
+      ...step,
+      request: {
+        ...step.request,
+        photoUrl:
+          payload.listing?.photo_url?.[step.request.photoIndex ?? 0],
+      },
+    }
+  }
 
-  return {
-    ...step,
-    request: {
-      ...step.request,
-      photoUrl:
-        payload.listing?.photo_url?.[
-        step.request.photoIndex ?? 0
-        ],
-    },
-  };
+  if (step.type === "UPLOAD_MA_PHOTO") {
+    const index = step.request.photoIndex ?? 0
+    const selected = payload.listing?.photoSelection?.milanuncios
+    const photoUrl =
+      step.request.photoUrl ||
+      (Array.isArray(selected) ? selected[index] : undefined) ||
+      payload.listing?.photo_url?.[index]
+    return {
+      ...step,
+      request: {
+        ...step.request,
+        photoUrl,
+      },
+    }
+  }
+
+  return step
 }

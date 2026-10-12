@@ -56,7 +56,7 @@ import {
   grailedWardrobeHasMore,
 } from './grailed/grailed-import-steps'
 import {
-  buildMilanunciosDraftBody,
+  buildMilanunciosCreateDraftBody,
   buildMilanunciosPublishBody,
   pickMilanunciosDraftId,
   pickMilanunciosLocationFromProfile,
@@ -65,7 +65,7 @@ import {
   resolveMilanunciosCategory,
 } from './milanuncios/milanuncios-mapper'
 import {
-  buildMilanunciosFormSchemaUrl,
+  buildMilanunciosCurrentLocationUrl,
   buildMilanunciosMediaDraftUrl,
   buildMilanunciosPtaFormUrl,
   buildMilanunciosPublicProfileUrl,
@@ -899,14 +899,26 @@ export function processStepResult(
     }
 
     case 'GET_MA_USER': {
-      const userId = pickMilanunciosUserId(result) || result.userId
+      const userId = pickMilanunciosUserId(result)
       s.userId = userId || s.userId
       s.maUserId = userId || s.maUserId
       s.accountName = result.accountName ?? result.username ?? result.name ?? s.accountName
-      s.profileLink = result.profileLink ?? s.profileLink
+      s.profileLink = userId
+        ? `https://www.milanuncios.com/usuario/${userId}`
+        : (result.profileLink ?? s.profileLink)
       s.email = result.email ?? s.email
+      if (!userId) {
+        throw new Error(
+          'No se pudo obtener el userId numérico de Milanuncios. Recarga www.milanuncios.com con sesión iniciada.'
+        )
+      }
       break
     }
+
+    case 'GET_MA_FORM_SCHEMA':
+      // El schema a veces responde 400; seguimos con form_id + draft body genérico.
+      s.maFormSchema = result && !result?.__skipped ? result : s.maFormSchema
+      break
 
     case 'GET_MA_CATEGORIES': {
       const resolved = resolveMilanunciosCategory(Array.isArray(result) ? result : result?.categories || [], {
@@ -924,10 +936,6 @@ export function processStepResult(
       s.maFormId = result?.form_id ?? result?.formId ?? s.maFormId
       break
 
-    case 'GET_MA_FORM_SCHEMA':
-      s.maFormSchema = result
-      break
-
     case 'CREATE_MA_DRAFT':
     case 'UPDATE_MA_DRAFT': {
       const draftId = pickMilanunciosDraftId(result)
@@ -935,9 +943,20 @@ export function processStepResult(
       break
     }
 
-    case 'GET_MA_PUBLIC_PROFILE':
-      s.maLocation = pickMilanunciosLocationFromProfile(result) || s.maLocation
+    case 'GET_MA_LOCATION': {
+      // Preferir /locations/current (trae localityId/provinceId del publish SPA).
+      const loc = pickMilanunciosLocationFromProfile(result)
+      if (loc) s.maLocation = loc
       break
+    }
+
+    case 'GET_MA_PUBLIC_PROFILE': {
+      // Solo rellenar location si aún no tenemos la de /locations/current.
+      if (!s.maLocation) {
+        s.maLocation = pickMilanunciosLocationFromProfile(result) || null
+      }
+      break
+    }
 
     case 'UPLOAD_MA_PHOTO':
       s.maPhotos = [...(s.maPhotos ?? []), result]
@@ -1577,10 +1596,21 @@ export function processStepResult(
     }
 
     case 'GET_MA_FORM_SCHEMA': {
+      // Legacy: /v2/form/pta suele 400. Reutilizamos pta-form (form_id) para no abortar.
       if (!s.maCategoryId) {
         throw new Error('Falta la categoría de Milanuncios')
       }
-      next.request.url = buildMilanunciosFormSchemaUrl(s.maCategoryId)
+      next.request.url = buildMilanunciosPtaFormUrl(s.maCategoryId)
+      next.request.method = 'GET'
+      break
+    }
+
+    case 'GET_MA_LOCATION': {
+      const userId = String(s.maUserId || s.userId || '')
+      if (!userId) {
+        throw new Error('No hay userId de Milanuncios')
+      }
+      next.request.url = buildMilanunciosCurrentLocationUrl(userId)
       break
     }
 
@@ -1589,10 +1619,13 @@ export function processStepResult(
         throw new Error('No hay sesión de Milanuncios. Abre www.milanuncios.com e inicia sesión.')
       }
       s.maUserId = s.maUserId || s.userId
-      const body = buildMilanunciosDraftBody(s)
-      body.title = truncateForPlatform(body.title, 'milanuncios', 'title')
-      body.description = truncateForPlatform(body.description, 'milanuncios', 'description')
-      next.request.body = body
+      // SPA: POST { userId, categoryId } → { id }
+      next.request.body = buildMilanunciosCreateDraftBody(s)
+      next.request.headers = {
+        ...(next.request.headers || {}),
+        'Content-Type': 'application/json;charset=UTF-8',
+        Accept: 'application/json',
+      }
       break
     }
 
@@ -1606,14 +1639,11 @@ export function processStepResult(
     }
 
     case 'UPDATE_MA_DRAFT': {
+      // Legacy: el contenido real se publica en POST /classifieds.
       if (!s.maDraftId) {
         throw new Error('Falta el id del borrador de Milanuncios')
       }
-      const body = buildMilanunciosDraftBody(s)
-      body.id = s.maDraftId
-      body.title = truncateForPlatform(body.title, 'milanuncios', 'title')
-      body.description = truncateForPlatform(body.description, 'milanuncios', 'description')
-      next.request.body = body
+      next.request.body = buildMilanunciosCreateDraftBody(s)
       break
     }
 
@@ -1631,7 +1661,19 @@ export function processStepResult(
       if (!s.maDraftId) {
         throw new Error('Falta el borrador de Milanuncios para publicar')
       }
-      next.request.body = buildMilanunciosPublishBody(s)
+      if (!s.maUserId && !s.userId) {
+        throw new Error('No hay sesión de Milanuncios')
+      }
+      s.maUserId = s.maUserId || s.userId
+      const body = buildMilanunciosPublishBody(s)
+      body.title = truncateForPlatform(body.title, 'milanuncios', 'title')
+      body.description = truncateForPlatform(body.description, 'milanuncios', 'description')
+      next.request.body = body
+      next.request.headers = {
+        ...(next.request.headers || {}),
+        'Content-Type': 'application/json;charset=UTF-8',
+        Accept: 'application/json',
+      }
       break
     }
 
