@@ -62,6 +62,11 @@ import {
 } from "@/lib/workflows/grailed/grailed-sync-steps";
 import { buildGrailedUploadSteps } from "@/lib/workflows/grailed/grailed-upload-steps";
 import { buildImportGrailedWardrobeSteps } from "@/lib/workflows/grailed/grailed-import-steps";
+import {
+  buildSearchMilanunciosAccountSteps,
+  buildSyncMilanunciosAccountSteps,
+} from "@/lib/workflows/milanuncios/milanuncios-sync-steps";
+import { buildMilanunciosUploadSteps } from "@/lib/workflows/milanuncios/milanuncios-upload-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
 
@@ -147,6 +152,13 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildGrailedUploadSteps(p.listing),
   IMPORT_GRAILED_WARDROBE: (p) =>
     buildImportGrailedWardrobeSteps(p.externalId),
+
+  SEARCH_MILANUNCIOS_ACCOUNT: () =>
+    buildSearchMilanunciosAccountSteps(),
+  SYNC_MILANUNCIOS_ACCOUNT: (p) =>
+    buildSyncMilanunciosAccountSteps(p.externalId),
+  UPLOAD_MILANUNCIOS_ITEM: (p) =>
+    buildMilanunciosUploadSteps(p.listing),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),

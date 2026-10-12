@@ -9,7 +9,8 @@ import {
   searchWallapopAccount,
   searchVestiaireAccount,
   searchDepopAccount,
-  searchGrailedAccount
+  searchGrailedAccount,
+  searchMilanunciosAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -161,6 +162,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
               />
               <PlatformOption
                 disabled={pending}
+                loading={pendingPlatform === "milanuncios"}
+                onClick={() => handleSelect("milanuncios")}
+                icon="/icons/milanuncios.png"
+                label="Milanuncios"
+              />
+              <PlatformOption
+                disabled={pending}
                 onClick={() => handleSelect("shopify")}
                 icon="/icons/shopify.svg"
                 label="Shopify"
@@ -234,6 +242,9 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "grailed") {
     return searchGrailedAccount();
+  }
+  if (platform === "milanuncios") {
+    return searchMilanunciosAccount();
   }
 
   return {

@@ -13,6 +13,7 @@ import {
   syncVestiaireAccount,
   syncDepopAccount,
   syncGrailedAccount,
+  syncMilanunciosAccount,
   syncEbayAccount,
 } from '@/lib/external-integrations';
 import { hasEbaySellAccountScope } from "@/libs/ebay/client";
@@ -39,6 +40,7 @@ export default function AccountCard({ account }: Props) {
       syncVestiaireAccount(externalId, account.vestiaire_id ?? null),
     depop: syncDepopAccount,
     grailed: syncGrailedAccount,
+    milanuncios: syncMilanunciosAccount,
     ebay: () => syncEbayAccount(account.id),
   };
 
@@ -48,6 +50,7 @@ export default function AccountCard({ account }: Props) {
     vestiaire: "Vestiaire Collective",
     depop: "Depop",
     grailed: "Grailed",
+    milanuncios: "Milanuncios",
     shopify: "Shopify",
     ebay: "eBay",
   };

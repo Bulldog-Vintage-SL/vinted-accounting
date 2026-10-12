@@ -10,7 +10,7 @@ import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
-  uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadEbayItem,
+  uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
   reuploadShopifyItem, reuploadEbayItem
@@ -189,6 +189,14 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
       throw new Error(`Grailed: ${res.message}`)
     }
     return { published: true, platform: 'grailed' }
+  }
+  else if (account.platform === 'milanuncios') {
+    const res = await uploadMilanunciosItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Milanuncios: ${res.message}`)
+    }
+    return { published: true, platform: 'milanuncios' }
   }
   else if (account.platform === 'ebay') {
     const res = await uploadEbayItem(listing, account.accountId)

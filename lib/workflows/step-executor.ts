@@ -56,6 +56,22 @@ import {
   grailedWardrobeHasMore,
 } from './grailed/grailed-import-steps'
 import {
+  buildMilanunciosDraftBody,
+  buildMilanunciosPublishBody,
+  pickMilanunciosDraftId,
+  pickMilanunciosLocationFromProfile,
+  pickMilanunciosPublicationUrl,
+  pickMilanunciosUserId,
+  resolveMilanunciosCategory,
+} from './milanuncios/milanuncios-mapper'
+import {
+  buildMilanunciosFormSchemaUrl,
+  buildMilanunciosMediaDraftUrl,
+  buildMilanunciosPtaFormUrl,
+  buildMilanunciosPublicProfileUrl,
+  buildMilanunciosPublicationRequirementsUrl,
+} from './milanuncios/milanuncios-upload-steps'
+import {
   normalizeVintedSearchResult,
   normalizeWallapopSearchResult,
 } from './search/normalize'
@@ -75,6 +91,7 @@ const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = 
   vestiaire: { title: 100, description: 3000 },
   depop: { title: 1000, description: 1000 },
   grailed: { title: 80, description: 2000 },
+  milanuncios: { title: 70, description: 4000 },
 }
 
 /**
@@ -881,6 +898,62 @@ export function processStepResult(
       break
     }
 
+    case 'GET_MA_USER': {
+      const userId = pickMilanunciosUserId(result) || result.userId
+      s.userId = userId || s.userId
+      s.maUserId = userId || s.maUserId
+      s.accountName = result.accountName ?? result.username ?? result.name ?? s.accountName
+      s.profileLink = result.profileLink ?? s.profileLink
+      s.email = result.email ?? s.email
+      break
+    }
+
+    case 'GET_MA_CATEGORIES': {
+      const resolved = resolveMilanunciosCategory(Array.isArray(result) ? result : result?.categories || [], {
+        gender: s.originalPayload?.listing?.gender,
+        itemType: s.originalPayload?.listing?.item_type,
+        title: s.originalPayload?.listing?.title,
+        preferredCategoryId: s.originalPayload?.listing?.attributes?.milanunciosCategoryId,
+      })
+      s.maCategoryId = resolved.id
+      s.maCategoryPath = resolved.path
+      break
+    }
+
+    case 'GET_MA_PTA_FORM':
+      s.maFormId = result?.form_id ?? result?.formId ?? s.maFormId
+      break
+
+    case 'GET_MA_FORM_SCHEMA':
+      s.maFormSchema = result
+      break
+
+    case 'CREATE_MA_DRAFT':
+    case 'UPDATE_MA_DRAFT': {
+      const draftId = pickMilanunciosDraftId(result)
+      if (draftId) s.maDraftId = draftId
+      break
+    }
+
+    case 'GET_MA_PUBLIC_PROFILE':
+      s.maLocation = pickMilanunciosLocationFromProfile(result) || s.maLocation
+      break
+
+    case 'UPLOAD_MA_PHOTO':
+      s.maPhotos = [...(s.maPhotos ?? []), result]
+      break
+
+    case 'PUBLISH_MA_CLASSIFIED': {
+      const listingId = pickMilanunciosDraftId(result) || s.maDraftId
+      s.maListingId = listingId || s.maListingId
+      s.maPublicationUrl = pickMilanunciosPublicationUrl(result, listingId)
+      break
+    }
+
+    case 'GET_MA_PUBLICATION_REQUIREMENTS':
+      // Informativo; la publicación ya se creo en PUBLISH_MA_CLASSIFIED
+      break
+
     case 'GET_GRAILED_WARDROBE': {
       s.userId = s.userId ?? s.originalPayload?.externalId
       const pageItems = extractGrailedListings(result)
@@ -1494,6 +1567,82 @@ export function processStepResult(
         next.request.url = buildGrailedWardrobeUrl(userId, s.grailedWardrobePage ?? 1)
       }
       break
+
+    case 'GET_MA_PTA_FORM': {
+      if (!s.maCategoryId) {
+        throw new Error('Falta la categoría de Milanuncios')
+      }
+      next.request.url = buildMilanunciosPtaFormUrl(s.maCategoryId)
+      break
+    }
+
+    case 'GET_MA_FORM_SCHEMA': {
+      if (!s.maCategoryId) {
+        throw new Error('Falta la categoría de Milanuncios')
+      }
+      next.request.url = buildMilanunciosFormSchemaUrl(s.maCategoryId)
+      break
+    }
+
+    case 'CREATE_MA_DRAFT': {
+      if (!s.maUserId && !s.userId) {
+        throw new Error('No hay sesión de Milanuncios. Abre www.milanuncios.com e inicia sesión.')
+      }
+      s.maUserId = s.maUserId || s.userId
+      const body = buildMilanunciosDraftBody(s)
+      body.title = truncateForPlatform(body.title, 'milanuncios', 'title')
+      body.description = truncateForPlatform(body.description, 'milanuncios', 'description')
+      next.request.body = body
+      break
+    }
+
+    case 'GET_MA_PUBLIC_PROFILE': {
+      const userId = String(s.maUserId || s.userId || '')
+      if (!userId) {
+        throw new Error('No hay userId de Milanuncios')
+      }
+      next.request.url = buildMilanunciosPublicProfileUrl(userId)
+      break
+    }
+
+    case 'UPDATE_MA_DRAFT': {
+      if (!s.maDraftId) {
+        throw new Error('Falta el id del borrador de Milanuncios')
+      }
+      const body = buildMilanunciosDraftBody(s)
+      body.id = s.maDraftId
+      body.title = truncateForPlatform(body.title, 'milanuncios', 'title')
+      body.description = truncateForPlatform(body.description, 'milanuncios', 'description')
+      next.request.body = body
+      break
+    }
+
+    case 'UPLOAD_MA_PHOTO': {
+      const userId = String(s.maUserId || s.userId || '')
+      const adId = String(s.maDraftId || '')
+      if (!userId || !adId) {
+        throw new Error('Faltan userId/adId para subir fotos a Milanuncios')
+      }
+      next.request.url = buildMilanunciosMediaDraftUrl(userId, adId)
+      break
+    }
+
+    case 'PUBLISH_MA_CLASSIFIED': {
+      if (!s.maDraftId) {
+        throw new Error('Falta el borrador de Milanuncios para publicar')
+      }
+      next.request.body = buildMilanunciosPublishBody(s)
+      break
+    }
+
+    case 'GET_MA_PUBLICATION_REQUIREMENTS': {
+      const adId = String(s.maListingId || s.maDraftId || '')
+      if (!adId) {
+        throw new Error('Falta el id del anuncio de Milanuncios')
+      }
+      next.request.url = buildMilanunciosPublicationRequirementsUrl(adId)
+      break
+    }
 
 
   }

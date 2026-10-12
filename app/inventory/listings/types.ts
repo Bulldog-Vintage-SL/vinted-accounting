@@ -2,7 +2,7 @@
   Tipos de producto (BD y Formulario de creacion).
 */
 
-export type PlatformKey = "vinted" | "wallapop" | "vestiaire" | "depop" | "grailed" | "shopify" | "ebay";
+export type PlatformKey = "vinted" | "wallapop" | "vestiaire" | "depop" | "grailed" | "milanuncios" | "shopify" | "ebay";
 
 export const PLATFORM_PHOTO_LIMITS: Record<PlatformKey, number> = {
   vinted: 20,
@@ -10,6 +10,7 @@ export const PLATFORM_PHOTO_LIMITS: Record<PlatformKey, number> = {
   vestiaire: 24,
   depop: 8,
   grailed: 8,
+  milanuncios: 10,
   shopify: 250,
   ebay: 24
 };
@@ -20,6 +21,7 @@ export const PLATFORM_LABELS: Record<PlatformKey, string> = {
   vestiaire: "Vestiaire",
   depop: "Depop",
   grailed: "Grailed",
+  milanuncios: "Milanuncios",
   shopify: "Shopify",
   ebay: "ebay"
 };

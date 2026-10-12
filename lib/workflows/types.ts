@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios'
 
 export type StepType =
   // Vinted
@@ -106,6 +106,17 @@ export type StepType =
   | 'CREATE_GRAILED_DRAFT'
   | 'SUBMIT_GRAILED_DRAFT'
   | 'GET_GRAILED_WARDROBE'
+  // Milanuncios
+  | 'GET_MA_USER'
+  | 'GET_MA_CATEGORIES'
+  | 'GET_MA_PTA_FORM'
+  | 'GET_MA_FORM_SCHEMA'
+  | 'CREATE_MA_DRAFT'
+  | 'GET_MA_PUBLIC_PROFILE'
+  | 'UPDATE_MA_DRAFT'
+  | 'UPLOAD_MA_PHOTO'
+  | 'PUBLISH_MA_CLASSIFIED'
+  | 'GET_MA_PUBLICATION_REQUIREMENTS'
 
 
 
@@ -293,4 +304,15 @@ export interface WorkflowState {
   grailedWardrobePage?: number
   grailedHasMore?: boolean
 
+  // Milanuncios
+  maUserId?: string
+  maCategoryId?: string
+  maCategoryPath?: string
+  maFormId?: string
+  maFormSchema?: any
+  maDraftId?: string
+  maListingId?: string
+  maPublicationUrl?: string
+  maLocation?: Record<string, any> | null
+  maPhotos?: any[]
 }

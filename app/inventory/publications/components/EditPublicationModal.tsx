@@ -9,6 +9,7 @@ import {
     syncVestiaireAccount,
     syncDepopAccount,
     syncGrailedAccount,
+    syncMilanunciosAccount,
     getVintedItem,
     getWallapopItem,
     getDepopItem,
@@ -34,6 +35,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     shopify: "Shopify",
     depop: "Depop",
     grailed: "Grailed",
+    milanuncios: "Milanuncios",
     ebay: "eBay",
 };
 
@@ -223,6 +225,7 @@ export function EditPublicationModal({
         if (platform === "wallapop") return syncWallapopAccount(accountExternalId);
         if (platform === "depop") return syncDepopAccount(accountExternalId);
         if (platform === "grailed") return syncGrailedAccount(accountExternalId);
+        if (platform === "milanuncios") return syncMilanunciosAccount(accountExternalId);
         return syncVestiaireAccount(accountExternalId, accountVestiaireId);
     };
 

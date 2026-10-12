@@ -83,6 +83,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     shopify: "/icons/shopify.svg",
     depop: "/icons/depop.jpeg",
     grailed: "/icons/grailed.png",
+    milanuncios: "/icons/milanuncios.png",
     ebay: "/icons/ebay.svg",
     unknown: "/icons/vinted.svg",
   };
