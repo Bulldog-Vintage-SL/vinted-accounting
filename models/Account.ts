@@ -28,6 +28,11 @@ export interface IAccount {
   ebayFulfillmentPolicyId?: string | null;
   ebayPaymentPolicyId?: string | null;
   ebayReturnPolicyId?: string | null;
+  etsyUserId?: number | null;
+  etsyAccessToken?: string | null;
+  etsyRefreshToken?: string | null;
+  etsyTokenExpiresAt?: Date | null;
+  etsyScopes?: string | null;
   lastSync?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
@@ -71,6 +76,11 @@ const accountSchema = new mongoose.Schema(
     ebayFulfillmentPolicyId: { type: String, default: null },
     ebayPaymentPolicyId: { type: String, default: null },
     ebayReturnPolicyId: { type: String, default: null },
+    etsyUserId: { type: Number, default: null },
+    etsyAccessToken: { type: String, default: null, private: true },
+    etsyRefreshToken: { type: String, default: null, private: true },
+    etsyTokenExpiresAt: { type: Date, default: null },
+    etsyScopes: { type: String, default: null },
     lastSync: { type: Date, default: null },
   },
   {

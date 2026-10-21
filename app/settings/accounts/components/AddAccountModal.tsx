@@ -38,6 +38,11 @@ export default function AddAccountModal({ open, onClose }: Props) {
       return;
     }
 
+    if (platform === "etsy") {
+      window.location.href = "/api/etsy/connect";
+      return;
+    }
+
     start(async () => {
       setPendingPlatform(platform);
       try {
@@ -178,6 +183,12 @@ export default function AddAccountModal({ open, onClose }: Props) {
                 onClick={() => handleSelect("ebay")}
                 icon="/icons/ebay.svg"
                 label="eBay"
+              />
+              <PlatformOption
+                disabled={pending}
+                onClick={() => handleSelect("etsy")}
+                icon="/icons/etsy.svg"
+                label="Etsy"
               />
             </div>
 
