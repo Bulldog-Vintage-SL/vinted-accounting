@@ -72,6 +72,16 @@ import {
   buildMilanunciosPublicationRequirementsUrl,
 } from './milanuncios/milanuncios-upload-steps'
 import {
+  buildFacebookCreateListingVariables,
+  extractFacebookComposerContext,
+  extractFacebookInventoryPage,
+  extractFacebookRecommendedCategoryId,
+  pickFacebookListing,
+  pickFacebookUserId,
+  resolveFacebookCategoryId,
+} from './facebook/facebook-helpers'
+import { buildFacebookInventoryPaginationStep } from './facebook/facebook-import-steps'
+import {
   normalizeVintedSearchResult,
   normalizeWallapopSearchResult,
 } from './search/normalize'
@@ -92,6 +102,7 @@ const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = 
   depop: { title: 1000, description: 1000 },
   grailed: { title: 80, description: 2000 },
   milanuncios: { title: 70, description: 4000 },
+  facebook: { title: 150, description: 5000 },
 }
 
 /**
@@ -192,6 +203,85 @@ export function processStepResult(
     case 'CHECK_ACCOUNT':
       s.syncStatus = result.matches ? 'OK' : 'ACCOUNT_NOT_FOUND'
       break
+
+    case 'GET_FB_USER': {
+      const userId = pickFacebookUserId(result)
+      if (!userId) {
+        throw new Error('No hay sesión de Facebook. Abre www.facebook.com e inicia sesión.')
+      }
+      const expectedUserId = s.originalPayload?.externalId
+      if (expectedUserId && String(expectedUserId) !== userId) {
+        throw new Error('La sesión de Facebook abierta no coincide con la cuenta seleccionada.')
+      }
+      s.userId = userId
+      s.fbUserId = userId
+      s.accountName = result.accountName ?? s.accountName
+      s.profileLink = result.profileLink ?? `https://www.facebook.com/profile.php?id=${userId}`
+      break
+    }
+
+    case 'GET_FB_COMPOSER_CONTEXT': {
+      const context = extractFacebookComposerContext(result)
+      s.fbMarketplaceId = context.marketplaceId
+      s.fbCurrency = context.currency
+      s.fbSellLocation = context.location
+      break
+    }
+
+    case 'GET_FB_CATEGORY_PREDICTION': {
+      s.fbRecommendedCategoryId = extractFacebookRecommendedCategoryId(result) ?? undefined
+      if (!s.fbRecommendedCategoryId) {
+        const listing = s.originalPayload?.listing
+        try {
+          s.fbRecommendedCategoryId = resolveFacebookCategoryId(listing)
+        } catch {
+          throw new Error(
+            'Facebook no recomendó una categoría legible y no hay categoría configurada como alternativa.'
+          )
+        }
+      }
+      break
+    }
+
+    case 'GET_FB_INVENTORY': {
+      const page = extractFacebookInventoryPage(result)
+      const itemsById = new Map<string, any>(
+        (s.items ?? []).map((item: any) => [String(item.id), item] as [string, any])
+      )
+      for (const item of page.items) itemsById.set(String(item.id), item)
+      s.items = Array.from(itemsById.values())
+      s.fbInventoryCursor = page.endCursor
+      s.fbInventoryHasMore = page.hasNextPage
+
+      if (page.hasNextPage) {
+        if (!page.endCursor) {
+          throw new Error('Facebook devolvió más publicaciones sin un cursor de paginación.')
+        }
+        const sellerId = String(s.originalPayload?.externalId ?? '')
+        if (!sellerId) throw new Error('Falta el id de vendedor de Facebook para paginar.')
+        steps.splice(
+          currentStep + 1,
+          0,
+          buildFacebookInventoryPaginationStep(sellerId, page.endCursor)
+        )
+      }
+      break
+    }
+
+    case 'UPLOAD_FB_PHOTO':
+      if (!result?.photoId) throw new Error('Facebook no devolvió el id de la foto')
+      s.fbPhotoIds = [...(s.fbPhotoIds ?? []), result.photoId]
+      break
+
+    case 'CREATE_FB_LISTING': {
+      const listing = pickFacebookListing(result)
+      if (!listing.id) {
+        throw new Error('Facebook no devolvió el id del anuncio (revisa pickFacebookListing)')
+      }
+      s.fbListingId = listing.id
+      s.fbPublicationUrl = listing.url
+      break
+    }
 
     case 'GET_WARDROBE': {
       s.items = [...(s.items ?? []), ...(result.items ?? [])]
@@ -1157,6 +1247,35 @@ export function processStepResult(
   const next = JSON.parse(JSON.stringify(steps[nextIndex])) as WorkflowStep
 
   switch (next.type) {
+    case 'UPLOAD_FB_PHOTO':
+      if (!s.fbMarketplaceId) {
+        throw new Error('Facebook no devolvió el marketplace_id antes de subir las fotos.')
+      }
+      next.request.body = {
+        ...(next.request.body ?? {}),
+        targetId: s.fbMarketplaceId,
+      }
+      break
+
+    case 'GET_FB_CATEGORY_PREDICTION': {
+      const photoId = s.fbPhotoIds?.[0]
+      if (!s.fbUserId || !photoId) {
+        throw new Error('Facebook necesita la primera foto subida para recomendar una categoría.')
+      }
+      next.request.graphql = {
+        ...next.request.graphql,
+        variables: {
+          input: {
+            actor_id: s.fbUserId,
+            client_mutation_id: String(Date.now()),
+            photo_id: photoId,
+            text: '',
+          },
+        },
+      }
+      break
+    }
+
     // Vinted
     case 'GET_WARDROBE':
       if (!next.request.url) {
@@ -1683,6 +1802,31 @@ export function processStepResult(
         throw new Error('Falta el id del anuncio de Milanuncios')
       }
       next.request.url = buildMilanunciosPublicationRequirementsUrl(adId)
+      break
+    }
+
+    case 'CREATE_FB_LISTING': {
+      if (!s.fbPhotoIds?.length) throw new Error('Facebook: no hay fotos subidas')
+      if (!s.fbMarketplaceId) throw new Error('Facebook: falta el marketplace_id del composer')
+      if (!s.fbRecommendedCategoryId) {
+        throw new Error('Facebook: falta la categoría recomendada o configurada para el anuncio.')
+      }
+      const listing = s.originalPayload?.listing
+      if (!next.request.graphql?.docId) {
+        throw new Error('Falta FB_DOC_ID_CREATE_LISTING. Captura el doc_id actual de Facebook.')
+      }
+      const variables = buildFacebookCreateListingVariables({
+        ...s,
+        originalPayload: {
+          ...s.originalPayload,
+          listing: {
+            ...listing,
+            title: truncateForPlatform(listing.title, 'facebook', 'title'),
+            description: truncateForPlatform(listing.description, 'facebook', 'description'),
+          },
+        },
+      })
+      next.request.graphql = { ...next.request.graphql, variables }
       break
     }
 

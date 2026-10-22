@@ -14,7 +14,7 @@ export class MissingFieldsError extends Error {
   }
 }
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'ebay' | 'shopify'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'ebay' | 'shopify'
 
 export const VESTIAIRE_MIN_PRICE = 16
 
@@ -50,6 +50,11 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
   condition: (listing) =>
     !listing?.condition?.trim() ? { key: 'condition', label: 'condición' } : null,
 
+  facebook_photo: (listing) =>
+    !(listing?.photoSelection?.facebook?.length || listing?.photo_url?.length || listing?.photoUrl?.length)
+      ? { key: 'photo_url', label: 'foto' }
+      : null,
+
   size: (listing) =>
     !listing?.attributes?.size?.trim() ? { key: 'attributes.size', label: 'talla' } : null,
 
@@ -79,6 +84,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   depop: ['description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type', 'gender'],
   grailed: ['title', 'description', 'price', 'colors', 'photo_url', 'brand', 'condition', 'size', 'item_type'],
   milanuncios: ['title', 'description', 'price', 'photo_url', 'condition', 'item_type'],
+  facebook: ['title', 'description', 'price', 'facebook_photo', 'condition'],
   ebay: ['title', 'description', 'price', 'photo_url'],
   shopify: ['title', 'description', 'price', 'photo_url'],
 }

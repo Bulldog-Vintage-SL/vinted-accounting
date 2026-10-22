@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useEffect, useState } from "react";
 import type { SyncStatus } from "@/app/settings/accounts/types";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount } from '@/lib/external-integrations'
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount, syncFacebookAccount } from '@/lib/external-integrations'
 import { useToast } from "@/components/toast"
 
 const PLATFORM_LOGOS: Record<string, string> = {
@@ -21,6 +21,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   depop: "/icons/depop.jpeg",
   grailed: "/icons/grailed.png",
   milanuncios: "/icons/milanuncios.png",
+  facebook: "/icons/facebook.svg",
   unknown: "/icons/default.svg",
 };
 
@@ -32,10 +33,11 @@ const PLATFORM_NAMES: Record<string, string> = {
   depop: "Depop",
   grailed: "Grailed",
   milanuncios: "Milanuncios",
+  facebook: "Facebook Marketplace",
   ebay: "eBay",
 };
 
-const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios", "shopify", "ebay"];
+const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios", "facebook", "shopify", "ebay"];
 
 // Plataformas cuyas cuentas no requieren sincronización manual (auth server-side vía OAuth/API)
 const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
@@ -62,6 +64,7 @@ export default function AccountSelectorModal() {
     depop: (acc) => syncDepopAccount(acc.external_id),
     grailed: (acc) => syncGrailedAccount(acc.external_id),
     milanuncios: (acc) => syncMilanunciosAccount(acc.external_id),
+    facebook: (acc) => syncFacebookAccount(acc.external_id),
   };
   // Nombre legible para errores
   const platformName = (platform: string) => PLATFORM_NAMES[platform] || platform;

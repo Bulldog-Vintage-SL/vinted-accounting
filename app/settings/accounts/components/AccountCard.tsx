@@ -14,6 +14,7 @@ import {
   syncDepopAccount,
   syncGrailedAccount,
   syncMilanunciosAccount,
+  syncFacebookAccount,
   syncEbayAccount,
 } from '@/lib/external-integrations';
 import { hasEbaySellAccountScope } from "@/libs/ebay/client";
@@ -41,6 +42,7 @@ export default function AccountCard({ account }: Props) {
     depop: syncDepopAccount,
     grailed: syncGrailedAccount,
     milanuncios: syncMilanunciosAccount,
+    facebook: syncFacebookAccount,
     ebay: () => syncEbayAccount(account.id),
   };
 
@@ -51,6 +53,7 @@ export default function AccountCard({ account }: Props) {
     depop: "Depop",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
+    facebook: "Facebook Marketplace",
     shopify: "Shopify",
     ebay: "eBay",
   };

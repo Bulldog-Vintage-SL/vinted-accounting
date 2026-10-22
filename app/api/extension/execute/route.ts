@@ -67,6 +67,12 @@ import {
   buildSyncMilanunciosAccountSteps,
 } from "@/lib/workflows/milanuncios/milanuncios-sync-steps";
 import { buildMilanunciosUploadSteps } from "@/lib/workflows/milanuncios/milanuncios-upload-steps";
+import {
+  buildFacebookUploadSteps,
+  buildSearchFacebookAccountSteps,
+  buildSyncFacebookAccountSteps,
+} from "@/lib/workflows/facebook/facebook-upload-steps";
+import { buildImportFacebookInventorySteps } from "@/lib/workflows/facebook/facebook-import-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
 
@@ -159,6 +165,11 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     buildSyncMilanunciosAccountSteps(p.externalId),
   UPLOAD_MILANUNCIOS_ITEM: (p) =>
     buildMilanunciosUploadSteps(p.listing),
+
+  SEARCH_FACEBOOK_ACCOUNT: () => buildSearchFacebookAccountSteps(),
+  SYNC_FACEBOOK_ACCOUNT: (p) => buildSyncFacebookAccountSteps(p.externalId),
+  IMPORT_FACEBOOK_WARDROBE: (p) => buildImportFacebookInventorySteps(p.externalId),
+  UPLOAD_FACEBOOK_ITEM: (p) => buildFacebookUploadSteps(p.listing, p.externalId),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),

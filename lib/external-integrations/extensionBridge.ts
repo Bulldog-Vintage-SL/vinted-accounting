@@ -101,3 +101,33 @@ export async function runFlow(flow: string, payload: any = {}): Promise<any> {
     }
   })
 }
+
+export async function fetchFacebookImageAsBase64(url: string): Promise<{ base64: string; mime: string }> {
+  const availability = await checkExtensionAvailability()
+  if (availability.available === false) {
+    const { title, description } = getExtensionStatusMessage(availability.reason)
+    throw new Error(`${title}. ${description}`)
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage(
+        EXTENSION_ID,
+        { type: "FETCH_FACEBOOK_IMAGE_AS_BASE64", url },
+        (response: any) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message))
+            return
+          }
+          if (!response?.ok || !response.image) {
+            reject(new Error(response?.error || "No se pudo descargar la imagen de Facebook"))
+            return
+          }
+          resolve(response.image)
+        }
+      )
+    } catch (error) {
+      reject(error)
+    }
+  })
+}

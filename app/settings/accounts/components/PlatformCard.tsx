@@ -10,14 +10,25 @@ interface Props {
 
 export default function PlatformCard({ platform, accounts }: Props) {
   const status = computePlatformStatus(accounts);
+  const platformNames: Record<string, string> = {
+    vinted: "Vinted",
+    wallapop: "Wallapop",
+    vestiaire: "Vestiaire Collective",
+    shopify: "Shopify",
+    depop: "Depop",
+    grailed: "Grailed",
+    milanuncios: "Milanuncios",
+    facebook: "Facebook Marketplace",
+    ebay: "eBay",
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <PlatformIcon platform={platform} />
-          <h2 className="text-lg font-semibold capitalize text-gray-900">
-            {platform}
+          <h2 className="text-lg font-semibold text-gray-900">
+            {platformNames[platform] ?? `${platform.charAt(0).toUpperCase()}${platform.slice(1)}`}
           </h2>
         </div>
 
@@ -84,6 +95,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     depop: "/icons/depop.jpeg",
     grailed: "/icons/grailed.png",
     milanuncios: "/icons/milanuncios.png",
+    facebook: "/icons/facebook.svg",
     ebay: "/icons/ebay.svg",
     unknown: "/icons/vinted.svg",
   };

@@ -1,5 +1,6 @@
 const PUBLICATION_STATUS_LABELS: Record<string, string> = {
   active: "Activa",
+  pending: "Pendiente de revisión",
   draft: "Borrador",
   closed: "Cerrada",
   reserved: "Reservada",
@@ -18,6 +19,7 @@ export const PLATFORM_NAMES: Record<string, string> = {
   depop: "Depop",
   grailed: "Grailed",
   milanuncios: "Milanuncios",
+  facebook: "Facebook Marketplace",
   manual: "Manual",
 };
 
@@ -30,6 +32,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   depop: "/icons/depop.jpeg",
   grailed: "/icons/grailed.png",
   milanuncios: "/icons/milanuncios.png",
+  facebook: "/icons/facebook.svg",
 };
 
 export const PLATFORM_ORDER = [
@@ -39,6 +42,7 @@ export const PLATFORM_ORDER = [
   "depop",
   "grailed",
   "milanuncios",
+  "facebook",
   "ebay",
   "shopify",
 ] as const;
@@ -102,6 +106,7 @@ export function formatPlatformName(platform: string | null | undefined): string 
 
 const LISTING_STATUS_LABELS: Record<string, string> = {
   active: "Activo",
+  pending: "Pendiente de revisión",
   inactive: "Inactivo",
   closed: "Cerrado",
   sold: "Vendido",
@@ -116,6 +121,7 @@ export function formatListingStatus(status: string | null | undefined): string {
 export function listingStatusClass(status: string | null | undefined): string {
   const key = (status?.trim() || "active").toLowerCase();
   if (key === "active") return "bg-green-100 text-green-700";
+  if (key === "pending") return "bg-yellow-100 text-yellow-700";
   if (key === "banned") return "bg-red-100 text-red-700";
   if (key === "sold" || key === "closed" || key === "inactive") {
     return "bg-gray-200 text-gray-700";

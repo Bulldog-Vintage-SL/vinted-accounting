@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook'
 
 export type StepType =
   // Vinted
@@ -118,7 +118,13 @@ export type StepType =
   | 'UPLOAD_MA_PHOTO'
   | 'PUBLISH_MA_CLASSIFIED'
   | 'GET_MA_PUBLICATION_REQUIREMENTS'
-
+  // Facebook Marketplace
+  | 'GET_FB_USER'
+  | 'GET_FB_COMPOSER_CONTEXT'
+  | 'GET_FB_CATEGORY_PREDICTION'
+  | 'GET_FB_INVENTORY'
+  | 'UPLOAD_FB_PHOTO'
+  | 'CREATE_FB_LISTING'
 
 
 export interface WorkflowStep {
@@ -145,6 +151,11 @@ export interface WorkflowStep {
     streamToken?: string
     runInBackground?: boolean
     missingReason?: string
+    graphql?: {
+      friendlyName: string
+      docId: string
+      variables: Record<string, any>
+    }
     publish?: {
       fromUserHash?: string
       toUserHash?: string
@@ -316,4 +327,16 @@ export interface WorkflowState {
   maPublicationUrl?: string
   maLocation?: Record<string, any> | null
   maPhotos?: any[]
+
+  // Facebook Marketplace
+  fbUserId?: string
+  fbMarketplaceId?: string
+  fbCurrency?: string
+  fbSellLocation?: { latitude: number; longitude: number }
+  fbRecommendedCategoryId?: string
+  fbInventoryCursor?: string | null
+  fbInventoryHasMore?: boolean
+  fbPhotoIds?: string[]
+  fbListingId?: string
+  fbPublicationUrl?: string | null
 }

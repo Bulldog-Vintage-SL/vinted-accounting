@@ -10,6 +10,7 @@ import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
+  importFacebookWardrobe, uploadFacebookItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
@@ -102,6 +103,11 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
     const res = await importGrailedWardrobe(accountId)
     if (!res?.ok) throw new Error(`Grailed import: ${res?.message || 'Error desconocido'}`)
     return { imported: true, platform: 'grailed' }
+  }
+  else if (platform === 'facebook') {
+    const res = await importFacebookWardrobe(accountId)
+    if (!res?.ok) throw new Error(`Facebook Marketplace import: ${res?.message || 'Error desconocido'}`)
+    return { imported: true, platform: 'facebook', data: res.data }
   }
   else if (platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/import', {
@@ -197,6 +203,14 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
       throw new Error(`Milanuncios: ${res.message}`)
     }
     return { published: true, platform: 'milanuncios' }
+  }
+  else if (account.platform === 'facebook') {
+    const res = await uploadFacebookItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Facebook Marketplace: ${res.message}`)
+    }
+    return { published: true, platform: 'facebook', publication: res.data }
   }
   else if (account.platform === 'ebay') {
     const res = await uploadEbayItem(listing, account.accountId)

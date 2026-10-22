@@ -11,6 +11,7 @@ import {
   searchDepopAccount,
   searchGrailedAccount,
   searchMilanunciosAccount,
+  searchFacebookAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -81,8 +82,8 @@ export default function AddAccountModal({ open, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md relative">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-xl shadow-xl p-4 sm:p-6 w-full max-w-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-y-auto relative">
         {pending && (
           <div className="absolute inset-0 bg-white/70 rounded-xl flex items-center justify-center z-10">
             <div className="flex flex-col items-center gap-2 text-gray-600">
@@ -124,7 +125,7 @@ export default function AddAccountModal({ open, onClose }: Props) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               <PlatformOption
                 disabled={pending}
                 loading={pendingPlatform === "vinted"}
@@ -166,6 +167,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
                 onClick={() => handleSelect("milanuncios")}
                 icon="/icons/milanuncios.png"
                 label="Milanuncios"
+              />
+              <PlatformOption
+                disabled={pending}
+                loading={pendingPlatform === "facebook"}
+                onClick={() => handleSelect("facebook")}
+                icon="/icons/facebook.svg"
+                label="Facebook Marketplace"
               />
               <PlatformOption
                 disabled={pending}
@@ -213,16 +221,16 @@ function PlatformOption({
     <button
       disabled={disabled}
       onClick={onClick}
-      className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+      className="flex min-w-0 w-full items-center gap-2 sm:gap-3 p-2 sm:p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
     >
-      <img src={icon} alt={label} className="w-10 h-10 object-contain" />
-      <span className="text-lg font-medium text-gray-900 flex-1 text-left">{label}</span>
+      <img src={icon} alt={label} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 object-contain" />
+      <span className="min-w-0 flex-1 text-left text-sm sm:text-base font-medium leading-tight text-gray-900">{label}</span>
       {badge && (
         <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
           {badge}
         </span>
       )}
-      {loading && <Loader2 className="h-5 w-5 animate-spin text-gray-400" />}
+      {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />}
     </button>
   );
 }
@@ -245,6 +253,9 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "milanuncios") {
     return searchMilanunciosAccount();
+  }
+  if (platform === "facebook") {
+    return searchFacebookAccount();
   }
 
   return {
