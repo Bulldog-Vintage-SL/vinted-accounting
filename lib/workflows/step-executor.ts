@@ -292,9 +292,14 @@ export function processStepResult(
           .join('; ')
         throw new Error(message || 'Facebook rechazó el borrado de la publicación.')
       }
-      const response = (result?.data ?? result)?.c2c_transaction_survey_response
+      const response = (result?.data ?? result)?.commerce_for_sale_item_delete
       if (!response || typeof response !== 'object') {
         throw new Error('Facebook no confirmó el borrado de la publicación.')
+      }
+      const deletedListingId = response.deleted_for_sale_item_id
+      const requestedListingId = String(s.originalPayload?.itemExternalId ?? '')
+      if (deletedListingId == null || String(deletedListingId) !== requestedListingId) {
+        throw new Error('Facebook no confirmó el borrado de la publicación solicitada.')
       }
       break
     }
@@ -1857,14 +1862,12 @@ export function processStepResult(
         ...next.request.graphql,
         variables: {
           input: {
-            action: 'DELETE',
-            for_sale_item_id: itemExternalId,
-            is_short_survey_holdout: false,
-            referral_surface: 'PRODUCT_DETAILS',
-            response: 'DECLINE',
-            surface_new: 'MARKETPLACE_PAGE_SELLING',
             actor_id: s.fbUserId,
             client_mutation_id: String(Date.now()),
+            batch_delete_variants: true,
+            for_sale_item_id: itemExternalId,
+            referral_surface: null,
+            surface: 'MARKETPLACE_PAGE_SELLING',
           },
         },
       }
