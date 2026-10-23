@@ -283,6 +283,22 @@ export function processStepResult(
       break
     }
 
+    case 'DELETE_FB_LISTING': {
+      const errors = result?.errors
+      if (Array.isArray(errors) && errors.length) {
+        const message = errors
+          .map((error: any) => error?.message)
+          .filter((value: any): value is string => typeof value === 'string' && Boolean(value.trim()))
+          .join('; ')
+        throw new Error(message || 'Facebook rechazó el borrado de la publicación.')
+      }
+      const response = (result?.data ?? result)?.c2c_transaction_survey_response
+      if (!response || typeof response !== 'object') {
+        throw new Error('Facebook no confirmó el borrado de la publicación.')
+      }
+      break
+    }
+
     case 'GET_WARDROBE': {
       s.items = [...(s.items ?? []), ...(result.items ?? [])]
 
@@ -1827,6 +1843,31 @@ export function processStepResult(
         },
       })
       next.request.graphql = { ...next.request.graphql, variables }
+      break
+    }
+
+    case 'DELETE_FB_LISTING': {
+      const itemExternalId = String(s.originalPayload?.itemExternalId ?? '').trim()
+      if (!itemExternalId) throw new Error('Facebook: falta el id de la publicación que se va a borrar.')
+      if (!s.fbUserId) throw new Error('Facebook: falta el id de la cuenta autenticada.')
+      if (!next.request.graphql?.docId) {
+        throw new Error('Falta FB_DOC_ID_DELETE_LISTING. Captura el doc_id actual de Facebook.')
+      }
+      next.request.graphql = {
+        ...next.request.graphql,
+        variables: {
+          input: {
+            action: 'DELETE',
+            for_sale_item_id: itemExternalId,
+            is_short_survey_holdout: false,
+            referral_surface: 'PRODUCT_DETAILS',
+            response: 'DECLINE',
+            surface_new: 'MARKETPLACE_PAGE_SELLING',
+            actor_id: s.fbUserId,
+            client_mutation_id: String(Date.now()),
+          },
+        },
+      }
       break
     }
 

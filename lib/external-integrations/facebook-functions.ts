@@ -180,6 +180,56 @@ export async function uploadFacebookItem(
   }
 }
 
+export async function deleteFacebookItem(
+  itemExternalId: string,
+  publicationId: string,
+  accountId: string
+) {
+  try {
+    const accountResponse = await fetch(`/api/accounts/${accountId}`)
+    const account = await accountResponse.json()
+    if (!accountResponse.ok) {
+      throw new Error(account.message || account.error || 'No se pudo cargar la cuenta de Facebook')
+    }
+
+    const externalId = (account.external_id ?? account.externalId)?.toString()
+    if (!externalId) throw new Error('La cuenta de Facebook no tiene id de vendedor')
+
+    const result = await runFlow('DELETE_FACEBOOK_ITEM', {
+      itemExternalId,
+      externalId,
+      platform: 'facebook',
+    })
+    if (!result?.ok || !result.result?.done) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'Error al eliminar la publicación de Facebook'),
+      }
+    }
+
+    const deleteResponse = await fetch(`/api/publications?id=${publicationId}`, {
+      method: 'DELETE',
+    })
+    if (!deleteResponse.ok) {
+      const data = await deleteResponse.json()
+      return {
+        ok: false,
+        message: data.message || 'Error al eliminar el registro en la base de datos',
+      }
+    }
+
+    return {
+      ok: true,
+      message: 'Publicación eliminada correctamente de Facebook y de la BD',
+    }
+  } catch (error: any) {
+    return {
+      ok: false,
+      message: error?.message || 'Error inesperado al eliminar en Facebook',
+    }
+  }
+}
+
 export async function importFacebookWardrobe(accountId: string) {
   try {
     const accountResponse = await fetch(`/api/accounts/${accountId}`)

@@ -125,6 +125,7 @@ export type StepType =
   | 'GET_FB_INVENTORY'
   | 'UPLOAD_FB_PHOTO'
   | 'CREATE_FB_LISTING'
+  | 'DELETE_FB_LISTING'
 
 
 export interface WorkflowStep {

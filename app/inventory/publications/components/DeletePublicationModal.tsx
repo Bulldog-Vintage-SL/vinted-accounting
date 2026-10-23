@@ -23,6 +23,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
     depop: "Depop",
+    facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
     ebay: "eBay",
@@ -30,7 +31,7 @@ const PLATFORM_NAMES: Record<string, string> = {
 
 // Plataformas cuya auth es server-side (OAuth) y no requieren sincronización manual
 // mediante la extensión antes de poder operar sobre sus publicaciones.
-const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
+const NO_SYNC_REQUIRED = new Set(["shopify", "ebay", "facebook"]);
 
 export function DeletePublicationModal({
     open,

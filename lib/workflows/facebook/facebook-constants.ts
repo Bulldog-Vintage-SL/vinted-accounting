@@ -8,6 +8,7 @@ export const FB_DOC_IDS = {
   CATEGORY_PREDICTION:
     process.env.FB_DOC_ID_CATEGORY_PREDICTION || '8975911135844322',
   CREATE_LISTING: process.env.FB_DOC_ID_CREATE_LISTING || '9551550371629242',
+  DELETE_LISTING: process.env.FB_DOC_ID_DELETE_LISTING || '10064548803584243',
   INVENTORY_PAGINATION:
     process.env.FB_DOC_ID_INVENTORY_PAGINATION ?? '27189364780746738',
 } as const
@@ -22,6 +23,9 @@ export const FB_FRIENDLY_NAMES = {
   CREATE_LISTING:
     process.env.FB_FRIENDLY_NAME_CREATE_LISTING ||
     'useCometMarketplaceListingCreateMutation',
+  DELETE_LISTING:
+    process.env.FB_FRIENDLY_NAME_DELETE_LISTING ||
+    'useCometC2CTransactionSurveyResponseMutation',
   INVENTORY_PAGINATION:
     process.env.FB_FRIENDLY_NAME_INVENTORY_PAGINATION ??
     'MarketplaceSellerProfileInventoryListPaginationQuery',

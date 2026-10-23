@@ -17,7 +17,7 @@ import { useToast } from '@/components/toast'
 import { useQueue } from '@/hooks/useQueue'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
-import { deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem } from '@/lib/external-integrations/'
+import { deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem } from '@/lib/external-integrations/'
 import { reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem, reuploadShopifyItem, reuploadEbayItem } from '@/lib/external-integrations/'
 import { MissingFieldsError } from '@/lib/external-integrations/validators'
 import { PublicationMobileCard } from './PublicationMobileCard'
@@ -52,6 +52,14 @@ async function deletePublication(publication: Publication): Promise<void> {
 
     } else if (publication.platform === 'depop') {
         const result = await deleteDepopItem(publication.external_id, publication.id);
+        if (!result.ok) throw new Error(result.message);
+
+    } else if (publication.platform === 'facebook') {
+        const result = await deleteFacebookItem(
+            publication.external_id,
+            publication.id,
+            publication.account_id
+        );
         if (!result.ok) throw new Error(result.message);
 
     } else if (publication.platform === 'ebay') {

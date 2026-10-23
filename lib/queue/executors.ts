@@ -12,7 +12,7 @@ import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
   importFacebookWardrobe, uploadFacebookItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
-  deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
+  deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
   reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
@@ -249,6 +249,13 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
   } else if (publication.platform === 'depop') {
     const result = await deleteDepopItem(publication.external_id, publication.id)
     if (!result.ok) throw new Error(result.message || 'Error en Depop')
+  } else if (publication.platform === 'facebook') {
+    const result = await deleteFacebookItem(
+      publication.external_id,
+      publication.id,
+      publication.account_id
+    )
+    if (!result.ok) throw new Error(result.message || 'Error en Facebook Marketplace')
   } else if (publication.platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/delete-product', {
       method: 'POST',

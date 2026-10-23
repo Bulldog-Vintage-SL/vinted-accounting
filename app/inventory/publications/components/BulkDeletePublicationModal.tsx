@@ -21,6 +21,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
     depop: "Depop",
+    facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
 };
