@@ -73,12 +73,15 @@ import {
 } from './milanuncios/milanuncios-upload-steps'
 import {
   buildFacebookCreateListingVariables,
+  buildFacebookUpdateListingVariables,
   extractFacebookComposerContext,
   extractFacebookInventoryPage,
+  extractFacebookListingForEdit,
   extractFacebookRecommendedCategoryId,
   pickFacebookListing,
   pickFacebookUserId,
   resolveFacebookCategoryId,
+  throwFacebookGraphqlErrors,
 } from './facebook/facebook-helpers'
 import { buildFacebookInventoryPaginationStep } from './facebook/facebook-import-steps'
 import {
@@ -284,14 +287,7 @@ export function processStepResult(
     }
 
     case 'DELETE_FB_LISTING': {
-      const errors = result?.errors
-      if (Array.isArray(errors) && errors.length) {
-        const message = errors
-          .map((error: any) => error?.message)
-          .filter((value: any): value is string => typeof value === 'string' && Boolean(value.trim()))
-          .join('; ')
-        throw new Error(message || 'Facebook rechazó el borrado de la publicación.')
-      }
+      throwFacebookGraphqlErrors(result)
       const response = (result?.data ?? result)?.commerce_for_sale_item_delete
       if (!response || typeof response !== 'object') {
         throw new Error('Facebook no confirmó el borrado de la publicación.')
@@ -300,6 +296,22 @@ export function processStepResult(
       const requestedListingId = String(s.originalPayload?.itemExternalId ?? '')
       if (deletedListingId == null || String(deletedListingId) !== requestedListingId) {
         throw new Error('Facebook no confirmó el borrado de la publicación solicitada.')
+      }
+      break
+    }
+
+    case 'GET_FB_LISTING_FOR_EDIT': {
+      throwFacebookGraphqlErrors(result)
+      s.fbListingDetails = extractFacebookListingForEdit(result)
+      break
+    }
+
+    case 'UPDATE_FB_LISTING': {
+      throwFacebookGraphqlErrors(result)
+      const response = (result?.data ?? result)?.marketplace_listing_edit?.listing
+      const requestedListingId = String(s.originalPayload?.itemExternalId ?? '')
+      if (!response || String(response.id ?? '') !== requestedListingId) {
+        throw new Error('Facebook no confirmó la actualización de la publicación solicitada.')
       }
       break
     }
@@ -1870,6 +1882,28 @@ export function processStepResult(
             surface: 'MARKETPLACE_PAGE_SELLING',
           },
         },
+      }
+      break
+    }
+
+    case 'UPDATE_FB_LISTING': {
+      const itemExternalId = String(s.originalPayload?.itemExternalId ?? '').trim()
+      const fields = s.originalPayload?.fields
+      const item = s.originalPayload?.item
+      if (!itemExternalId || !s.fbUserId || !fields || !item) {
+        throw new Error('Facebook: faltan datos para actualizar la publicación.')
+      }
+      if (!next.request.graphql?.docId) {
+        throw new Error('Falta FB_DOC_ID_UPDATE_LISTING. Captura el doc_id actual de Facebook.')
+      }
+      next.request.graphql = {
+        ...next.request.graphql,
+        variables: buildFacebookUpdateListingVariables(
+          s.fbUserId,
+          itemExternalId,
+          fields,
+          item
+        ),
       }
       break
     }

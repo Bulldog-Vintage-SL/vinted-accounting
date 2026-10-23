@@ -10,13 +10,16 @@ import {
     syncDepopAccount,
     syncGrailedAccount,
     syncMilanunciosAccount,
+    syncFacebookAccount,
     getVintedItem,
     getWallapopItem,
     getDepopItem,
+    getFacebookItem,
     updateVintedItem,
     updateWallapopItem,
     updateVestiaireItem,
     updateDepopItem,
+    updateFacebookItem,
 } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
@@ -34,6 +37,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
     depop: "Depop",
+    facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
     ebay: "eBay",
@@ -88,6 +92,7 @@ export function EditPublicationModal({
 
     // Campos editables comunes
     const [fields, setFields] = useState<ItemFields>({ title: "", description: "", price: "" });
+    const [facebookItemData, setFacebookItemData] = useState<Record<string, any> | null>(null);
 
     // Campos exclusivos de Shopify
     const [shopifyFields, setShopifyFields] = useState<ShopifyFields>({
@@ -110,6 +115,7 @@ export function EditPublicationModal({
     const isVestiaire = platform === "vestiaire";
     const isShopify = platform === "shopify";
     const isDepop = platform === "depop";
+    const isFacebook = platform === "facebook";
     const isEbay = platform === "ebay";
     const isOAuthPlatform = isShopify || isEbay;
 
@@ -122,6 +128,7 @@ export function EditPublicationModal({
         setAccountExternalId(undefined);
         setAccountVestiaireId(null);
         setFields({ title: "", description: "", price: "" });
+        setFacebookItemData(null);
         setShopifyFields({ vendor: "", productType: "", tags: "", status: "ACTIVE", sku: "" });
         setEbayFields({ sku: "" });
         setInitialPrice(publication?.price != null ? Number(publication.price) : null);
@@ -226,6 +233,7 @@ export function EditPublicationModal({
         if (platform === "depop") return syncDepopAccount(accountExternalId);
         if (platform === "grailed") return syncGrailedAccount(accountExternalId);
         if (platform === "milanuncios") return syncMilanunciosAccount(accountExternalId);
+        if (platform === "facebook") return syncFacebookAccount(accountExternalId);
         return syncVestiaireAccount(accountExternalId, accountVestiaireId);
     };
 
@@ -273,7 +281,16 @@ export function EditPublicationModal({
         try {
             let resItem;
 
-            if (platform === "vinted") {
+            if (isFacebook) {
+                if (!accountExternalId) {
+                    throw new Error("No se encontró el id de la cuenta de Facebook");
+                }
+                resItem = await getFacebookItem(
+                    publication.external_id,
+                    accountExternalId,
+                    publication.publication_url
+                );
+            } else if (platform === "vinted") {
                 resItem = await getVintedItem(publication.external_id);
             } else if (platform === "wallapop") {
                 resItem = await getWallapopItem(publication.external_id);
@@ -297,6 +314,7 @@ export function EditPublicationModal({
             }
 
             if (resItem?.ok && resItem.item) {
+                if (isFacebook) setFacebookItemData(resItem.item);
                 setFields({
                     title: resItem.item.title ?? "",
                     description: resItem.item.description ?? "",
@@ -440,7 +458,22 @@ export function EditPublicationModal({
         try {
             let resUpdate;
 
-            if (platform === "vinted") {
+            if (isFacebook) {
+                if (!facebookItemData) {
+                    throw new Error("Primero hay que cargar los datos actuales de Facebook");
+                }
+                resUpdate = await updateFacebookItem(
+                    publication.external_id,
+                    publication.id,
+                    accountExternalId,
+                    {
+                        title: fields.title.trim(),
+                        description: fields.description.trim(),
+                        price: priceNumber,
+                    },
+                    facebookItemData
+                );
+            } else if (platform === "vinted") {
                 resUpdate = await updateVintedItem(publication.external_id, publication.id, {
                     title: fields.title.trim(),
                     description: fields.description.trim(),

@@ -73,6 +73,10 @@ import {
   buildSyncFacebookAccountSteps,
 } from "@/lib/workflows/facebook/facebook-upload-steps";
 import { buildFacebookDeleteListingSteps } from "@/lib/workflows/facebook/facebook-delete-steps";
+import {
+  buildFacebookGetListingSteps,
+  buildFacebookUpdateListingSteps,
+} from "@/lib/workflows/facebook/facebook-edit-steps";
 import { buildImportFacebookInventorySteps } from "@/lib/workflows/facebook/facebook-import-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
@@ -173,6 +177,14 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   UPLOAD_FACEBOOK_ITEM: (p) => buildFacebookUploadSteps(p.listing, p.externalId),
   DELETE_FACEBOOK_ITEM: (p) =>
     buildFacebookDeleteListingSteps(p.itemExternalId, p.externalId),
+  GET_FACEBOOK_ITEM: (p) =>
+    buildFacebookGetListingSteps(
+      p.itemExternalId,
+      p.externalId,
+      p.itemLookupId ?? p.itemExternalId
+    ),
+  UPDATE_FACEBOOK_ITEM: (p) =>
+    buildFacebookUpdateListingSteps(p.itemExternalId, p.externalId),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),

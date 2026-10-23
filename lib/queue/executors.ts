@@ -13,7 +13,7 @@ import {
   importFacebookWardrobe, uploadFacebookItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
-  reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
+  reuploadFacebookItem, reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
   reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
 import {
@@ -341,6 +341,19 @@ const reuploadPublicationExecutor: Executor<Publication> = async (job) => {
       throw new Error(result.message || 'Error en Depop')
     }
     return { reuploaded: true, platform: 'depop', data: result.data }
+  } else if (publication.platform === 'facebook') {
+    const result = await reuploadFacebookItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Facebook Marketplace')
+    }
+    return { reuploaded: true, platform: 'facebook', data: result.data }
   } else if (publication.platform === 'shopify') {
     const result = await reuploadShopifyItem(
       publication.account_id,

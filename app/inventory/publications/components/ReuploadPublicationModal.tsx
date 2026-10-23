@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, RefreshCw, Loader2, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount } from '@/lib/external-integrations/';
+import { syncFacebookAccount, syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 
 interface Props {
@@ -24,13 +24,14 @@ const PLATFORM_NAMES: Record<string, string> = {
     vestiaire: "Vestiaire Collective",
     shopify: "Shopify",
     depop: "Depop",
+    facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
     ebay: "eBay",
 };
 
-// Resubida soportada en Vinted, Wallapop, Vestiaire, Depop, Shopify y eBay.
-const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop", "shopify", "ebay"]);
+// Resubida soportada en Vinted, Wallapop, Vestiaire, Depop, Facebook, Shopify y eBay.
+const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop", "facebook", "shopify", "ebay"]);
 
 // Plataformas cuya auth es server-side (OAuth) y no requieren sincronización
 // manual mediante la extensión antes de poder resubir.
@@ -87,6 +88,7 @@ export function ReuploadPublicationModal({
         if (acc.platform === "depop") return syncDepopAccount(acc.external_id);
         if (acc.platform === "grailed") return syncGrailedAccount(acc.external_id);
         if (acc.platform === "milanuncios") return syncMilanunciosAccount(acc.external_id);
+        if (acc.platform === "facebook") return syncFacebookAccount(acc.external_id);
     };
 
     const handleSync = async () => {

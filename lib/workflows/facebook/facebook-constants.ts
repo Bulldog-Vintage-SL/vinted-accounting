@@ -9,6 +9,8 @@ export const FB_DOC_IDS = {
     process.env.FB_DOC_ID_CATEGORY_PREDICTION || '8975911135844322',
   CREATE_LISTING: process.env.FB_DOC_ID_CREATE_LISTING || '9551550371629242',
   DELETE_LISTING: process.env.FB_DOC_ID_DELETE_LISTING || '30073389588942699',
+  GET_LISTING_FOR_EDIT: process.env.FB_DOC_ID_GET_LISTING_FOR_EDIT || '28939900068975315',
+  UPDATE_LISTING: process.env.FB_DOC_ID_UPDATE_LISTING || '28657844880538521',
   INVENTORY_PAGINATION:
     process.env.FB_DOC_ID_INVENTORY_PAGINATION ?? '27189364780746738',
 } as const
@@ -26,9 +28,48 @@ export const FB_FRIENDLY_NAMES = {
   DELETE_LISTING:
     process.env.FB_FRIENDLY_NAME_DELETE_LISTING ||
     'useCometMarketplaceForSaleItemDeleteMutation',
+  GET_LISTING_FOR_EDIT:
+    process.env.FB_FRIENDLY_NAME_GET_LISTING_FOR_EDIT || 'MarketplacePDPContainerQuery',
+  UPDATE_LISTING:
+    process.env.FB_FRIENDLY_NAME_UPDATE_LISTING ||
+    'useCometMarketplaceListingEditMutation',
   INVENTORY_PAGINATION:
     process.env.FB_FRIENDLY_NAME_INVENTORY_PAGINATION ??
     'MarketplaceSellerProfileInventoryListPaginationQuery',
+} as const
+
+export const FB_LISTING_FOR_EDIT_VARIABLES = {
+  enableJobEmployerActionBar: false,
+  enableJobSeekerActionBar: false,
+  feedbackSource: 56,
+  feedLocation: 'MARKETPLACE_MEGAMALL',
+  referralCode: null,
+  referralSurfaceString: null,
+  scale: 1,
+  shouldFetchLoggedOutSimilarListings: false,
+  useDefaultActor: false,
+  __relay_internal__pv__MarketplacePDPShouldUseListingRevamprelayprovider: false,
+  __relay_internal__pv__MarketplacePDPCometSimilarListingsrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPShouldShowRelatedSearchesrelayprovider: true,
+  __relay_internal__pv__MarketplacePDPShouldShowLoggedOutSellerTrustrelayprovider: false,
+  __relay_internal__pv__ShouldUpdateMarketplaceBoostListingBoostedStatusrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPIsLoggedOutrelayprovider: false,
+  __relay_internal__pv__CometUFIShareActionMigrationrelayprovider: false,
+  __relay_internal__pv__GHLShouldChangeSponsoredDataFieldNamerelayprovider: true,
+  __relay_internal__pv__GHLShouldChangeAdIdFieldNamerelayprovider: true,
+  __relay_internal__pv__CometUFI_dedicated_comment_routable_dialog_gkrelayprovider: false,
+  __relay_internal__pv__CometUFICommentAutoTranslationTyperelayprovider: 'ORIGINAL',
+  __relay_internal__pv__CometUFICommentAvatarStickerAnimatedImagerelayprovider: false,
+  __relay_internal__pv__CometUFICommentActionLinksRewriteEnabledrelayprovider: true,
+  __relay_internal__pv__IsWorkUserrelayprovider: false,
+  __relay_internal__pv__CometUFIReactionsEnableShortNamerelayprovider: false,
+  __relay_internal__pv__CometUFISingleLineUFIrelayprovider: true,
+  __relay_internal__pv__MarketplacePDPShouldShowBSGRecommendationsrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPJobShouldShowSharedGroupsSectionrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPJobIsShareToGroupsEnabledOnCometrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPShouldShowFAQrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPShouldShowRelatedCategoriesrelayprovider: false,
+  __relay_internal__pv__MarketplacePDPShouldShowSupportFooterrelayprovider: false,
 } as const
 
 export const FB_COMPOSER_ROOT_VARIABLES = {

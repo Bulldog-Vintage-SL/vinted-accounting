@@ -1,5 +1,16 @@
 import { FB_CATEGORY_IDS, FB_DEFAULT_LOCATION, FB_ORIGIN } from './facebook-constants'
 
+export function throwFacebookGraphqlErrors(result: any): void {
+  const errors = result?.errors
+  if (!Array.isArray(errors) || !errors.length) return
+
+  const message = errors
+    .map((error: any) => error?.message)
+    .filter((value: any): value is string => typeof value === 'string' && Boolean(value.trim()))
+    .join('; ')
+  throw new Error(message || 'Facebook rechazó la operación GraphQL.')
+}
+
 export function pickFacebookUserId(result: any): string | null {
   const id = result?.userId ?? result?.id
   return id != null && String(id).trim() ? String(id) : null
@@ -38,6 +49,103 @@ export function pickFacebookListing(result: any): { id: string | null; url: stri
   return {
     id: id != null ? String(id) : null,
     url: node?.story?.url ?? (id != null ? `${FB_ORIGIN}/marketplace/item/${id}` : null),
+  }
+}
+
+function findFacebookDescription(value: any, depth = 0): string | null {
+  if (!value || typeof value !== 'object' || depth > 10) return null
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFacebookDescription(item, depth + 1)
+      if (found !== null) return found
+    }
+    return null
+  }
+
+  for (const key of ['redacted_description', 'description', 'description_text']) {
+    const candidate = value[key]
+    if (typeof candidate === 'string') return candidate
+    if (typeof candidate?.text === 'string') return candidate.text
+    if (typeof candidate?.message?.text === 'string') return candidate.message.text
+  }
+
+  for (const child of Object.values(value)) {
+    const found = findFacebookDescription(child, depth + 1)
+    if (found !== null) return found
+  }
+  return null
+}
+
+export function extractFacebookListingForEdit(result: any): any {
+  let root = result
+  while (root?.data && typeof root.data === 'object') root = root.data
+  const page = root?.viewer?.marketplace_product_details_page
+  if (!page) throw new Error('Facebook no devolvió los datos de la publicación.')
+
+  const target = page.target ?? page.marketplace_listing_renderable_target ?? {}
+  const listingPrice = page.listing_price ?? target.listing_price ?? {}
+  const location = target.location ?? page.location ?? {}
+  const description = findFacebookDescription(page)
+  if (description === null) {
+    throw new Error('Facebook no devolvió la descripción de la publicación.')
+  }
+  
+  return {
+    id: target.id ?? page.id,
+    title:
+      target.marketplace_listing_title ??
+      target.base_marketplace_listing_title ??
+      page.marketplace_listing_title ??
+      '',
+    description,
+    price: listingPrice.amount != null ? Number(listingPrice.amount) : null,
+    currency: listingPrice.currency ?? 'EUR',
+    categoryId:
+      target.marketplace_listing_category_id ??
+      page.marketplace_listing_category_id ??
+      null,
+    location: {
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+    },
+    deliveryTypes: page.delivery_types ?? target.delivery_types ?? ['IN_PERSON'],
+    shippingOffered: page.is_shipping_offered ?? target.is_shipping_offered ?? false,
+    attributeData: page.attribute_data ?? target.attribute_data ?? [],
+  }
+}
+
+export function buildFacebookUpdateListingVariables(
+  actorId: string,
+  itemExternalId: string,
+  fields: { title: string; description: string; price: number },
+  item: any
+) {
+  if (!actorId) throw new Error('Facebook: falta el id de la cuenta autenticada.')
+  if (!itemExternalId) throw new Error('Facebook: falta el id de la publicación.')
+
+  const price = Number(fields.price)
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error('Introduce un precio válido para la publicación de Facebook.')
+  }
+
+  return {
+    input: {
+      actor_id: actorId,
+      client_mutation_id: String(Date.now()),
+      data: {
+        common: {
+          description: { text: fields.description },
+          item_price: {
+            currency: item.currency ?? 'EUR',
+            price: String(price),
+          },
+          source_type: 'product_details',
+          surface: 'edit_composer',
+          title: fields.title,
+        },
+      },
+      listing_id: itemExternalId,
+    },
   }
 }
 

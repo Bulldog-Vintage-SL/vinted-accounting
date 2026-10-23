@@ -126,6 +126,8 @@ export type StepType =
   | 'UPLOAD_FB_PHOTO'
   | 'CREATE_FB_LISTING'
   | 'DELETE_FB_LISTING'
+  | 'GET_FB_LISTING_FOR_EDIT'
+  | 'UPDATE_FB_LISTING'
 
 
 export interface WorkflowStep {
@@ -340,4 +342,5 @@ export interface WorkflowState {
   fbPhotoIds?: string[]
   fbListingId?: string
   fbPublicationUrl?: string | null
+  fbListingDetails?: any
 }

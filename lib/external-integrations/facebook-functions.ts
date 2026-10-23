@@ -1,6 +1,11 @@
 import { extractErrorMessage, fetchFacebookImageAsBase64, runFlow } from './extensionBridge'
 import { validateListingRequiredFields, MissingFieldsError } from './validators'
 import type { UploadResult } from './validators'
+import type { Listing } from '@/app/inventory/listings/types'
+import { PLATFORM_PHOTO_LIMITS } from '@/app/inventory/listings/types'
+import { transformImage } from '@/lib/images/imageTransform'
+import { uploadPhoto } from '@/utils/uploadPhoto'
+import { sleep } from '../utils'
 
 export async function searchFacebookAccount() {
   try {
@@ -180,6 +185,142 @@ export async function uploadFacebookItem(
   }
 }
 
+export async function reuploadFacebookItem(
+  accountId: string,
+  listing: Listing,
+  itemExternalId: string,
+  publicationId: string
+): Promise<UploadResult> {
+  let oldPublicationDeleted = false
+
+  try {
+    const missing = validateListingRequiredFields(listing, 'facebook')
+    if (missing.length) throw new MissingFieldsError(missing)
+
+    const deleteResult = await deleteFacebookItem(itemExternalId, publicationId, accountId)
+    if (!deleteResult.ok) {
+      return {
+        ok: false,
+        message: `No se pudo eliminar la publicación anterior: ${deleteResult.message}`,
+      }
+    }
+    oldPublicationDeleted = true
+
+    const { modifiedListing, newTitle, newDescription } =
+      await prepareFacebookListingForReupload(listing)
+
+    await sleep(60_000)
+
+    const uploadResult = await uploadFacebookItem(modifiedListing, accountId)
+    if (!uploadResult.ok) {
+      return {
+        ...uploadResult,
+        message: `La publicación anterior se eliminó, pero no se pudo volver a publicar en Facebook: ${uploadResult.message}`,
+      }
+    }
+
+    return {
+      ok: true,
+      message: 'Publicación resubida correctamente en Facebook Marketplace',
+      data: {
+        listingId: listing.id,
+        newTitle,
+        newDescription,
+        publication: uploadResult.data,
+      },
+    }
+  } catch (error: any) {
+    const errorMessage = error?.message || 'Error inesperado al resubir en Facebook Marketplace'
+    const message = oldPublicationDeleted
+      ? `La publicación anterior se eliminó, pero no se pudo completar la resubida: ${errorMessage}`
+      : errorMessage
+
+    if (error instanceof MissingFieldsError) {
+      return { ok: false, message, missingFields: error.fields }
+    }
+    return {
+      ok: false,
+      message,
+    }
+  }
+}
+
+async function prepareFacebookListingForReupload(listing: Listing): Promise<{
+  modifiedListing: Listing
+  newTitle: string
+  newDescription: string
+}> {
+  const selectedPhotos = listing.photoSelection?.facebook?.length
+    ? listing.photoSelection.facebook
+    : listing.photo_url
+  const photoUrls = selectedPhotos.slice(0, PLATFORM_PHOTO_LIMITS.facebook)
+  if (photoUrls.length === 0) {
+    throw new Error('Facebook Marketplace necesita al menos una foto para resubir.')
+  }
+
+  const uploadedUrls = await Promise.all(
+    photoUrls.map(async (url, index) => {
+      try {
+        const image = await fetchFacebookImageAsBase64(url)
+        const binary = atob(image.base64)
+        const bytes = new Uint8Array(binary.length)
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+        const transformedImage = await transformImage(
+          new Blob([bytes], { type: image.mime }),
+        )
+        return await uploadPhoto(
+          new File([transformedImage], `${listing.id}_${index}.jpg`, {
+            type: 'image/jpeg',
+          }),
+        )
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Error desconocido'
+        throw new Error(`No se pudo preparar la foto ${index + 1} para Facebook: ${message}`)
+      }
+    }),
+  )
+
+  let newTitle: string
+  let newDescription: string
+  try {
+    const response = await fetch('/api/modify-texts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: listing.title,
+        description: listing.description,
+      }),
+    })
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data?.message || data?.error || 'Error modificando título y descripción')
+    }
+    newTitle = data.title
+    newDescription = data.description
+    if (typeof newTitle !== 'string' || typeof newDescription !== 'string') {
+      throw new Error('La respuesta de modificación de textos no contiene título y descripción válidos.')
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    throw new Error(`No se pudieron preparar el título y la descripción: ${message}`)
+  }
+
+  return {
+    modifiedListing: {
+      ...listing,
+      photo_url: uploadedUrls,
+      photoSelection: {
+        ...listing.photoSelection,
+        facebook: uploadedUrls,
+      },
+      title: newTitle,
+      description: newDescription,
+    },
+    newTitle,
+    newDescription,
+  }
+}
+
 export async function deleteFacebookItem(
   itemExternalId: string,
   publicationId: string,
@@ -226,6 +367,99 @@ export async function deleteFacebookItem(
     return {
       ok: false,
       message: error?.message || 'Error inesperado al eliminar en Facebook',
+    }
+  }
+}
+
+export async function getFacebookItem(
+  itemExternalId: string,
+  externalId: string,
+  publicationUrl?: string | null
+) {
+  try {
+    let itemLookupId = itemExternalId
+    if (publicationUrl) {
+      try {
+        const segments = new URL(publicationUrl).pathname.split('/').filter(Boolean)
+        const itemIndex = segments.lastIndexOf('item')
+        if (itemIndex >= 0 && segments[itemIndex + 1]) {
+          itemLookupId = segments[itemIndex + 1]
+        }
+      } catch {
+        throw new Error('La URL de la publicación de Facebook no es válida')
+      }
+    }
+
+    const result = await runFlow('GET_FACEBOOK_ITEM', {
+      itemExternalId,
+      itemLookupId,
+      externalId,
+      platform: 'facebook',
+    })
+    if (!result?.ok || !result.result?.done) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'Error al obtener la publicación de Facebook'),
+      }
+    }
+
+    const item = result.result.state?.fbListingDetails
+    if (!item) {
+      return { ok: false, message: 'Facebook no devolvió los datos de la publicación' }
+    }
+    return { ok: true, item }
+  } catch (error: any) {
+    return {
+      ok: false,
+      message: error?.message || 'Error inesperado al obtener la publicación de Facebook',
+    }
+  }
+}
+
+export async function updateFacebookItem(
+  itemExternalId: string,
+  publicationId: string,
+  externalId: string,
+  fields: { title: string; description: string; price: number },
+  item: Record<string, any>
+) {
+  try {
+    const result = await runFlow('UPDATE_FACEBOOK_ITEM', {
+      itemExternalId,
+      externalId,
+      fields,
+      item,
+      platform: 'facebook',
+    })
+    if (!result?.ok || !result.result?.done) {
+      return {
+        ok: false,
+        message: extractErrorMessage(result, 'Error al actualizar la publicación de Facebook'),
+      }
+    }
+
+    const patchResponse = await fetch(`/api/publications?id=${publicationId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ price: fields.price }),
+    })
+    if (!patchResponse.ok) {
+      const data = await patchResponse.json().catch(() => null)
+      return {
+        ok: false,
+        message: data?.message ||
+          'Publicación actualizada en Facebook, pero no se pudo sincronizar el precio en la base de datos',
+      }
+    }
+
+    return {
+      ok: true,
+      message: 'Publicación actualizada correctamente en Facebook Marketplace',
+    }
+  } catch (error: any) {
+    return {
+      ok: false,
+      message: error?.message || 'Error inesperado al actualizar en Facebook',
     }
   }
 }

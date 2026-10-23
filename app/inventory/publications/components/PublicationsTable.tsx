@@ -18,7 +18,7 @@ import { useQueue } from '@/hooks/useQueue'
 import { PageLoader } from '@/components/ui/page-loader'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem } from '@/lib/external-integrations/'
-import { reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem, reuploadShopifyItem, reuploadEbayItem } from '@/lib/external-integrations/'
+import { reuploadFacebookItem, reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem, reuploadShopifyItem, reuploadEbayItem } from '@/lib/external-integrations/'
 import { MissingFieldsError } from '@/lib/external-integrations/validators'
 import { PublicationMobileCard } from './PublicationMobileCard'
 import { TablePagination } from '@/components/ui/table-pagination'
@@ -143,6 +143,20 @@ async function reuploadPublication(publication: Publication): Promise<void> {
         }
     } else if (publication.platform === 'depop') {
         const result = await reuploadDepopItem(
+            publication.account_id,
+            listing,
+            publication.external_id,
+            publication.id
+        );
+        if (isUploadFailure(result)) {
+            if (result.missingFields?.length) {
+                const labels = result.missingFields.map(f => f.label).join(', ');
+                throw new Error(`Faltan campos: ${labels}`);
+            }
+            throw new Error(result.message);
+        }
+    } else if (publication.platform === 'facebook') {
+        const result = await reuploadFacebookItem(
             publication.account_id,
             listing,
             publication.external_id,
