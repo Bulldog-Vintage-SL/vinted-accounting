@@ -85,6 +85,21 @@ import {
 } from './facebook/facebook-helpers'
 import { buildFacebookInventoryPaginationStep } from './facebook/facebook-import-steps'
 import {
+  buildTodocoleccionCreateBody,
+  pickTodocoleccionImageKey,
+  pickTodocoleccionListing,
+  pickTodocoleccionSectionId,
+  pickTodocoleccionUserId,
+  pickTodocoleccionWeightGrams,
+  pickTodocoleccionShippingCost,
+} from './todocoleccion/todocoleccion-mapper'
+import {
+  TC_API,
+  TC_NEW_LOTE_URL,
+  TC_UPLOAD_IMAGE_URL,
+  snapTodocoleccionWeightGrams,
+} from './todocoleccion/todocoleccion-constants'
+import {
   normalizeVintedSearchResult,
   normalizeWallapopSearchResult,
 } from './search/normalize'
@@ -106,6 +121,7 @@ const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = 
   grailed: { title: 80, description: 2000 },
   milanuncios: { title: 70, description: 4000 },
   facebook: { title: 150, description: 5000 },
+  todocoleccion: { title: 80, description: 4000 },
 }
 
 /**
@@ -313,6 +329,59 @@ export function processStepResult(
       if (!response || String(response.id ?? '') !== requestedListingId) {
         throw new Error('Facebook no confirmó la actualización de la publicación solicitada.')
       }
+      break
+    }
+
+    case 'GET_TC_USER_ID': {
+      const userId = pickTodocoleccionUserId(result)
+      if (!userId) {
+        throw new Error('No hay sesión de todocoleccion. Abre www.todocoleccion.net/mitc e inicia sesión.')
+      }
+      s.userId = userId
+      s.accountName = result.accountName ?? result.username ?? s.accountName
+      s.profileLink = result.profileLink ?? `https://www.todocoleccion.net/mitc/`
+      s.email = result.email ?? s.email
+      break
+    }
+
+    case 'GET_TC_NEW_LOTE': {
+      const imageKey = pickTodocoleccionImageKey(result)
+      if (!imageKey) {
+        throw new Error('todocoleccion no devolvió image_key. Recarga /mitc/lote/new e inténtalo de nuevo.')
+      }
+      s.tcImageKey = imageKey
+      s.tcAltaLote = result.altaLote ?? result.alta_lote ?? result.formFields?.alta_lote ?? s.tcAltaLote
+      s.tcCsrf = result.csrf ?? result.csrf_token ?? result._csrf ?? null
+      s.tcFormFields = result.formFields ?? {}
+      s.tcFormAction = result.formAction ?? s.tcFormAction
+      s.tcUploadField = result.uploadField || 'files[]'
+      s.tcSubmitName = result.submitName ?? s.tcSubmitName
+      s.tcSubmitValue = result.submitValue ?? s.tcSubmitValue
+      s.tcWeightGrams = snapTodocoleccionWeightGrams(
+        pickTodocoleccionWeightGrams(s.originalPayload?.listing)
+      )
+      break
+    }
+
+    case 'GET_TC_SECTIONS':
+      s.tcSectionId = pickTodocoleccionSectionId(result, s.originalPayload?.listing)
+      break
+
+    case 'UPLOAD_TC_PHOTO':
+      s.tcPhotos = [...(s.tcPhotos ?? []), result]
+      break
+
+    case 'GET_TC_SHIPPING':
+      s.tcShippingCost = pickTodocoleccionShippingCost(result) || s.tcShippingCost
+      break
+
+    case 'CREATE_TC_LOTE': {
+      const listing = pickTodocoleccionListing(result)
+      if (!listing.id) {
+        throw new Error('todocoleccion no confirmó el alta del lote. Las fotos se subieron, pero el anuncio no se publicó.')
+      }
+      s.tcListingId = listing.id
+      s.tcPublicationUrl = listing.url || `https://www.todocoleccion.net/lote/${listing.id}`
       break
     }
 
@@ -1905,6 +1974,63 @@ export function processStepResult(
           item
         ),
       }
+      break
+    }
+
+    case 'UPLOAD_TC_PHOTO': {
+      if (!s.tcImageKey) {
+        throw new Error('todocoleccion: falta image_key para subir fotos.')
+      }
+      const index = next.request.photoIndex ?? s.tcPhotos?.length ?? 0
+      next.request.url = `${TC_UPLOAD_IMAGE_URL}?image_key=${encodeURIComponent(s.tcImageKey)}&image_counter=${index}`
+      next.request.uploadField = s.tcUploadField || 'files[]'
+      next.request.body = {
+        ...(s.tcFormFields ?? {}),
+        image_key: s.tcImageKey,
+        image_counter: String(index),
+        alta_lote: s.tcAltaLote || s.tcFormFields?.alta_lote || '',
+        imagen: s.tcFormFields?.imagen ?? 's',
+        plupload_sended: 'false',
+      }
+      break
+    }
+
+    case 'GET_TC_SHIPPING': {
+      const weight = snapTodocoleccionWeightGrams(
+        s.tcWeightGrams ?? pickTodocoleccionWeightGrams(s.originalPayload?.listing)
+      )
+      const params = new URLSearchParams({
+        weight: String(weight),
+        height: '',
+        width: '',
+        length: '',
+        insured_amount: '0.00',
+      })
+      next.request.url = `${TC_API}/logistics/getPriceForCreation?${params.toString()}`
+      break
+    }
+
+    case 'CREATE_TC_LOTE': {
+      if (!s.tcImageKey) {
+        throw new Error('todocoleccion: falta image_key para crear el lote.')
+      }
+      if (!s.tcSectionId) {
+        throw new Error('todocoleccion: falta la sección del catálogo.')
+      }
+      const listing = s.originalPayload?.listing ?? {}
+      const body = buildTodocoleccionCreateBody(s)
+      body.Titulo = truncateForPlatform(String(listing.title ?? ''), 'todocoleccion', 'title')
+      body.descripcion = truncateForPlatform(String(listing.description ?? ''), 'todocoleccion', 'description')
+      delete body.titulo
+      delete body.precio
+      delete body.peso
+      if (s.tcFormAction && !/buscador|ayuda\/|acceder|\/$/i.test(s.tcFormAction)) {
+        next.request.url = s.tcFormAction
+      } else {
+        next.request.url = TC_NEW_LOTE_URL.replace(/\?clean$/, '')
+      }
+      next.request.body = body
+      next.request.isFormData = true
       break
     }
 

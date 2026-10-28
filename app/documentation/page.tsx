@@ -88,7 +88,7 @@ const docSections: DocSection[] = [
       "Listing = tu producto guardado en Reventa Libertad (como una ficha en un cuaderno).",
       "Publicación = ese mismo producto ya colgado en una tienda concreta (como una foto pegada en el escaparate de Vinted).",
       "Flujo típico: conectar cuenta → importar lo que ya tienes o crear producto → publicar → editar o borrar desde Publicaciones.",
-      "Algunas tiendas usan la extensión de Chrome (Vinted, Wallapop, Vestiaire, Depop, Grailed). Otras usan login directo en la web (Shopify, eBay).",
+      "Algunas tiendas usan la extensión de Chrome (Vinted, Wallapop, Vestiaire, Depop, Grailed, todocoleccion). Otras usan login directo en la web (Shopify, eBay).",
     ],
     subsections: [
       {
@@ -149,6 +149,16 @@ const docSections: DocSection[] = [
           "Importar: Inventario → Añadir producto → Importar armario → eliges tu cuenta de Grailed.",
           "Publicar: creas o editas un listing y pulsas Publicar. Eliges la cuenta de Grailed.",
           "Hace falta la extensión 1.1.12 o superior. Si no enlaza la cuenta, recarga Grailed y la extensión.",
+        ],
+      },
+      {
+        id: "todocoleccion-cross",
+        title: "todocoleccion",
+        points: [
+          "Conectar: Ajustes → Cuentas vinculadas → Añadir cuenta → todocoleccion, con www.todocoleccion.net/mitc abierto e iniciada sesión.",
+          "Publicar: creas o editas un listing y pulsas Publicar. Eliges la cuenta de todocoleccion.",
+          "La app busca una subsección válida del catálogo (ropa de segunda mano), sube fotos y crea el lote.",
+          "Aún no hay importar armario, editar ni borrar desde la app. Hace falta la extensión 1.1.46 o superior.",
         ],
       },
       {

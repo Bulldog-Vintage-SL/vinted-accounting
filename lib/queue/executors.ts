@@ -10,7 +10,7 @@ import type { Publication } from '@/app/inventory/publications/types'
 import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
-  importFacebookWardrobe, uploadFacebookItem,
+  importFacebookWardrobe, uploadFacebookItem, uploadTodocoleccionItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadFacebookItem, reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
@@ -211,6 +211,14 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
       throw new Error(`Facebook Marketplace: ${res.message}`)
     }
     return { published: true, platform: 'facebook', publication: res.data }
+  }
+  else if (account.platform === 'todocoleccion') {
+    const res = await uploadTodocoleccionItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`todocoleccion: ${res.message}`)
+    }
+    return { published: true, platform: 'todocoleccion', publication: res.data }
   }
   else if (account.platform === 'ebay') {
     const res = await uploadEbayItem(listing, account.accountId)

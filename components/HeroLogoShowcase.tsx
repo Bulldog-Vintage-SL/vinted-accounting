@@ -52,6 +52,13 @@ const FLOATING_ICONS = [
     animation: "animate-[hero-float-tilt_3.8s_ease-in-out_infinite]",
     delay: "1.3s",
   },
+  {
+    src: "/icons/todocoleccion.png",
+    alt: "todocoleccion",
+    className: "bottom-[-4%] left-1/2 -translate-x-1/2",
+    animation: "animate-[hero-float_4s_ease-in-out_infinite]",
+    delay: "1.7s",
+  },
 ] as const;
 
 function FloatingPlatformIcon({

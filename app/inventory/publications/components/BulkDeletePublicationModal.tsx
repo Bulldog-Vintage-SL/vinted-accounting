@@ -24,6 +24,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
+    todocoleccion: "todocoleccion",
 };
 
 const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios"]);

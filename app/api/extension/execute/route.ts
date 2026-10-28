@@ -78,6 +78,11 @@ import {
   buildFacebookUpdateListingSteps,
 } from "@/lib/workflows/facebook/facebook-edit-steps";
 import { buildImportFacebookInventorySteps } from "@/lib/workflows/facebook/facebook-import-steps";
+import {
+  buildSearchTodocoleccionAccountSteps,
+  buildSyncTodocoleccionAccountSteps,
+} from "@/lib/workflows/todocoleccion/todocoleccion-sync-steps";
+import { buildTodocoleccionUploadSteps } from "@/lib/workflows/todocoleccion/todocoleccion-upload-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
 
@@ -185,6 +190,10 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
     ),
   UPDATE_FACEBOOK_ITEM: (p) =>
     buildFacebookUpdateListingSteps(p.itemExternalId, p.externalId),
+
+  SEARCH_TODOCOLECCION_ACCOUNT: () => buildSearchTodocoleccionAccountSteps(),
+  SYNC_TODOCOLECCION_ACCOUNT: (p) => buildSyncTodocoleccionAccountSteps(p.externalId),
+  UPLOAD_TODOCOLECCION_ITEM: (p) => buildTodocoleccionUploadSteps(p.listing),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),
@@ -432,6 +441,22 @@ function enrichStep(step: any, payload: any) {
         ...step.request,
         photoUrl:
           payload.listing?.photo_url?.[step.request.photoIndex ?? 0],
+      },
+    }
+  }
+
+  if (step.type === "UPLOAD_TC_PHOTO") {
+    const index = step.request.photoIndex ?? 0
+    const selected = payload.listing?.photoSelection?.todocoleccion
+    const photoUrl =
+      step.request.photoUrl ||
+      (Array.isArray(selected) ? selected[index] : undefined) ||
+      payload.listing?.photo_url?.[index]
+    return {
+      ...step,
+      request: {
+        ...step.request,
+        photoUrl,
       },
     }
   }

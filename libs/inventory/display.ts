@@ -20,6 +20,7 @@ export const PLATFORM_NAMES: Record<string, string> = {
   grailed: "Grailed",
   milanuncios: "Milanuncios",
   facebook: "Facebook Marketplace",
+  todocoleccion: "todocoleccion",
   manual: "Manual",
 };
 
@@ -33,6 +34,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   grailed: "/icons/grailed.png",
   milanuncios: "/icons/milanuncios.png",
   facebook: "/icons/facebook.svg",
+  todocoleccion: "/icons/todocoleccion.png",
 };
 
 export const PLATFORM_ORDER = [
@@ -43,6 +45,7 @@ export const PLATFORM_ORDER = [
   "grailed",
   "milanuncios",
   "facebook",
+  "todocoleccion",
   "ebay",
   "shopify",
 ] as const;

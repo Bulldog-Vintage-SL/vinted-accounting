@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { CheckCircle2, XCircle, Loader2, ChevronDown, ChevronUp, RefreshCw, AlertTriangle } from "lucide-react"
-import { syncFacebookAccount, syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount } from '@/lib/external-integrations/';
+import { syncFacebookAccount, syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount, syncTodocoleccionAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast"
 import type { Job, JobStatus } from '@/lib/queue/types'
 import { Publication } from '../types'
@@ -17,10 +17,11 @@ const PLATFORM_NAMES: Record<string, string> = {
   facebook: "Facebook Marketplace",
   grailed: "Grailed",
   milanuncios: "Milanuncios",
+  todocoleccion: "todocoleccion",
   ebay: "eBay",
 }
 
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "facebook", "grailed", "milanuncios"])
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "facebook", "grailed", "milanuncios", "todocoleccion"])
 
 interface AccountGroup {
   key: string
@@ -138,6 +139,7 @@ function ReuploadPublicationProgressModal<T>({
     if (group.platform === "grailed") return syncGrailedAccount(group.external_id ?? group.accountId)
     if (group.platform === "milanuncios") return syncMilanunciosAccount(group.external_id ?? group.accountId)
     if (group.platform === "facebook") return syncFacebookAccount(group.external_id ?? group.accountId)
+    if (group.platform === "todocoleccion") return syncTodocoleccionAccount(group.external_id ?? group.accountId)
     return Promise.resolve({ ok: false, message: "Plataforma no soportada" })
   }
 

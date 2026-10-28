@@ -19,6 +19,7 @@ export default function PlatformCard({ platform, accounts }: Props) {
     grailed: "Grailed",
     milanuncios: "Milanuncios",
     facebook: "Facebook Marketplace",
+    todocoleccion: "todocoleccion",
     ebay: "eBay",
   };
 
@@ -96,6 +97,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     grailed: "/icons/grailed.png",
     milanuncios: "/icons/milanuncios.png",
     facebook: "/icons/facebook.svg",
+    todocoleccion: "/icons/todocoleccion.png",
     ebay: "/icons/ebay.svg",
     unknown: "/icons/vinted.svg",
   };

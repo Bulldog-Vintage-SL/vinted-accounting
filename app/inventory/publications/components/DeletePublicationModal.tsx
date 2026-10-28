@@ -26,6 +26,7 @@ const PLATFORM_NAMES: Record<string, string> = {
     facebook: "Facebook Marketplace",
     grailed: "Grailed",
     milanuncios: "Milanuncios",
+    todocoleccion: "todocoleccion",
     ebay: "eBay",
 };
 

@@ -12,6 +12,7 @@ import {
   searchGrailedAccount,
   searchMilanunciosAccount,
   searchFacebookAccount,
+  searchTodocoleccionAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -177,6 +178,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
               />
               <PlatformOption
                 disabled={pending}
+                loading={pendingPlatform === "todocoleccion"}
+                onClick={() => handleSelect("todocoleccion")}
+                icon="/icons/todocoleccion.png"
+                label="todocoleccion"
+              />
+              <PlatformOption
+                disabled={pending}
                 onClick={() => handleSelect("shopify")}
                 icon="/icons/shopify.svg"
                 label="Shopify"
@@ -256,6 +264,9 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "facebook") {
     return searchFacebookAccount();
+  }
+  if (platform === "todocoleccion") {
+    return searchTodocoleccionAccount();
   }
 
   return {

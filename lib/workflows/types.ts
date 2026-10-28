@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'todocoleccion'
 
 export type StepType =
   // Vinted
@@ -128,6 +128,13 @@ export type StepType =
   | 'DELETE_FB_LISTING'
   | 'GET_FB_LISTING_FOR_EDIT'
   | 'UPDATE_FB_LISTING'
+  // todocoleccion
+  | 'GET_TC_USER_ID'
+  | 'GET_TC_NEW_LOTE'
+  | 'GET_TC_SECTIONS'
+  | 'UPLOAD_TC_PHOTO'
+  | 'GET_TC_SHIPPING'
+  | 'CREATE_TC_LOTE'
 
 
 export interface WorkflowStep {
@@ -141,6 +148,7 @@ export interface WorkflowStep {
     isMultipart?: boolean
     photoIndex?: number
     photoUrl?: string
+    uploadField?: string
     extractFromDom?: string
     expectedUserId?: string
     extractTitle?: boolean
@@ -343,4 +351,20 @@ export interface WorkflowState {
   fbListingId?: string
   fbPublicationUrl?: string | null
   fbListingDetails?: any
+
+  // todocoleccion
+  tcImageKey?: string
+  tcAltaLote?: string
+  tcSectionId?: number
+  tcCsrf?: string | null
+  tcFormFields?: Record<string, string>
+  tcFormAction?: string
+  tcUploadField?: string
+  tcSubmitName?: string
+  tcSubmitValue?: string
+  tcWeightGrams?: number
+  tcShippingCost?: string
+  tcPhotos?: any[]
+  tcListingId?: string
+  tcPublicationUrl?: string
 }

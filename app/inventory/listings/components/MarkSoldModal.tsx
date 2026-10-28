@@ -70,6 +70,7 @@ const FALLBACK_PLATFORMS = [
   "depop",
   "grailed",
   "milanuncios",
+  "todocoleccion",
   "ebay",
   "shopify",
   "manual",
