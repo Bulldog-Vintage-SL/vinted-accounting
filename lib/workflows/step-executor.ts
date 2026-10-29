@@ -105,6 +105,7 @@ import {
 } from './search/normalize'
 import stringSimilarity from 'string-similarity'
 import { CONDITION_OPTIONS } from '../constants'
+import { resolveOplaCategory } from './opla/opla-upload-steps'
 
 const MAX_CHATS_PER_RUN = 40
 
@@ -122,6 +123,7 @@ const PLATFORM_LIMITS: Record<string, { title: number; description: number }> = 
   milanuncios: { title: 70, description: 4000 },
   facebook: { title: 150, description: 5000 },
   todocoleccion: { title: 80, description: 4000 },
+  opla: { title: 200, description: 10000 },
 }
 
 /**
@@ -521,6 +523,69 @@ export function processStepResult(
           request: { url: '', method: 'GET' }
         })
       }
+      break
+    }
+
+    case 'GET_OPLA_WARDROBE': {
+      const pageItems = Array.isArray(result?.articles) ? result.articles : []
+      const existingIds = new Set((s.items ?? []).map((item: any) => String(item.id)))
+      s.items = [
+        ...(s.items ?? []),
+        ...pageItems.filter((item: any) => item?.id && !existingIds.has(String(item.id))),
+      ]
+
+      const nextCursor = result?.nextCursor
+      if (typeof nextCursor === 'string' && nextCursor.trim()) {
+        s.oplaNextCursor = nextCursor
+        steps.splice(currentStep + 1, 0, {
+          id: crypto.randomUUID(),
+          type: 'GET_OPLA_WARDROBE',
+          platform: 'opla',
+          request: { url: '', method: 'GET' },
+        })
+      }
+      break
+    }
+
+    case 'GET_OPLA_PROFILE': {
+      const profile = result?.user ?? result
+      const address = profile?.address ?? {}
+      const missing = [
+        ['username', profile?.username],
+        ['firstName', profile?.firstName],
+        ['lastName', profile?.lastName],
+        ['phone', profile?.phone],
+        ['address.line1', address.line1],
+        ['address.city', address.city],
+        ['address.postalCode', address.postalCode],
+        ['address.countryCode', address.countryCode],
+      ].filter(([, value]) => !String(value ?? '').trim()).map(([key]) => key)
+      if (missing.length) {
+        throw new Error(`Completa tus datos de vendedor en Opla antes de publicar: ${missing.join(', ')}`)
+      }
+      s.oplaProfile = profile
+      break
+    }
+
+    case 'GET_OPLA_CONFIG':
+      s.oplaCategories = result?.categories ?? []
+      break
+
+    case 'GET_OPLA_BANNED_BRANDS':
+      s.oplaBannedBrands = result?.brands ?? []
+      break
+
+    case 'UPLOAD_OPLA_IMAGE':
+      if (!result?.key) throw new Error('Opla no devolvió la clave de la imagen subida.')
+      s.oplaImageKeys = [...(s.oplaImageKeys ?? []), result.key]
+      break
+
+    case 'CREATE_OPLA_ARTICLE': {
+      const article = result?.article ?? result?.data ?? result
+      const id = article?.id ?? article?.article?.id
+      if (!id) throw new Error('Opla no confirmó la creación del artículo.')
+      s.oplaArticleId = String(id)
+      s.oplaPublicationUrl = article?.url ?? `https://www.opla.co/es/product/${encodeURIComponent(String(id))}`
       break
     }
 
@@ -1349,6 +1414,45 @@ export function processStepResult(
   const next = JSON.parse(JSON.stringify(steps[nextIndex])) as WorkflowStep
 
   switch (next.type) {
+    case 'UPLOAD_OPLA_IMAGE':
+      next.request.isImageUpload = true
+      break
+
+    case 'CREATE_OPLA_ARTICLE': {
+      const listing = s.originalPayload?.listing ?? {}
+      const metadata = listing.attributes ?? {}
+      const price = Number(listing.price)
+      const condition = toOplaCondition(listing.condition ?? metadata.condition)
+      const size = metadata.size ?? listing.size
+      const sizes = Array.isArray(metadata.sizes) ? metadata.sizes : size ? [size] : []
+      const rawColors = Array.isArray(listing.colors)
+        ? listing.colors
+        : Array.isArray(metadata.colors)
+          ? metadata.colors
+          : []
+      const oplaColor = toOplaColor(rawColors[0])
+      next.request.body = {
+        title: String(listing.title ?? '').trim(),
+        description: String(listing.description ?? '').trim(),
+        category: resolveOplaCategory(listing, s.oplaCategories),
+        condition,
+        brand: metadata.brand || null,
+        priceCents: Number.isFinite(price) ? Math.round(price * 100) : 0,
+        images: s.oplaImageKeys ?? [],
+        metadata: {
+          sizes,
+          colors: oplaColor ? [oplaColor] : [],
+        },
+      }
+      const brand = String(metadata.brand ?? '').trim()
+      const banned = (s.oplaBannedBrands ?? []).find((item: any) =>
+        String(item.label ?? item.id ?? '').toLowerCase() === brand.toLowerCase()
+      )
+      if (banned) {
+        throw new Error(`La marca "${brand}" no está permitida en Opla (${banned.reason ?? 'marca restringida'}).`)
+      }
+      break
+    }
     case 'UPLOAD_FB_PHOTO':
       if (!s.fbMarketplaceId) {
         throw new Error('Facebook no devolvió el marketplace_id antes de subir las fotos.')
@@ -1444,6 +1548,14 @@ export function processStepResult(
             `https://api.wallapop.com/api/v3/user/items` +
             `?start=${s.wallaNextStart ?? 0}`
         }
+      }
+      break
+
+    case 'GET_OPLA_WARDROBE':
+      if (!next.request.url) {
+        next.request.url =
+          `https://www.opla.co/api/public/me/articles?view=summary&limit=200&includeSold=true` +
+          `&cursor=${encodeURIComponent(String(s.oplaNextCursor ?? ''))}`
       }
       break
 
@@ -2814,4 +2926,53 @@ function getVestConvTs(conv: any): number | null {
   if (Number.isFinite(max)) return max
 
   return toEpochMs(ch?.updated_at)
+}
+
+const OPLA_COLOR_MAP: Record<string, string> = {
+  'negro': 'BLACK',
+  'gris': 'GREY',
+  'blanco': 'WHITE',
+  'crema': 'CREAM',
+  'beige': 'BODY',
+  'naranja pastel': 'APRICOT',
+  'naranja': 'ORANGE',
+  'coral': 'CORAL',
+  'rojo': 'RED',
+  'burdeos': 'BURGUNDY',
+  'fucsia': 'PINK',
+  'rosa': 'ROSE',
+  'morado': 'PURPLE',
+  'lila': 'LILAC',
+  'azul claro': 'LIGHT-BLUE',
+  'azul': 'BLUE',
+  'azul marino': 'NAVY',
+  'turquesa': 'TURQUOISE',
+  'menta': 'MINT',
+  'verde': 'GREEN',
+  'verde oscuro': 'DARK-GREEN',
+  'caqui': 'KHAKI',
+  'marrón': 'BROWN',
+  'mostaza': 'MUSTARD',
+  'amarillo': 'YELLOW',
+  'plateado': 'SILVER',
+  'dorado': 'GOLD',
+  'varios': 'VARIOUS',
+  'transparente': 'CLEAR',
+}
+
+const OPLA_CONDITION_MAP: Record<string, string> = {
+  'nuevo': 'new',
+  'como nuevo': 'like-new',
+  'bueno': 'good',
+  'aceptable': 'fair',
+}
+
+function toOplaColor(value: unknown): string | null {
+  const key = String(value ?? '').trim().toLowerCase()
+  return OPLA_COLOR_MAP[key] ?? null
+}
+
+function toOplaCondition(value: unknown): string {
+  const key = String(value ?? '').trim().toLowerCase()
+  return OPLA_CONDITION_MAP[key] ?? 'good'
 }

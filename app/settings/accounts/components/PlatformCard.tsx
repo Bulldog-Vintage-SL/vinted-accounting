@@ -20,6 +20,7 @@ export default function PlatformCard({ platform, accounts }: Props) {
     milanuncios: "Milanuncios",
     facebook: "Facebook Marketplace",
     todocoleccion: "todocoleccion",
+    opla: "Opla",
     ebay: "eBay",
   };
 
@@ -98,6 +99,7 @@ function PlatformIcon({ platform }: { platform: string }) {
     milanuncios: "/icons/milanuncios.png",
     facebook: "/icons/facebook.svg",
     todocoleccion: "/icons/todocoleccion.png",
+    opla: "/icons/opla.svg",
     ebay: "/icons/ebay.svg",
     unknown: "/icons/vinted.svg",
   };

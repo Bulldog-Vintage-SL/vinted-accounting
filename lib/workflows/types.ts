@@ -2,7 +2,7 @@
   Tipos para el motor de workflows de extension, enum de plataformas y tipos de pasos, tipos de paso y estado de workflow.
 */
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'todocoleccion'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'todocoleccion' | 'opla'
 
 export type StepType =
   // Vinted
@@ -29,6 +29,12 @@ export type StepType =
   | 'GET_USER_ID'
   | 'CHECK_ACCOUNT'
   | 'GET_WARDROBE'
+  | 'GET_OPLA_WARDROBE'
+  | 'GET_OPLA_PROFILE'
+  | 'GET_OPLA_CONFIG'
+  | 'GET_OPLA_BANNED_BRANDS'
+  | 'UPLOAD_OPLA_IMAGE'
+  | 'CREATE_OPLA_ARTICLE'
   // Wallapop
   | 'GET_USER_TYPE'
   | 'GET_SUBSCRIPTIONS'
@@ -155,6 +161,8 @@ export interface WorkflowStep {
     isFormData?: boolean
     isBinaryUpload?: boolean
     isPictureUpload?: boolean
+    isImageUpload?: boolean
+    prefix?: string
     noAuth?: boolean
     headers?: Record<string, string>
     skipDelay?: boolean
@@ -196,6 +204,13 @@ export interface WorkflowState {
   email?: string
   syncStatus?: 'OK' | 'ACCOUNT_NOT_FOUND'
   items?: any[]
+  oplaNextCursor?: string
+  oplaImageKeys?: string[]
+  oplaArticleId?: string
+  oplaPublicationUrl?: string
+  oplaProfile?: any
+  oplaCategories?: any[]
+  oplaBannedBrands?: any[]
   listingLifecycleId?: string
   persistentId?: string
   searchPage?: any

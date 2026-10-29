@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useAccountSelector } from "@/hooks/useAccountSelector";
 import { useEffect, useState } from "react";
 import type { SyncStatus } from "@/app/settings/accounts/types";
-import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount, syncFacebookAccount, syncTodocoleccionAccount } from '@/lib/external-integrations'
+import { syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount, syncFacebookAccount, syncTodocoleccionAccount, syncOplaAccount } from '@/lib/external-integrations'
 import { useToast } from "@/components/toast"
 
 const PLATFORM_LOGOS: Record<string, string> = {
@@ -23,6 +23,7 @@ const PLATFORM_LOGOS: Record<string, string> = {
   milanuncios: "/icons/milanuncios.png",
   facebook: "/icons/facebook.svg",
   todocoleccion: "/icons/todocoleccion.png",
+  opla: "/icons/opla.svg",
   unknown: "/icons/default.svg",
 };
 
@@ -37,9 +38,10 @@ const PLATFORM_NAMES: Record<string, string> = {
   facebook: "Facebook Marketplace",
   todocoleccion: "todocoleccion",
   ebay: "eBay",
+  opla: "Opla",
 };
 
-const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios", "facebook", "todocoleccion", "shopify", "ebay"];
+const PLATFORM_ORDER = ["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios", "facebook", "todocoleccion", "opla", "shopify", "ebay"];
 
 // Plataformas cuyas cuentas no requieren sincronización manual (auth server-side vía OAuth/API)
 const NO_SYNC_REQUIRED = new Set(["shopify", "ebay"]);
@@ -68,6 +70,7 @@ export default function AccountSelectorModal() {
     milanuncios: (acc) => syncMilanunciosAccount(acc.external_id),
     facebook: (acc) => syncFacebookAccount(acc.external_id),
     todocoleccion: (acc) => syncTodocoleccionAccount(acc.external_id),
+    opla: (acc) => syncOplaAccount(acc.external_id),
   };
   // Nombre legible para errores
   const platformName = (platform: string) => PLATFORM_NAMES[platform] || platform;

@@ -82,6 +82,12 @@ import {
   buildSearchTodocoleccionAccountSteps,
   buildSyncTodocoleccionAccountSteps,
 } from "@/lib/workflows/todocoleccion/todocoleccion-sync-steps";
+import {
+  buildSearchOplaAccountSteps,
+  buildSyncOplaAccountSteps,
+} from "@/lib/workflows/opla/opla-sync-steps";
+import { buildImportOplaWardrobeSteps } from "@/lib/workflows/opla/opla-import-steps";
+import { buildOplaUploadSteps } from "@/lib/workflows/opla/opla-upload-steps";
 import { buildTodocoleccionUploadSteps } from "@/lib/workflows/todocoleccion/todocoleccion-upload-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
@@ -194,6 +200,10 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   SEARCH_TODOCOLECCION_ACCOUNT: () => buildSearchTodocoleccionAccountSteps(),
   SYNC_TODOCOLECCION_ACCOUNT: (p) => buildSyncTodocoleccionAccountSteps(p.externalId),
   UPLOAD_TODOCOLECCION_ITEM: (p) => buildTodocoleccionUploadSteps(p.listing),
+  SEARCH_OPLA_ACCOUNT: () => buildSearchOplaAccountSteps(),
+  SYNC_OPLA_ACCOUNT: (p) => buildSyncOplaAccountSteps(p.externalId),
+  IMPORT_OPLA_WARDROBE: () => buildImportOplaWardrobeSteps(),
+  UPLOAD_OPLA_ITEM: (p) => buildOplaUploadSteps(p.listing),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),

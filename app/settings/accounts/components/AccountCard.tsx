@@ -16,6 +16,7 @@ import {
   syncMilanunciosAccount,
   syncFacebookAccount,
   syncTodocoleccionAccount,
+  syncOplaAccount,
   syncEbayAccount,
 } from '@/lib/external-integrations';
 import { hasEbaySellAccountScope } from "@/libs/ebay/client";
@@ -45,6 +46,7 @@ export default function AccountCard({ account }: Props) {
     milanuncios: syncMilanunciosAccount,
     facebook: syncFacebookAccount,
     todocoleccion: syncTodocoleccionAccount,
+    opla: syncOplaAccount,
     ebay: () => syncEbayAccount(account.id),
   };
 
@@ -57,6 +59,7 @@ export default function AccountCard({ account }: Props) {
     milanuncios: "Milanuncios",
     facebook: "Facebook Marketplace",
     todocoleccion: "todocoleccion",
+    opla: "Opla",
     shopify: "Shopify",
     ebay: "eBay",
   };

@@ -11,6 +11,7 @@ import type { Executor, JobAction } from './types'
 import {
   importWardrobe, importWallapopWardrobe, importVestiaireWardrobe, importDepopWardrobe, importGrailedWardrobe,
   importFacebookWardrobe, uploadFacebookItem, uploadTodocoleccionItem,
+  importOplaWardrobe, uploadOplaItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
   reuploadFacebookItem, reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
@@ -108,6 +109,11 @@ const importExecutor: Executor<ImportEntity> = async (job) => {
     const res = await importFacebookWardrobe(accountId)
     if (!res?.ok) throw new Error(`Facebook Marketplace import: ${res?.message || 'Error desconocido'}`)
     return { imported: true, platform: 'facebook', data: res.data }
+  }
+  else if (platform === 'opla') {
+    const res = await importOplaWardrobe(accountId)
+    if (!res?.ok) throw new Error(`Opla import: ${res?.message || 'Error desconocido'}`)
+    return { imported: true, platform: 'opla', data: res.data }
   }
   else if (platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/import', {
@@ -219,6 +225,14 @@ const uploadExecutor: Executor<UploadEntity> = async (job) => {
       throw new Error(`todocoleccion: ${res.message}`)
     }
     return { published: true, platform: 'todocoleccion', publication: res.data }
+  }
+  else if (account.platform === 'opla') {
+    const res = await uploadOplaItem(listing, account.accountId)
+    if (isUploadFailure(res)) {
+      if (res.missingFields?.length) throw new MissingFieldsError(res.missingFields)
+      throw new Error(`Opla: ${res.message}`)
+    }
+    return { published: true, platform: 'opla', publication: res.data }
   }
   else if (account.platform === 'ebay') {
     const res = await uploadEbayItem(listing, account.accountId)

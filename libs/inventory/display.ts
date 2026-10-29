@@ -21,6 +21,7 @@ export const PLATFORM_NAMES: Record<string, string> = {
   milanuncios: "Milanuncios",
   facebook: "Facebook Marketplace",
   todocoleccion: "todocoleccion",
+  opla: "Opla",
   manual: "Manual",
 };
 
@@ -35,6 +36,7 @@ export const PLATFORM_ICONS: Record<string, string> = {
   milanuncios: "/icons/milanuncios.png",
   facebook: "/icons/facebook.svg",
   todocoleccion: "/icons/todocoleccion.png",
+  opla: "/icons/opla.svg",
 };
 
 export const PLATFORM_ORDER = [
@@ -46,6 +48,7 @@ export const PLATFORM_ORDER = [
   "milanuncios",
   "facebook",
   "todocoleccion",
+  "opla",
   "ebay",
   "shopify",
 ] as const;

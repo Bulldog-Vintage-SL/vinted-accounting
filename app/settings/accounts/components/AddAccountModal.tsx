@@ -13,6 +13,7 @@ import {
   searchMilanunciosAccount,
   searchFacebookAccount,
   searchTodocoleccionAccount,
+  searchOplaAccount,
 } from '@/lib/external-integrations';
 
 interface Props {
@@ -185,6 +186,13 @@ export default function AddAccountModal({ open, onClose }: Props) {
               />
               <PlatformOption
                 disabled={pending}
+                loading={pendingPlatform === "opla"}
+                onClick={() => handleSelect("opla")}
+                icon="/icons/opla.svg"
+                label="Opla"
+              />
+              <PlatformOption
+                disabled={pending}
                 onClick={() => handleSelect("shopify")}
                 icon="/icons/shopify.svg"
                 label="Shopify"
@@ -267,6 +275,9 @@ async function startAccountSearch(platform: string): Promise<any> {
   }
   if (platform === "todocoleccion") {
     return searchTodocoleccionAccount();
+  }
+  if (platform === "opla") {
+    return searchOplaAccount();
   }
 
   return {

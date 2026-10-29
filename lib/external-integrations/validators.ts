@@ -14,7 +14,7 @@ export class MissingFieldsError extends Error {
   }
 }
 
-export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'todocoleccion' | 'ebay' | 'shopify'
+export type Platform = 'vinted' | 'wallapop' | 'vestiaire' | 'depop' | 'grailed' | 'milanuncios' | 'facebook' | 'todocoleccion' | 'opla' | 'ebay' | 'shopify'
 
 export const VESTIAIRE_MIN_PRICE = 16
 
@@ -86,6 +86,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   milanuncios: ['title', 'description', 'price', 'photo_url', 'condition', 'item_type'],
   facebook: ['title', 'description', 'price', 'facebook_photo', 'condition'],
   todocoleccion: ['title', 'description', 'price', 'photo_url', 'condition'],
+  opla: ['title', 'description', 'price', 'photo_url', 'condition'],
   ebay: ['title', 'description', 'price', 'photo_url'],
   shopify: ['title', 'description', 'price', 'photo_url'],
 }
