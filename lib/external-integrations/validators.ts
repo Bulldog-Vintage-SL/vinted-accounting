@@ -20,6 +20,12 @@ export const VESTIAIRE_MIN_PRICE = 16
 
 type FieldValidator = (listing: any) => MissingField | null
 
+function hasText(value: unknown): boolean {
+  return typeof value === 'string'
+    ? value.trim().length > 0
+    : value !== null && value !== undefined && String(value).trim().length > 0
+}
+
 const FIELD_VALIDATORS: Record<string, FieldValidator> = {
   title: (listing) =>
     !listing?.title?.trim() ? { key: 'title', label: 'título' } : null,
@@ -45,7 +51,9 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
   },
 
   brand: (listing) =>
-    !listing?.attributes?.brand?.trim() ? { key: 'attributes.brand', label: 'marca' } : null,
+    !hasText(listing?.attributes?.brand ?? listing?.brand)
+      ? { key: 'attributes.brand', label: 'marca' }
+      : null,
 
   condition: (listing) =>
     !listing?.condition?.trim() ? { key: 'condition', label: 'condición' } : null,
@@ -56,10 +64,14 @@ const FIELD_VALIDATORS: Record<string, FieldValidator> = {
       : null,
 
   size: (listing) =>
-    !listing?.attributes?.size?.trim() ? { key: 'attributes.size', label: 'talla' } : null,
+    !hasText(listing?.attributes?.size ?? listing?.size)
+      ? { key: 'attributes.size', label: 'talla' }
+      : null,
 
   item_type: (listing) =>
-    !listing?.item_type?.trim() ? { key: 'item_type', label: 'tipo' } : null,
+    !hasText(listing?.item_type ?? listing?.itemType)
+      ? { key: 'item_type', label: 'tipo' }
+      : null,
 
   gender: (listing) =>
     !listing?.gender ? { key: 'gender', label: 'género' } : null,
@@ -86,7 +98,7 @@ const PLATFORM_REQUIRED_FIELDS: Record<Platform, (keyof typeof FIELD_VALIDATORS)
   milanuncios: ['title', 'description', 'price', 'photo_url', 'condition', 'item_type'],
   facebook: ['title', 'description', 'price', 'facebook_photo', 'condition'],
   todocoleccion: ['title', 'description', 'price', 'photo_url', 'condition'],
-  opla: ['title', 'description', 'price', 'photo_url', 'condition'],
+  opla: ['title', 'description', 'price', 'photo_url', 'condition', 'item_type', 'brand', 'size'],
   ebay: ['title', 'description', 'price', 'photo_url'],
   shopify: ['title', 'description', 'price', 'photo_url'],
 }

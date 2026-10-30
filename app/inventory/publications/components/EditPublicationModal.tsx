@@ -15,11 +15,14 @@ import {
     getWallapopItem,
     getDepopItem,
     getFacebookItem,
+    getOplaItem,
     updateVintedItem,
     updateWallapopItem,
     updateVestiaireItem,
     updateDepopItem,
     updateFacebookItem,
+    updateOplaItem,
+    syncOplaAccount,
 } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 import { Publication } from '../types';
@@ -117,6 +120,7 @@ export function EditPublicationModal({
     const isShopify = platform === "shopify";
     const isDepop = platform === "depop";
     const isFacebook = platform === "facebook";
+    const isOpla = platform === "opla";
     const isEbay = platform === "ebay";
     const isOAuthPlatform = isShopify || isEbay;
 
@@ -235,6 +239,7 @@ export function EditPublicationModal({
         if (platform === "grailed") return syncGrailedAccount(accountExternalId);
         if (platform === "milanuncios") return syncMilanunciosAccount(accountExternalId);
         if (platform === "facebook") return syncFacebookAccount(accountExternalId);
+        if (isOpla) return syncOplaAccount(accountExternalId);
         return syncVestiaireAccount(accountExternalId, accountVestiaireId);
     };
 
@@ -303,6 +308,8 @@ export function EditPublicationModal({
                     return;
                 }
                 resItem = await getDepopItem(slug);
+            } else if (isOpla) {
+                resItem = await getOplaItem(publication.external_id);
             } else if (platform === "grailed") {
                 setFields({
                     title: publication.listing?.title ?? "",
@@ -495,6 +502,12 @@ export function EditPublicationModal({
                 }
                 resUpdate = await updateDepopItem(slug, publication.id, {
                     title: fields.description.trim(),
+                    description: fields.description.trim(),
+                    price: priceNumber,
+                });
+            } else if (isOpla) {
+                resUpdate = await updateOplaItem(publication.external_id, publication.id, {
+                    title: fields.title.trim(),
                     description: fields.description.trim(),
                     price: priceNumber,
                 });

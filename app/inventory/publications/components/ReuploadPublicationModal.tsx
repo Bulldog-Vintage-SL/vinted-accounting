@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertTriangle, RefreshCw, Loader2, CheckCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { syncFacebookAccount, syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount } from '@/lib/external-integrations/';
+import { syncFacebookAccount, syncVintedAccount, syncWallapopAccount, syncVestiaireAccount, syncDepopAccount, syncGrailedAccount, syncMilanunciosAccount, syncOplaAccount } from '@/lib/external-integrations/';
 import { useToast } from "@/components/toast";
 
 interface Props {
@@ -29,10 +29,11 @@ const PLATFORM_NAMES: Record<string, string> = {
     milanuncios: "Milanuncios",
     todocoleccion: "todocoleccion",
     ebay: "eBay",
+    opla: "Opla",
 };
 
 // Resubida soportada en Vinted, Wallapop, Vestiaire, Depop, Facebook, Shopify y eBay.
-const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop", "facebook", "shopify", "ebay"]);
+const REUPLOAD_SUPPORTED = new Set(["vinted", "wallapop", "vestiaire", "depop", "facebook", "opla", "shopify", "ebay"]);
 
 // Plataformas cuya auth es server-side (OAuth) y no requieren sincronización
 // manual mediante la extensión antes de poder resubir.
@@ -90,6 +91,7 @@ export function ReuploadPublicationModal({
         if (acc.platform === "grailed") return syncGrailedAccount(acc.external_id);
         if (acc.platform === "milanuncios") return syncMilanunciosAccount(acc.external_id);
         if (acc.platform === "facebook") return syncFacebookAccount(acc.external_id);
+        if (acc.platform === "opla") return syncOplaAccount(acc.external_id);
     };
 
     const handleSync = async () => {

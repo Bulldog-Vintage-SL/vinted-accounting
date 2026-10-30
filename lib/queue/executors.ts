@@ -14,7 +14,9 @@ import {
   importOplaWardrobe, uploadOplaItem,
   uploadItem, uploadWallapopItem, uploadVestiaireItem, uploadDepopItem, uploadGrailedItem, uploadMilanunciosItem, uploadEbayItem,
   deleteFacebookItem, deleteVintedItem, deleteWallapopItem, deleteVestiaireItem, deleteDepopItem,
+  deleteOplaItem,
   reuploadFacebookItem, reuploadVintedItem, reuploadWallapopItem, reuploadVestiaireItem, reuploadDepopItem,
+  reuploadOplaItem,
   reuploadShopifyItem, reuploadEbayItem
 } from '@/lib/external-integrations'
 import {
@@ -278,6 +280,9 @@ const deletePublicationExecutor: Executor<Publication> = async (job) => {
       publication.account_id
     )
     if (!result.ok) throw new Error(result.message || 'Error en Facebook Marketplace')
+  } else if (publication.platform === 'opla') {
+    const result = await deleteOplaItem(publication.external_id, publication.id)
+    if (!result.ok) throw new Error(result.message || 'Error en Opla')
   } else if (publication.platform === 'ebay') {
     const res = await fetchWithTimeout('/api/ebay/delete-product', {
       method: 'POST',
@@ -376,6 +381,19 @@ const reuploadPublicationExecutor: Executor<Publication> = async (job) => {
       throw new Error(result.message || 'Error en Facebook Marketplace')
     }
     return { reuploaded: true, platform: 'facebook', data: result.data }
+  } else if (publication.platform === 'opla') {
+    const result = await reuploadOplaItem(
+      publication.account_id,
+      listing,
+      publication.external_id,
+      publication.id
+    )
+
+    if (isUploadFailure(result)) {
+      if (result.missingFields?.length) throw new MissingFieldsError(result.missingFields)
+      throw new Error(result.message || 'Error en Opla')
+    }
+    return { reuploaded: true, platform: 'opla', data: result.data }
   } else if (publication.platform === 'shopify') {
     const result = await reuploadShopifyItem(
       publication.account_id,

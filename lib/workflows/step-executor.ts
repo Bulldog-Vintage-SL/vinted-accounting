@@ -589,6 +589,25 @@ export function processStepResult(
       break
     }
 
+    case 'GET_OPLA_ITEM':
+      s.oplaItemRaw = result?.article ?? result?.data ?? result
+      break
+
+    case 'UPDATE_OPLA_ITEM': {
+      const article = result?.article ?? result?.data ?? result
+      const requestedId = String(s.originalPayload?.itemExternalId ?? '')
+      const returnedId = article?.id ?? article?.article?.id
+      if (returnedId != null && String(returnedId) !== requestedId) {
+        throw new Error('Opla no confirmó la actualización de la publicación solicitada.')
+      }
+      s.oplaUpdateDone = true
+      break
+    }
+
+    case 'DELETE_OPLA_ITEM':
+      s.oplaDeleteDone = true
+      break
+
     case 'GET_USER_ME': {
       s.userId = result.id
       s.accountName = result.micro_name
@@ -1450,6 +1469,19 @@ export function processStepResult(
       )
       if (banned) {
         throw new Error(`La marca "${brand}" no está permitida en Opla (${banned.reason ?? 'marca restringida'}).`)
+      }
+      break
+    }
+
+    case 'UPDATE_OPLA_ITEM': {
+      const fields = s.originalPayload?.fields
+      if (!fields) throw new Error('Opla: faltan los datos para actualizar la publicación.')
+
+      const price = Number(fields.price)
+      next.request.body = {
+        title: String(fields.title ?? '').trim(),
+        description: String(fields.description ?? '').trim(),
+        priceCents: Number.isFinite(price) ? Math.round(price * 100) : 0,
       }
       break
     }

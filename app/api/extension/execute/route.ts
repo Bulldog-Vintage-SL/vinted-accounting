@@ -88,6 +88,11 @@ import {
 } from "@/lib/workflows/opla/opla-sync-steps";
 import { buildImportOplaWardrobeSteps } from "@/lib/workflows/opla/opla-import-steps";
 import { buildOplaUploadSteps } from "@/lib/workflows/opla/opla-upload-steps";
+import {
+  buildGetOplaItemSteps,
+  buildUpdateOplaItemSteps,
+  buildDeleteOplaItemSteps,
+} from "@/lib/workflows/opla/opla-edit-steps";
 import { buildTodocoleccionUploadSteps } from "@/lib/workflows/todocoleccion/todocoleccion-upload-steps";
 import { buildSearchVintedCatalogSteps } from "@/lib/workflows/search/vinted-search-steps";
 import { buildSearchWallapopCatalogSteps } from "@/lib/workflows/search/wallapop-search-steps";
@@ -204,6 +209,9 @@ const flowBuilders: Record<string, (payload: any) => any[]> = {
   SYNC_OPLA_ACCOUNT: (p) => buildSyncOplaAccountSteps(p.externalId),
   IMPORT_OPLA_WARDROBE: () => buildImportOplaWardrobeSteps(),
   UPLOAD_OPLA_ITEM: (p) => buildOplaUploadSteps(p.listing),
+  GET_OPLA_ITEM: (p) => buildGetOplaItemSteps(p.itemExternalId),
+  UPDATE_OPLA_ITEM: (p) => buildUpdateOplaItemSteps(p.itemExternalId),
+  DELETE_OPLA_ITEM: (p) => buildDeleteOplaItemSteps(p.itemExternalId),
 
   SEARCH_VINTED_CATALOG: (p) => buildSearchVintedCatalogSteps(p),
   SEARCH_WALLAPOP_CATALOG: (p) => buildSearchWallapopCatalogSteps(p),

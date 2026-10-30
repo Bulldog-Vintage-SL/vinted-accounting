@@ -127,7 +127,7 @@ export default function AddAccountModal({ open, onClose }: Props) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
               <PlatformOption
                 disabled={pending}
                 loading={pendingPlatform === "vinted"}
@@ -225,6 +225,7 @@ function PlatformOption({
   label,
   loading,
   badge,
+  className = "",
 }: {
   disabled: boolean;
   onClick: () => void;
@@ -232,21 +233,24 @@ function PlatformOption({
   label: string;
   loading?: boolean;
   badge?: string;
+  className?: string;
 }) {
   return (
     <button
       disabled={disabled}
       onClick={onClick}
-      className="flex min-w-0 w-full items-center gap-2 sm:gap-3 p-2 sm:p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50"
+      className={`relative flex w-[calc((100%-0.5rem)/2)] sm:w-[calc((100%-2.25rem)/4)] min-w-0 min-h-[104px] flex-col items-center justify-center gap-2 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition disabled:opacity-50 ${className}`}
     >
-      <img src={icon} alt={label} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 object-contain" />
-      <span className="min-w-0 flex-1 text-left text-sm sm:text-base font-medium leading-tight text-gray-900">{label}</span>
+      <img src={icon} alt={label} className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 object-contain" />
+      <span className="w-full break-words text-center text-xs sm:text-sm font-medium leading-tight text-gray-900">
+        {label}
+      </span>
       {badge && (
-        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+        <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md">
           {badge}
         </span>
       )}
-      {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-gray-400" />}
+      {loading && <Loader2 className="absolute right-2 top-2 h-4 w-4 shrink-0 animate-spin text-gray-400" />}
     </button>
   );
 }

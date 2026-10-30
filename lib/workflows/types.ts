@@ -35,6 +35,9 @@ export type StepType =
   | 'GET_OPLA_BANNED_BRANDS'
   | 'UPLOAD_OPLA_IMAGE'
   | 'CREATE_OPLA_ARTICLE'
+  | 'GET_OPLA_ITEM'
+  | 'UPDATE_OPLA_ITEM'
+  | 'DELETE_OPLA_ITEM'
   // Wallapop
   | 'GET_USER_TYPE'
   | 'GET_SUBSCRIPTIONS'
@@ -211,6 +214,9 @@ export interface WorkflowState {
   oplaProfile?: any
   oplaCategories?: any[]
   oplaBannedBrands?: any[]
+  oplaItemRaw?: any
+  oplaUpdateDone?: boolean
+  oplaDeleteDone?: boolean
   listingLifecycleId?: string
   persistentId?: string
   searchPage?: any

@@ -13,6 +13,7 @@ import {
   syncVestiaireAccount,
   syncVintedAccount,
   syncWallapopAccount,
+  syncOplaAccount,
 } from "@/lib/external-integrations/";
 import { useQueue } from "@/hooks/useQueue";
 import { useToast } from "@/components/toast";
@@ -76,7 +77,7 @@ const FALLBACK_PLATFORMS = [
   "manual",
 ];
 
-const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios"]);
+const SYNC_REQUIRED_PLATFORMS = new Set(["vinted", "wallapop", "vestiaire", "depop", "grailed", "milanuncios", "opla"]);
 
 export function toQueuePublication(pub: MarkSoldPublication, listing: Listing): Publication {
   return {
@@ -107,6 +108,7 @@ function todayInputValue() {
 function runAccountSync(group: AccountGroup) {
   if (group.platform === "vinted") return syncVintedAccount(group.external_id ?? group.accountId);
   if (group.platform === "wallapop") return syncWallapopAccount(group.external_id ?? group.accountId);
+  if (group.platform === "opla") return syncOplaAccount(group.external_id ?? group.accountId);
   if (group.platform === "vestiaire") {
     return syncVestiaireAccount(group.external_id ?? group.accountId, group.vestiaire_id ?? null);
   }
